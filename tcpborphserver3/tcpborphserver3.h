@@ -34,7 +34,7 @@ struct tbs_raw
   struct avl_tree *r_registers;
   int r_fpga;
 
-  unsigned int *r_map;
+  void *r_map;
   unsigned int r_map_size;
 
   unsigned int r_top_register;
