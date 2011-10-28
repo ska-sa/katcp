@@ -36,12 +36,97 @@ void free_entry(void *data)
 
 /*********************************************************************/
 
+int word_write_cmd(struct katcp_dispatch *d, int argc)
+{
+  struct tbs_raw *tr;
+  struct tbs_entry *te;
+
+  unsigned int i, start, shift, j;
+  uint32_t value, prev, update, current;
+  char *name;
+
+  tr = get_mode_katcp(d, TBS_MODE_RAW);
+  if(tr == NULL){
+    return KATCP_RESULT_FAIL;
+  }
+
+  if(tr->r_fpga != TBS_FPGA_MAPPED){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "fpga not programmed");
+    return KATCP_RESULT_FAIL;
+  }
+
+  if(argc <= 3){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a register to read, followed by offset and one or more values");
+    return KATCP_RESULT_INVALID;
+  }
+
+  name = arg_string_katcp(d, 1);
+  if(name == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "register name inaccessible");
+    return KATCP_RESULT_FAIL;
+  }
+
+  te = find_data_avltree(tr->r_registers, name);
+  if(te == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "register %s not defined", name);
+    return KATCP_RESULT_FAIL;
+  }
+
+  if(!(te->e_mode & TBS_READABLE)){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "register %s is not marked readable", name);
+    return KATCP_RESULT_FAIL;
+  }
+
+  start = arg_unsigned_long_katcp(d, 2);
+  start *= 4;
+
+  if(te->e_len_base < start){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "write offset %u overruns register %s", start, name);
+    return KATCP_RESULT_FAIL;
+  }
+
+  shift = te->e_pos_offset;
+  j = te->e_pos_base + start;
+  if(shift > 0){
+    current = *((uint32_t *)(tr->r_map + j));
+    prev = current & (0xffffffff << (32 - shift));
+  } else {
+    prev = 0;
+  }
+
+  for(i = 3; i < argc; i++){
+    if(arg_null_katcp(d, i)){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "parameter %u is null", i);
+      return KATCP_RESULT_FAIL;
+    }
+
+    value = arg_unsigned_long_katcp(d, i);
+    update = prev | (value >> shift);
+
+    log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "writing 0x%x to position 0x%x", update, j);
+    *((uint32_t *)(tr->r_map + j)) = update;
+
+    prev = value << (32 - shift);
+    j += 4;
+  }
+
+  if(shift > 0){
+    current = (*((uint32_t *)(tr->r_map + j))) & (0xffffffff >> shift);
+    update = prev | current;
+    log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "writing final, partial 0x%x to position 0x%x", update, j);
+    *((uint32_t *)(tr->r_map + j)) = update;
+  }
+
+  return KATCP_RESULT_FAIL;
+}
+
 int word_read_cmd(struct katcp_dispatch *d, int argc)
 {
   struct tbs_raw *tr;
   struct tbs_entry *te;
   char *name;
-  uint32_t value;
+  uint32_t value, prev, current;
+  unsigned int length, start, i, j, shift, flags;
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
   if(tr == NULL){
@@ -75,18 +160,69 @@ int word_read_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
-  if((te->e_pos_base + 4) >= tr->r_map_size){
+  start = 0;
+  if(argc > 2){
+    start = arg_unsigned_long_katcp(d, 2);
+  }
+
+  length = 1;
+  if(argc > 3){
+    length = arg_unsigned_long_katcp(d, 3);
+  }
+
+  if((te->e_pos_base + ((start + length) * 4)) >= tr->r_map_size){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "register %s is outside mapped range", name);
     return KATCP_RESULT_FAIL;
   }
 
-  log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "attempting to read from %u, ignoring offset", te->e_pos_base);
+  if(((start + length) * 4) > te->e_len_base){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "read request extends beyond end of register %s", name);
+    return KATCP_RESULT_FAIL;
+  }
 
-  value = *((uint32_t *)(tr->r_map + te->e_pos_base));
+  if(length <= 0){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "zero read request length on register %s", name);
+    return KATCP_RESULT_FAIL;
+  }
 
   prepend_reply_katcp(d);
   append_string_katcp(d, KATCP_FLAG_STRING, KATCP_OK);
+  flags = KATCP_FLAG_XLONG;
+
+  j = te->e_pos_base + (start * 4);
+  shift = te->e_pos_offset;
+
+  log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "attempting to read %d words from fpga at 0x%x", length, j);
+
+  /* WARNING: scary logic, attempts to support reading of non-word, non-byte aligned registers, but in word amounts (!) */
+
+  if(shift > 0){
+    current = *((uint32_t *)(tr->r_map + j));
+    prev = (current << shift);
+    j += 4;
+  } else {
+    shift = 32;
+    prev = 0;
+  }
+
+  for(i = 0; i < length; i++){
+    current = *((uint32_t *)(tr->r_map + j));
+    /* WARNING: masking would be wise here, just in case sign extension happens */
+    value = (current >> (32 - shift)) | prev;
+
+    prev = (current << shift);
+    j += 4;
+    if(i + 1 >= length){
+      flags |= KATCP_FLAG_LAST;
+    }
+
+    append_hex_long_katcp(d, flags, value);
+  }
+
+#if 0
+  value = *((uint32_t *)(tr->r_map + te->e_pos_base));
   append_hex_long_katcp(d, KATCP_FLAG_LAST | KATCP_FLAG_XLONG, value);
+#endif
 
   return KATCP_RESULT_OWN;
 }
