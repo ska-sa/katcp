@@ -857,7 +857,7 @@ int write_katcl(struct katcl_line *l)
         want = la->a_end - (la->a_begin + l->l_offset);
         space = KATCL_IO_SIZE - (l->l_pending + 1);
 
-#ifdef DEBUG
+#if DEBUG>1
         fprintf(stderr, "write: arg[%u] has %u more, space is %u\n", l->l_arg, want, space);
 #endif
 
@@ -912,7 +912,7 @@ int write_katcl(struct katcl_line *l)
         l->l_arg = 0;
         l->l_buffer[l->l_pending++] = '\n';
 
-#ifdef DEBUG
+#if DEBUG > 1
         fprintf(stderr, "write: wrote out parse %p (refs %d)\n", p, p->p_refs);
 #endif
 

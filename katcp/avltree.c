@@ -80,7 +80,7 @@ int update_node_data_avltree(struct avl_node *n, void *data)
   return 0;
 }
 
-void print_avltree(struct katcp_dispatch *d, struct avl_node *n, int depth, void (*fn_print)(struct katcp_dispatch *, void *))
+void print_avltree(struct katcp_dispatch *d, struct avl_node *n, int depth, void (*fn_print)(struct katcp_dispatch *, char *key, void *))
 {
 #if 1
 #define SPACER "  "
@@ -94,7 +94,7 @@ void print_avltree(struct katcp_dispatch *d, struct avl_node *n, int depth, void
 
   fprintf(stderr,"in %s (%p) bal %d p(%p) data: (%p)\n", n->n_key, n, n->n_balance, n->n_parent, n->n_data);
   if(fn_print != NULL)
-    (*fn_print)(d, n->n_data);
+    (*fn_print)(d, n->n_key, n->n_data);
 
   for (i=0; i<depth; i++)
     fprintf(stderr,SPACER);
@@ -228,7 +228,7 @@ void *walk_data_inorder_avltree(struct avl_node *n)
   return c->n_data;
 }
 
-void print_inorder_avltree(struct katcp_dispatch *d, struct avl_node *n, void (*fn_print)(struct katcp_dispatch *d, void *data), int flags)
+void print_inorder_avltree(struct katcp_dispatch *d, struct avl_node *n, void (*fn_print)(struct katcp_dispatch *d, char *key, void *data), int flags)
 {
   struct avl_node *c;
 #if 0
@@ -283,7 +283,7 @@ void print_inorder_avltree(struct katcp_dispatch *d, struct avl_node *n, void (*
     c = pop_data_stack_katcp(s);
     if (c != NULL){
 
-#ifdef DEBUG
+#if DEBUG>2
       fprintf(stderr, "avl_tree: <%s>\n", c->n_key);
 #endif
       if (flags){
@@ -292,7 +292,7 @@ void print_inorder_avltree(struct katcp_dispatch *d, struct avl_node *n, void (*
       }
 
       if (fn_print != NULL)
-        (*fn_print)(d, c->n_data);
+        (*fn_print)(d, c->n_key, c->n_data);
 
       c = c->n_right;
 
@@ -999,7 +999,7 @@ struct avl_node *find_name_node_avltree(struct avl_tree *t, char *key)
       cmp = strcmp(key, c->n_key);
 
       if (cmp == 0){
-#if DEBUG > 0
+#if DEBUG > 1
         fprintf(stderr,"avl_tree: FOUND %s (%p)\n",c->n_key, c);
 #endif
         return c;
@@ -1013,7 +1013,7 @@ struct avl_node *find_name_node_avltree(struct avl_tree *t, char *key)
 
   } /*while*/
 
-#if DEBUG > 0 
+#if DEBUG > 1 
   fprintf(stderr,"avl_tree: NOT FOUND %s\n", key);
 #endif
 
@@ -1078,7 +1078,7 @@ void destroy_avltree(struct avl_tree *t, void (*d_free)(void *))
         c = c->n_right;
       } else {
         
-#ifdef DEBUG
+#if DEBUG >1
         fprintf(stderr,"avl_tree: del %s (%p) ", c->n_key, c->n_data);
 #endif
         dn = c;
@@ -1103,7 +1103,7 @@ void destroy_avltree(struct avl_tree *t, void (*d_free)(void *))
 
         free(dn);
 
-#ifdef DEBUG
+#if DEBUG >1
         fprintf(stderr,"avl_tree: done\n");
 #endif
       
@@ -1113,7 +1113,6 @@ void destroy_avltree(struct avl_tree *t, void (*d_free)(void *))
 
   if (t != NULL)
     free(t);
-  
 }
 
 char *gen_id_avltree(char *prefix)
@@ -1135,7 +1134,7 @@ char *gen_id_avltree(char *prefix)
       fprintf(stderr, "gen_id_avltree: done malloc %p for len: %d\n", id, len);
 #endif
     }
-    len = snprintf(id, len,"%s.%lu.%06lu", prefix,now.tv_sec, now.tv_usec);
+    len = snprintf(id, len,"%s.%lu.%06lu", prefix, now.tv_sec, now.tv_usec);
 #if 0
     def DEBUG
     fprintf(stderr, "gen_id_avltree: len: %d\n", len);

@@ -27,7 +27,10 @@ struct katcp_tobject *create_tobject_katcp(void *data, struct katcp_type *type, 
 {
   struct katcp_tobject *o;
 
+#if 0
   if (data == NULL && type == NULL)
+#endif
+  if (data == NULL)
     return NULL;
   
   o =  malloc(sizeof(struct katcp_tobject));
@@ -329,18 +332,18 @@ void print_tobject_katcp(struct katcp_dispatch *d, struct katcp_tobject *o)
 {
   struct katcp_type *t;
   if (o == NULL){
-#ifdef debug
+#ifdef DEBUG
     fprintf(stderr,"stack: null stack obj encountered ending\n");
 #endif
     return;
   }
   t = o->o_type;
-#ifdef DEBUG
+#if DEBUG >1
   fprintf(stderr, "stack: type: %p data (%p) managed flag: %d\n", o->o_type, o->o_data, o->o_man);
   //fprintf(stderr, "stack obj: %s %p %p\n",t->t_name, t, t->t_print);
 #endif
   if ((t != NULL) && (t->t_print != NULL))
-    (*t->t_print)(d, o->o_data);
+    (*t->t_print)(d, "unnamed_tobject", o->o_data);
 }
 
 void print_stack_katcp(struct katcp_dispatch *d, struct katcp_stack *s)
@@ -353,7 +356,7 @@ void print_stack_katcp(struct katcp_dispatch *d, struct katcp_stack *s)
   
   for (i=s->s_count-1; i>=0; i--){
     o = s->s_objs[i];
-#ifdef DEBUG
+#if DEBUG >1
     fprintf(stderr,"stack: [%2d] ",i);
 #endif
     print_tobject_katcp(d, o);

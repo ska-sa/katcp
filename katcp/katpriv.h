@@ -504,7 +504,7 @@ struct katcp_type {
 
   struct avl_tree *t_tree;
 
-  void (*t_print)(struct katcp_dispatch *, void *);
+  void (*t_print)(struct katcp_dispatch *, char *key, void *);
   void (*t_free)(void *);
   int  (*t_copy)(void *src, void *dest, int);
   int  (*t_compare)(const void *, const void *);
@@ -656,6 +656,8 @@ int add_args_parse_katcl(struct katcl_parse *p, int flags, char *fmt, ...);
 
 int dump_parse_katcl(struct katcl_parse *p, char *prefix, FILE *fp);
 
+int finalize_parse_katcl(struct katcl_parse *p);
+
 /* queue logic */
 #if 0
 struct katcl_parse *get_head_katcl(struct katcl_queue *q);
@@ -711,19 +713,36 @@ struct katcp_dbase {
   struct katcp_stack *d_values;
 };
 
+struct katcp_tag {
+  char *t_name;
+  int t_level;
 
-void print_string_type_katcp(struct katcp_dispatch *d, void *data);
+  void *t_tobject_root;
+  int t_tobject_count;
+};
+
+void print_string_type_katcp(struct katcp_dispatch *d, char *key, void *data);
 void destroy_string_type_katcp(void *data);
 void *parse_string_type_katcp(struct katcp_dispatch *d, char **str);
 char *getkey_dbase_type_katcp(void *data);
-void print_dbase_type_katcp(struct katcp_dispatch *d, void *data);
+void print_dbase_type_katcp(struct katcp_dispatch *d, char *key, void *data);
 void destroy_dbase_type_katcp(void *data);
 void *parse_dbase_type_katcp(struct katcp_dispatch *d, char **str);
 #if 1
-void print_dict_type_katcp(struct katcp_dispatch *d, void *data);
+void print_dict_type_katcp(struct katcp_dispatch *d, char *key, void *data);
 void destroy_dict_type_katcp(void *data);
 void *parse_dict_type_katcp(struct katcp_dispatch *d, char **str);
 #endif
+
+struct katcp_tag *create_tag_katcp(char *name, int level);
+void destroy_tag_katcp(void *data);
+void print_tag_katcp(struct katcp_dispatch *d, char *key, void *data);
+void *parse_tag_katcp(struct katcp_dispatch *d, char **str);
+int compare_tag_katcp(const void *m1, const void *m2);
+char *getkey_tag_katcp(void *data);
+int register_tag_katcp(struct katcp_dispatch *d, char *name, int level);
+
+
 /******************************************/
 
 #define KATCL_PARSE_MAGIC 0xff7f1273

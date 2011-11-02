@@ -86,6 +86,7 @@ struct katcp_url;
 #define KATCP_DICT_REQUEST    "?dict"
 #define KATCP_SET_REQUEST     "?set"
 #define KATCP_GET_REQUEST     "?get"
+#define KATCP_SEARCH_REQUEST  "?search"
 
 #define KATCP_LOG_INFORM               "#log"
 #define KATCP_DEVICE_CHANGED_INFORM    "#device-changed"
@@ -522,12 +523,14 @@ void *data_arb_katcp(struct katcp_dispatch *d, struct katcp_arb *a);
 #define KATCP_TYPE_DICT         "dict"
 #define KATCP_TYPE_SCHEMA       "schema"
 #define KATCP_TYPE_STRING       "string"
+#define KATCP_TYPE_TAG          "tag"
+
 
 struct katcp_type;
 
-int store_data_at_type_katcp(struct katcp_dispatch *d, struct katcp_type *t, int dep, char *d_name, void *d_data, void (*fn_print)(struct katcp_dispatch *, void *), void (*fn_free)(void *), int (*fn_copy)(void *, void *, int), int (*fn_compare)(const void *, const void *), void *(*fn_parse)(struct katcp_dispatch *d, char **), char *(*fn_getkey)(void *));
-int store_data_type_katcp(struct katcp_dispatch *d, char *t_name, int dep, char *d_name, void *d_data, void (*fn_print)(struct katcp_dispatch *, void *), void (*fn_free)(void *), int (*fn_copy)(void *, void *, int), int (*fn_compare)(const void *, const void *), void *(*fn_parse)(struct katcp_dispatch *d, char **), char *(*fn_getkey)(void *));
-int register_name_type_katcp(struct katcp_dispatch *d, char *name, int dep, void (*fn_print)(struct katcp_dispatch *, void *), void (*fn_free)(void *), int (*fn_copy)(void *, void *, int), int (*fn_compare)(const void *, const void *), void *(*fn_parse)(struct katcp_dispatch *d, char **), char *(*fn_getkey)(void *));
+int store_data_at_type_katcp(struct katcp_dispatch *d, struct katcp_type *t, int dep, char *d_name, void *d_data, void (*fn_print)(struct katcp_dispatch *, char *key, void *), void (*fn_free)(void *), int (*fn_copy)(void *, void *, int), int (*fn_compare)(const void *, const void *), void *(*fn_parse)(struct katcp_dispatch *d, char **), char *(*fn_getkey)(void *));
+int store_data_type_katcp(struct katcp_dispatch *d, char *t_name, int dep, char *d_name, void *d_data, void (*fn_print)(struct katcp_dispatch *, char *key, void *), void (*fn_free)(void *), int (*fn_copy)(void *, void *, int), int (*fn_compare)(const void *, const void *), void *(*fn_parse)(struct katcp_dispatch *d, char **), char *(*fn_getkey)(void *));
+int register_name_type_katcp(struct katcp_dispatch *d, char *name, int dep, void (*fn_print)(struct katcp_dispatch *, char *key, void *), void (*fn_free)(void *), int (*fn_copy)(void *, void *, int), int (*fn_compare)(const void *, const void *), void *(*fn_parse)(struct katcp_dispatch *d, char **), char *(*fn_getkey)(void *));
 int deregister_type_katcp(struct katcp_dispatch *d, char *name);
 int find_name_id_type_katcp(struct katcp_dispatch *d, char *type);
 struct katcp_type *find_name_type_katcp(struct katcp_dispatch *d, char *str);
@@ -582,7 +585,7 @@ int dbase_cmd_katcp(struct katcp_dispatch *d, int argc);
 #endif
 int get_dbase_cmd_katcp(struct katcp_dispatch *d, int argc);
 int set_dbase_cmd_katcp(struct katcp_dispatch *d, int argc);
-int store_kv_dbase_katcp(struct katcp_dispatch *d, char *key, char *schema, struct katcp_stack *values);
+int store_kv_dbase_katcp(struct katcp_dispatch *d, char *key, char *schema, struct katcp_stack *values, struct katcp_stack *tags);
 int set_dbase_katcp(struct katcp_dispatch *d, struct katcl_parse *p);
 struct katcl_parse *get_dbase_katcp(struct katcp_dispatch *d, struct katcl_parse *p);
 int get_value_count_dbase_katcp(struct katcp_dbase *db);
@@ -590,6 +593,14 @@ struct katcp_stack *get_value_stack_dbase_katcp(struct katcp_dbase *db);
 
 int dict_katcp(struct katcp_dispatch *d, struct katcl_parse *p);
 int dict_cmd_katcp(struct katcp_dispatch *d, int argc);
+
+
+/*katcp_tag*/
+struct katcp_tag;
+
+int tag_data_katcp(struct katcp_dispatch *d, struct katcp_tag *t, void *data, struct katcp_type *type);
+
+int search_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 #endif
 

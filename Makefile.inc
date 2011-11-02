@@ -6,11 +6,11 @@ KATCP ?= katcp
 
 # compiler flags 
 CFLAGS += -Wall
-#CFLAGS += -O2
+CFLAGS += -O2
 CFLAGS += -DKATCP_USE_FLOATS
 CFLAGS += -DPARANOID
 #CFLAGS += -DDEBUG=4
-#CFLAGS += -DDEBUG
+CFLAGS += -DDEBUG
 CFLAGS += -DREPORT
 CFLAGS += -ggdb
 

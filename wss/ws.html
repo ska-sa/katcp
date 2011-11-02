@@ -1,0 +1,134 @@
+<html>
+  <head>
+    <title>
+      KATCP via websockets
+    </title>
+    <script language="javascript" type="text/javascript">
+      
+      var ks;
+      
+      function katcp_websocket(msg){
+        
+        //this.socket = new WebSocket("wss://ip6-localhost:6969", "katcp");
+        //this.socket = new WebSocket("ws://localhost:7681");
+        
+
+        this.connect = function(){
+          this.socket = new WebSocket("wss://ip6-localhost:6969", "katcp");
+        };
+        
+        this.connect();
+
+        this.socket.onmessage = this.onmessage;
+        this.socket.onopen = this.onopen;
+        this.socket.onclose = this.onclose;
+        this.socket.onerror = this.onerror;
+
+        this.send = function(msg)
+        {
+          console.log("Tx: " + msg);
+          this.socket.send(msg);
+        };
+        
+        this.is_connected = function(){
+          return this.socket.readyState;
+        };
+
+        this.send_n = function(n){
+          var msg = "";
+          for (i=0;i<n;i++){
+            msg += "a";
+          }
+          this.send(msg);
+        };
+
+        console.log("in websocket: " + msg);
+      }
+
+      katcp_websocket.prototype.onmessage = function(e){
+        console.log("Received message");
+        console.log(e);
+      }
+      katcp_websocket.prototype.onopen = function(e){
+        console.log("Connection open");
+        console.log(e);
+        console.log(this);
+      }
+      katcp_websocket.prototype.onclose = function(e){
+        console.log("Connection close");
+        console.log(e);
+      }
+      katcp_websocket.prototype.onerror = function(e){
+        console.log("Error");
+        console.log(e);
+      }
+
+
+      ks = new katcp_websocket('katcp websocket');
+
+      function setup_cmd_line(cl) {
+        cl.value = "?";
+        cl.focus();
+      }
+
+      function dispatch_message(cl){
+        ks.send(cl.value);
+        setup_cmd_line(cl);
+      }
+
+      function init(){
+        console.log("running init()");
+
+        var cl = document.getElementById("cmdline");
+        
+        setup_cmd_line(cl);
+
+        cl.onkeydown = function(e) {
+          if (e.keyCode == 13) {
+            if (ks.is_connected() != 1){
+              ks.connect();
+            } else {
+              dispatch_message(cl);
+            }
+          }
+        }
+
+      }
+
+
+    </script>
+
+    <style type="text/css">
+
+      body {
+        margin: 0 0;
+        padding:2px;
+        background-color: #BAC8D1;
+      }
+
+      .text-input-box {
+        font-size: 14pt;
+        border: 0px solid #8C9AA3;
+        width:100%;
+      }
+
+      input:focus {
+        outline:none;
+      }
+
+    </style>
+  
+
+  </head>
+
+  <body onload="init()">
+    
+    <input type="text" id="cmdline" tabindex="1" class="text-input-box"/>
+    <div>
+
+    </div>
+    
+
+  </body>
+
+</html>
