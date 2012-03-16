@@ -2967,7 +2967,7 @@ int sensor_value_cmd_katcp(struct katcp_dispatch *d, int argc)
       if((name == NULL) || (!strncmp(name, sn->s_name, prefix))){
         force_acquire_katcp(d, sn);
         count++;
-      }
+      } /* else: display mode specific sensors but mark their status unknown ? */
     }
   } 
 
@@ -3759,8 +3759,8 @@ int match_sensor_status_katcp(struct katcp_dispatch *d, struct katcp_notice *n, 
   value = get_string_parse_katcl(p, 5);
 
   if((name == NULL) || 
-     (status == NULL) || 
-     (value == NULL)){
+     ((status == NULL) &&
+     (value == NULL))){
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "insufficient parameters reported by sensor status");
     return -1;
   }
@@ -3785,20 +3785,24 @@ int match_sensor_status_katcp(struct katcp_dispatch *d, struct katcp_notice *n, 
     return -1;
   }
 
-  if(scan_value_sensor_katcp(sn, value) < 0){
-    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unable to scan value %s for sensor %s", value, name);
-    return -1;
+  if(value){
+    if(scan_value_sensor_katcp(sn, value) < 0){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unable to scan value %s for sensor %s", value, name);
+      return -1;
+    }
+    log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "updated sensor %s to value %s", name, value);
   }
 
-  code = status_code_sensor_katcl(status);
-  if(code < 0){
-    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "saw bad status %s for sensor %s", status, name);
-    return 1;
+  if(status){
+    code = status_code_sensor_katcl(status);
+    if(code < 0){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "saw bad status %s for sensor %s", status, name);
+      return 1;
+    }
+    set_status_sensor_katcp(sn, code);
+    log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "updated sensor %s to status %s", name, status);
   }
 
-  set_status_sensor_katcp(sn, code);
-
-  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "updated sensor %s to value %s with status %s", name, status, value);
 
   propagate_acquire_katcp(d, a);
 

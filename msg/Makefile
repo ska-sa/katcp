@@ -7,8 +7,8 @@ CFLAGS := $(filter-out -DDEBUG,$(CFLAGS))
 INC = -I$(KATCP)
 LIB = -L$(KATCP) -lkatcp
 
-EXE = kcpcmd
-SRC = cmd.c
+EXE = kcpmsg
+SRC = msg.c
 
 OBJ = $(patsubst %.c,%.o,$(SRC))
 

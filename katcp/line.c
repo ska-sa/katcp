@@ -103,7 +103,7 @@ struct katcl_line *create_katcl(int fd)
   return l;
 }
 
-void destroy_katcl(struct katcl_line *l, int mode)
+void destroy_katcl(struct katcl_line *l, int end)
 {
   if(l == NULL){
     return;
@@ -136,7 +136,7 @@ void destroy_katcl(struct katcl_line *l, int mode)
     l->l_queue = NULL;
   }
 
-  if(mode){
+  if(end){
     if(l->l_fd >= 0){
       close(l->l_fd);
       l->l_fd = (-1);
@@ -293,7 +293,7 @@ void clear_katcl(struct katcl_line *l) /* discard a full line */
 int have_katcl(struct katcl_line *l)
 {
   if(ready_katcl(l)){
-#ifdef DEBUG
+#if DEBUG>2
     fprintf(stderr, "clearing data buffer\n");
 #endif
     clear_katcl(l);
@@ -322,13 +322,13 @@ int arg_tag_katcl(struct katcl_line *l)
   return get_tag_parse_katcl(l->l_ready);
 }
 
-static int arg_type_katcl(struct katcl_line *l, char mode)
+static int arg_type_katcl(struct katcl_line *l, char type)
 {
   if(l->l_ready == NULL){
     return -1;
   }
 
-  return is_type_parse_katcl(l->l_ready, mode);
+  return is_type_parse_katcl(l->l_ready, type);
 }
 
 int arg_request_katcl(struct katcl_line *l)
@@ -380,6 +380,15 @@ unsigned long arg_unsigned_long_katcl(struct katcl_line *l, unsigned int index)
   }
 
   return get_unsigned_long_parse_katcl(l->l_ready, index);
+}
+
+int arg_byte_bit_katcl(struct katcl_line *l, unsigned int index, struct katcl_byte_bit *b)
+{
+  if(l->l_ready == NULL){
+    return 0;
+  }
+
+  return get_byte_bit_parse_katcl(l->l_ready, index, b);
 }
 
 #ifdef KATCP_USE_FLOATS
@@ -977,7 +986,7 @@ int flushing_katcl(struct katcl_line *l)
 
   result = size_queue_katcl(l->l_queue);
 
-#if DEBUG
+#if DEBUG>2
   fprintf(stderr, "flushing: is empty returns %d\n", result);
 #endif
 

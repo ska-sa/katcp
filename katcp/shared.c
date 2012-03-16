@@ -144,6 +144,7 @@ int startup_shared_katcp(struct katcp_dispatch *d)
   }
 
   s->s_magic = SHARED_MAGIC;
+  s->s_default = KATCP_LEVEL_INFO;
 
   s->s_vector = NULL;
 
@@ -156,6 +157,7 @@ int startup_shared_katcp(struct katcp_dispatch *d)
 
   s->s_mode_sensor = NULL;
   s->s_mode = 0;
+  s->s_flaky = 0;
 
   s->s_new = 0;
   s->s_options = NULL;
@@ -179,6 +181,9 @@ int startup_shared_katcp(struct katcp_dispatch *d)
 
   s->s_queue = NULL;
   s->s_length = 0;
+
+  s->s_extras = NULL;
+  s->s_total = 0;
 
   s->s_notices = NULL;
   s->s_pending = 0;
@@ -349,6 +354,8 @@ void shutdown_shared_katcp(struct katcp_dispatch *d)
   }
 
   s->s_mode = 0;
+  s->s_flaky = 1;
+
   if(s->s_options){
     free(s->s_options);
     s->s_options = NULL;
@@ -438,6 +445,8 @@ static void release_clone(struct katcp_dispatch *d)
 #if 0
   fd = fileno_katcl(d->d_line);
 #endif
+
+  inform_client_connections_katcp(d, KATCP_CLIENT_DISCONNECT); /* will not send to itself */
 
   reset_katcp(d, -1);
 
@@ -549,6 +558,7 @@ int load_shared_katcp(struct katcp_dispatch *d)
 #endif
     switch(status){
       case KATCP_EXIT_NOTYET : /* still running */
+        /* load up read fd */
         FD_SET(fd, &(s->s_read));
         if(fd > s->s_max){
           s->s_max = fd;
@@ -556,7 +566,9 @@ int load_shared_katcp(struct katcp_dispatch *d)
         break;
 
       case KATCP_EXIT_QUIT : /* only this connection is shutting down */
+#if 0
         on_disconnect_katcp(dx, NULL);
+#endif
         break;
 
       default : /* global shutdown */
@@ -567,7 +579,9 @@ int load_shared_katcp(struct katcp_dispatch *d)
         result = (-1); /* pre shutdown mode */
         terminate_katcp(d, status); /* have the shutdown code go to template */
 
+#if 0
         on_disconnect_katcp(dx, NULL);
+#endif
 
         break;
     }
@@ -659,7 +673,9 @@ int ended_shared_katcp(struct katcp_dispatch *d)
       fprintf(stderr, "ended[%d]: unsolicted disconnect with code %d\n", i, status);
 #endif
       terminate_katcp(dx, status); /* have the shutdown code go others */
+#if 0
       on_disconnect_katcp(dx, NULL);
+#endif
     }
   }
 
@@ -1154,8 +1170,10 @@ int enter_name_mode_katcp(struct katcp_dispatch *d, char *name, char *flags)
       return enter_mode_katcp(d, i, flags);
     }
   }
-
+  
+  /* flaky not set, current mode not compromised */
   log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unknown mode %s", name);
+
   return -1;
 }
 
@@ -1169,10 +1187,13 @@ int complete_mode_katcp(struct katcp_dispatch *d, struct katcp_notice *n, void *
 
   s = d->d_shared;
 
+#if 0
+  /* WARNING: now could happen to recover from a flaky current mode */
   if(s->s_new == s->s_mode){
     log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "attempting to change to mode already changed to");
     return 0;
   }
+#endif
 
   if(s->s_vector[s->s_new].e_leave){
     (*(s->s_vector[s->s_new].e_leave))(d, s->s_new);
@@ -1184,12 +1205,15 @@ int complete_mode_katcp(struct katcp_dispatch *d, struct katcp_notice *n, void *
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "enter function for mode %u returns %d", s->s_new, result);
 
     if(result == 0){
+      s->s_flaky = 0;
       s->s_mode = s->s_new;
     } else {
+      s->s_flaky = 1;
       s->s_new = s->s_mode; /* remain in old mode */
     }
   } else {
     s->s_mode = s->s_new;
+    s->s_flaky = 0;
     result = 0;
   }
 
@@ -1202,9 +1226,9 @@ int complete_mode_katcp(struct katcp_dispatch *d, struct katcp_notice *n, void *
   if(result == 0){
     if(s->s_vector[s->s_mode].e_name){ /* broadcast mode change */
       broadcast_inform_katcp(d, "#mode", s->s_vector[s->s_mode].e_name);
-      setenv("MODE", s->s_vector[s->s_mode].e_name, 1);
+      setenv("KATCP_MODE", s->s_vector[s->s_mode].e_name, 1);
     } else {
-      unsetenv("MODE");
+      unsetenv("KATCP_MODE");
     }
     if(s->s_mode_sensor){
       set_status_sensor_katcp(s->s_mode_sensor, s->s_vector[s->s_mode].e_status);
@@ -1225,6 +1249,7 @@ int enter_mode_katcp(struct katcp_dispatch *d, unsigned int mode, char *flags)
 
   struct katcp_shared *s;
   struct katcp_dispatch *dl;
+  char *fallback;
 
   sane_shared_katcp(d);
 
@@ -1241,24 +1266,32 @@ int enter_mode_katcp(struct katcp_dispatch *d, unsigned int mode, char *flags)
   }
 
   if(mode == s->s_mode){
-    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "already in requested mode");
+    if(s->s_flaky){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "attempting to re-initialise current mode");
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "already in requested mode");
+    }
     return 0;
   }
 
-  if(s->s_options){
-    free(s->s_options);
-    s->s_options = NULL;
-  }
+  fallback = s->s_options;
+  s->s_options = NULL;
 
   if(flags){
     s->s_options = strdup(flags);
     if(s->s_options == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to duplicate mode options %s", flags);
+      s->s_options = fallback;
       return -1;
     }
   }
 
   s->s_new = mode;
+
+  if(fallback){
+    free(fallback);
+    fallback = NULL;
+  }
 
   if(s->s_vector[s->s_new].e_prep == NULL){
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "attempting immediate mode transition to %u", s->s_new);
@@ -1271,6 +1304,7 @@ int enter_mode_katcp(struct katcp_dispatch *d, unsigned int mode, char *flags)
   if(s->s_transition == NULL){
     log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "unable to prepare for transition new mode");
     s->s_new = s->s_mode;
+    s->s_flaky = 1;
     return -1;
   }
 
@@ -1281,6 +1315,7 @@ int enter_mode_katcp(struct katcp_dispatch *d, unsigned int mode, char *flags)
 
   if(add_notice_katcp(dl, s->s_transition, &complete_mode_katcp, NULL) < 0){
     log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "unable to register mode change completion handler");
+    s->s_flaky = 1;
     return -1;
   }
 

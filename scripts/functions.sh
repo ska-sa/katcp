@@ -1,12 +1,13 @@
-export CORR_CONFIG=/etc/corr/config
+export CORR_CONFIG=/etc/corr/
 export CORR_INIT_SCRIPT=/etc/init.d/corr
 export KATCP_SERVER=localhost:1235
 export CORR_MAPPING=/var/run/corr/antenna_mapping
+export MAIN_MAPPING=/var/lib/kcs/mapping
 
 kcs_check_timeout()
 {
   if [ $(date +%s) -gt $1 ] ; then
-    echo "#log error $(date +%s)000 script request\_to\_corr\_timed\_out"
+    kcpmsg -l error -s script "request to corr timed out"
     return 1
   fi
 }
@@ -20,20 +21,20 @@ kcs_index_to_input () {
 }
 
 kcs_debug () {
-  echo "#log debug $(date +%s)000 script $(echo $1 | sed -e 's/ /\\_/g')"
+  kcpmsg -l debug -s script "$1"
 }
 
 kcs_warn () {
-  echo "#log warn $(date +%s)000 script $(echo $1 | sed -e 's/ /\\_/g')"
+  kcpmsg -l warn -s script "$1"
 }
 
 kcs_error () {
-  echo "#log error $(date +%s)000 script $(echo $1 | sed -e 's/ /\\_/g')"
+  kcpmsg -l error -s script "$1"
   return 1
 }
 
 kcs_info () {
-  echo "#log info $(date +%s)000 script $(echo $1 | sed -e 's/ /\\_/g')"
+  kcpmsg -l info -s script "$1"
 }
 
 kcs_change_corr()
@@ -49,15 +50,8 @@ kcs_change_corr()
 
     kcs_debug "attempting to set config file"
 
-    if [ -e ${CORR_CONFIG}-${1} ] ; then
-      if [ -h ${CORR_CONFIG} ] ; then
-        kcs_debug "unlinking old configuration"
-        rm -f ${CORR_CONFIG}
-      fi
-      kcs_debug "updating configuration to ${CORR_CONFIG}-${1}"
-      ln -s ${CORR_CONFIG}-${1} ${CORR_CONFIG}
-    else 
-      kcs_error "no $1 configuration for corr at $${CORR_CONFIG}-${1}"
+    if [ ! -e ${CORR_CONFIG}/${1} ] ; then
+      kcs_error "no $1 configuration for corr at ${CORR_CONFIG}/${1}"
       return 1
     fi
 
@@ -86,9 +80,9 @@ kcs_corr_log () {
 }
 
 kcs_config_numeric () {
-  value=$(grep ^${1} ${CORR_CONFIG} 2> /dev/null | cut -f2 -d= | tr -d ' ' )
+  value=$(grep ^${1} ${CORR_CONFIG}/${KATCP_MODE} 2> /dev/null | cut -f2 -d= | tr -d ' ' )
   if [ -z "${value}" ] ; then
-    kcs_error "unable to locate ${1} in ${CORR_CONFIG}"
+    kcs_error "unable to locate ${1} in ${CORR_CONFIG}/${KATCP_MODE}"
   fi
 
   kcs_debug "${1} maps to ${value}"
@@ -96,55 +90,4 @@ kcs_config_numeric () {
   export $1=${value}
 }
 
-kcs_mode_sensors () {
-  if [ -n "${1}" ] ;  then
-    matching_mode=${1}
-  else
-    kcs_error "mode sensors needs to be invoked with sensor parameter"
-  fi
-
-  sensor_suffixes=("number\_of\_channels none integer 0 65536" "number\_of\_chanels none integer 0 65536" "number\_of\_channels none integer 0 65536")
-  sensor_names=(".nbc.channels.coarse" ".nbc.channels.fine" ".wbc.channels")
-  sensor_keys=(coarse_chans n_chans n_chans)
-
-  i=0
-  while [ $i -lt ${#sensor_names[*]} ] ; do 
-
-    sensor_name=${sensor_names[$i]}
-    sensor_key=${sensor_keys[$i]}
-    sensor_suffix=${sensor_suffixes[$i]}
-
-    if [ "${sensor_name:0:1}" = "." ] ; then
-      relative=${sensor_name:1}
-      mode=${relative%%.*}
-    else 
-      mode=${sensor_name%%.*}
-    fi
-
-    config=${CORR_CONFIG}-${mode}
-
-    kcs_debug "attempting to locate $sensor_key in ${config} (mode ${mode}) for ${sensor_name}"
-
-    if [ -e ${config} ] ; then
-      sensor_value=$(grep ^${sensor_key} ${config} 2> /dev/null | cut -f2 -d= | tr -d ' ' )
-      if [ -z "${sensor_value}" ] ; then
-        kcs_error "unable to locate ${sensor_key} in mode ${mode}"
-      else 
-        
-        if [ "${mode}" = "${matching_mode}" ] ; then
-          status="nominal"
-        else
-          status="unknown"
-        fi
-
-        echo "#sensor-list ${sensor_name} ${sensor_suffix}"
-        echo "#sensor-status $(date +%s)000 1 ${sensor_name} ${status} ${sensor_value}"
-      fi
-    else
-      kcs_warn "no config for ${sensor_name} in mode ${mode}" 
-    fi
-
-    i=$[i+1]
-  done
-}
 

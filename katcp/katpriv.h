@@ -24,6 +24,8 @@
 
 /***************************************************************************/
 
+struct katcl_byte_bit;
+
 struct katcl_larg{
   unsigned int a_begin;
   unsigned int a_end;
@@ -75,6 +77,8 @@ struct katcl_line{
   int l_error;
   int l_sendable;
 };
+
+/******************************************************************************/
 
 struct katcp_dispatch;
 
@@ -394,6 +398,7 @@ struct katcp_arb{
 struct katcp_shared{
   unsigned int s_magic;
   struct katcp_entry *s_vector;
+  unsigned int s_default; /* default log level */
   unsigned int s_size;
 #if 0
   unsigned int s_modal;
@@ -402,6 +407,7 @@ struct katcp_shared{
   struct katcp_cmd *s_commands;
   struct katcp_sensor *s_mode_sensor;
   unsigned int s_mode;
+  unsigned int s_flaky; /* mode transition failed, breaking the old one */
 
   unsigned int s_new;
   char *s_options;
@@ -631,7 +637,7 @@ int add_parameter_parse_katcl(struct katcl_parse *pd, int flags, struct katcl_pa
 unsigned int get_count_parse_katcl(struct katcl_parse *p);
 int get_tag_parse_katcl(struct katcl_parse *p);
 
-int is_type_parse_katcl(struct katcl_parse *p, char mode);
+int is_type_parse_katcl(struct katcl_parse *p, char type);
 int is_request_parse_katcl(struct katcl_parse *p);
 int is_reply_parse_katcl(struct katcl_parse *p);
 int is_inform_parse_katcl(struct katcl_parse *p);
@@ -641,6 +647,7 @@ char *get_string_parse_katcl(struct katcl_parse *p, unsigned int index);
 char *copy_string_parse_katcl(struct katcl_parse *p, unsigned int index);
 unsigned long get_unsigned_long_parse_katcl(struct katcl_parse *p, unsigned int index);
 long get_signed_long_parse_katcl(struct katcl_parse *p, unsigned int index);
+int get_byte_bit_parse_katcl(struct katcl_parse *p, unsigned int index, struct katcl_byte_bit *b);
 #ifdef KATCP_USE_FLOATS
 double get_double_parse_katcl(struct katcl_parse *p, unsigned int index);
 #endif
@@ -657,6 +664,9 @@ int add_args_parse_katcl(struct katcl_parse *p, int flags, char *fmt, ...);
 int dump_parse_katcl(struct katcl_parse *p, char *prefix, FILE *fp);
 
 int finalize_parse_katcl(struct katcl_parse *p);
+
+/* */
+int inform_client_connections_katcp(struct katcp_dispatch *d, char *type);
 
 /* queue logic */
 #if 0

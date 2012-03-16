@@ -4,6 +4,7 @@
 struct katcl_line;
 struct katcl_msg;
 struct katcl_parse;
+struct katcl_byte_bit;
 
 struct katcp_sensor;
 struct katcp_nonsense;
@@ -107,6 +108,9 @@ struct katcp_url;
 #define KATCP_BUILD_STATE_INFORM       "#build-state"
 #define KATCP_VERSION_INFORM           "#version"
 
+#define KATCP_CLIENT_CONNECT           "#client-connected"
+#define KATCP_CLIENT_DISCONNECT        "#client-disconnected"
+
 /******************* core api ********************/
 
 /* create a dispatch handler */
@@ -150,6 +154,7 @@ int register_katcp(struct katcp_dispatch *d, char *match, char *help, int (*call
 int register_mode_katcp(struct katcp_dispatch *d, char *match, char *help, int (*call)(struct katcp_dispatch *d, int argc), int mode);
 int register_flag_mode_katcp(struct katcp_dispatch *d, char *match, char *help, int (*call)(struct katcp_dispatch *d, int argc), int flags, int mode);
 int deregister_command_katcp(struct katcp_dispatch *d, char *match);
+int update_command_katcp(struct katcp_dispatch *d, char *match, int flags);
 
 /* invoke function run as subprocess, invoke function call in parent on its exit */ 
 pid_t spawn_child_katcp(struct katcp_dispatch *d, char *name, int (*run)(void *data), void *data, void (*call)(struct katcp_dispatch *d, int status));
@@ -186,6 +191,8 @@ int flush_katcp(struct katcp_dispatch *d);
 int write_katcp(struct katcp_dispatch *d);
 void reset_katcp(struct katcp_dispatch *d, int fd);
 
+int load_from_file_katcp(struct katcp_dispatch *d, char *file);
+
 /******************* read arguments **************/
 
 int arg_request_katcp(struct katcp_dispatch *d);
@@ -199,6 +206,7 @@ char *arg_string_katcp(struct katcp_dispatch *d, unsigned int index);
 char *arg_copy_string_katcp(struct katcp_dispatch *d, unsigned int index);
 unsigned long arg_unsigned_long_katcp(struct katcp_dispatch *d, unsigned int index);
 unsigned int arg_buffer_katcp(struct katcp_dispatch *d, unsigned int index, void *buffer, unsigned int size);
+int arg_byte_bit_katcp(struct katcp_dispatch *d, unsigned int index, struct katcl_byte_bit *b);
 #ifdef KATCP_USE_FLOATS
 double arg_double_katcp(struct katcp_dispatch *d, unsigned int index);
 #endif
@@ -540,6 +548,7 @@ void *search_type_katcp(struct katcp_dispatch *d, struct katcp_type *t, char *ke
 void *search_named_type_katcp(struct katcp_dispatch *d, char *type, char *key, void *data);
 int del_data_type_katcp(struct katcp_dispatch *d, char *type, char *key);
 void destroy_type_list_katcp(struct katcp_dispatch *d);
+void flush_type_katcp(struct katcp_type *t);
 void print_types_katcp(struct katcp_dispatch *d);
 void print_type_katcp(struct katcp_dispatch *d, struct katcp_type *t, int flags);
 

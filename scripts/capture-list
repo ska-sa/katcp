@@ -2,8 +2,16 @@
 
 source functions.sh
 
-rxip=$(grep ^rx_udp_ip ${CORR_CONFIG} | cut -f2 -d= | tr -d ' ' )
-rxport=$(grep ^rx_udp_port ${CORR_CONFIG} | cut -f2 -d= | tr -d ' ' )
+if [ -n "${KCS_CORR_RX}" ] ; then
+  rxip=${KCS_CORR_RX%:*}
+  rxport=${KCS_CORR_RX##*:}
+else
+  if [ ! -f ${CORR_CONFIG}/${KATCP_MODE} ] ; then
+    kcs_warn "no configuration for ${KATCP_MODE}"
+  fi
+  rxip=$(grep ^rx_udp_ip ${CORR_CONFIG}/${KATCP_MODE} | cut -f2 -d= | tr -d ' ' )
+  rxport=$(grep ^rx_udp_port ${CORR_CONFIG}/${KATCP_MODE} | cut -f2 -d= | tr -d ' ' )
+fi
 
 if [ -z "${rxip}" ] ; then
   rxip=unknown

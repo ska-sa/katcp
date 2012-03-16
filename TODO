@@ -7,4 +7,9 @@
       two ways: Either on tcpborphserver, or polling 
       registers from kcs itself
 
+********************************
 
+  - add timestamp to client connect
+  - maybe report disconnects too
+  - improve center frequency selection 
+  - searchable arb structures so that we can clear tgtaps on progdev

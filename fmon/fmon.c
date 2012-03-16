@@ -51,8 +51,11 @@
 
 #define FMON_INPUT_SENSORS                  7
 
-/* registers fields */
+/* register fields */
 
+#define FMON_QDRCTRL_RESET         0x00000001
+
+#define FMON_FCONTROL_CLEAR_TERMINATE  0x0010
 #define FMON_FCONTROL_CLEAR_STATUS     0x0008
 #define FMON_FCONTROL_FLASHER_EN       0x1000
 
@@ -71,6 +74,8 @@
 #define FMON_DEFAULT_INTERVAL 1000
 #define FMON_DEFAULT_TIMEOUT  5000
 
+#define FMON_INIT_PERIOD     60000
+
 /* misc */
 
 #define FMON_GOOD_DSP_CLOCK 200000000
@@ -82,7 +87,7 @@
 #define FMON_KATADC_ERR_LOW      -32.0
 
 #define FMON_KATADC_WARN_HIGH    -15.0
-#define FMON_KATADC_WARN_LOW     -30.0
+#define FMON_KATADC_WARN_LOW     -28.0
 
 volatile int run;
 
@@ -118,7 +123,7 @@ struct fmon_sensor_template input_template[FMON_INPUT_SENSORS] = {
   { "%s.fft.overrange",  "fft overrange indicator",     KATCP_SENSOR_BOOLEAN, 0, 1, 0.0, 0.0 },
   { "%s.sram.available", "sram calibrated and ready",   KATCP_SENSOR_BOOLEAN, 0, 1, 0.0, 0.0 },
   { "%s.xaui.link",      "data link up",                KATCP_SENSOR_BOOLEAN, 0, 1, 0.0, 0.0 },
-  { "%s.adc.amplitude",  "approximate input signal strength",  KATCP_SENSOR_FLOAT,   0, 0, 0.0, 65000.0},
+  { "%s.adc.raw",        "untranslated average of squared inputs",  KATCP_SENSOR_FLOAT,   0, 0, 0.0, 65000.0},
   { "%s.adc.power",      "approximate input signal strength",  KATCP_SENSOR_FLOAT,   0, 0, -81.0, 16.0}
 };
 
@@ -160,11 +165,13 @@ struct fmon_state
   char *f_symbolic;
 
   int f_board;
+  int f_fixed;
   int f_prior;
 
   int f_reprobe;
   int f_cycle;
   int f_something;
+  int f_grace; /* grace period (ms) within which initial terminated not reported */
 
   int f_fs;
   int f_xs;
@@ -226,6 +233,7 @@ void destroy_fmon(struct fmon_state *f)
   }
 
   f->f_board = (-1);
+  f->f_fixed = (-1);
   f->f_prior = (-1);
   f->f_reprobe = 0;
   f->f_fs = 0;
@@ -345,7 +353,7 @@ int populate_sensor_fmon(struct fmon_sensor *s, struct fmon_sensor_template *t, 
   return 0;
 }
 
-struct fmon_state *create_fmon(char *server, int verbose, unsigned int timeout, int reprobe)
+struct fmon_state *create_fmon(char *server, int verbose, unsigned int timeout, int reprobe, int fixed)
 {
   struct fmon_state *f;
   struct fmon_sensor *s;
@@ -374,9 +382,11 @@ struct fmon_state *create_fmon(char *server, int verbose, unsigned int timeout, 
 
   f->f_board = (-1);
   f->f_prior = (-1);
+  f->f_fixed = fixed;
 
   f->f_reprobe = reprobe;
   f->f_cycle = 0;
+  f->f_grace = 0;
 
   f->f_amplitude_acc_len = 0x10000;
   f->f_adc_scale_factor = FMON_KATADC_SCALE;
@@ -720,6 +730,7 @@ int maintain_fmon(struct fmon_state *f)
   }
 
   f->f_maintaining = 1;
+  f->f_grace = 0;
 
   if(f->f_line == NULL){
     state = STATE_CONNECT;
@@ -1251,13 +1262,18 @@ int detect_fmon(struct fmon_state *f)
     return result;
   }
 
-  if(word > FMON_MAX_BOARDS){
-    log_message_katcl(f->f_report, KATCP_LEVEL_WARN, f->f_server, "rather large board id %d reported by roach %s", word, f->f_server);
+  if(f->f_fixed >= 0){
+    f->f_board = f->f_fixed;
+    log_message_katcl(f->f_report, KATCP_LEVEL_INFO, f->f_server, "using fixed board %u rather than %d", f->f_fixed, word);
   } else {
-    log_message_katcl(f->f_report, KATCP_LEVEL_DEBUG, f->f_server, "roach %s claims board%d", f->f_server, word);
+    if(word > FMON_MAX_BOARDS){
+      log_message_katcl(f->f_report, KATCP_LEVEL_WARN, f->f_server, "rather large board id %d reported by roach %s", word, f->f_server);
+    } else {
+      log_message_katcl(f->f_report, KATCP_LEVEL_DEBUG, f->f_server, "roach %s claims board%d", f->f_server, word);
+    }
+    f->f_board = word;
   }
 
-  f->f_board = word;
 
   if(f->f_reprobe == 0){
     f->f_reprobe = 1;
@@ -1280,6 +1296,10 @@ int detect_fmon(struct fmon_state *f)
         n = &(f->f_inputs[f->f_fs]);
         n->n_rf_enabled = (word & 0x80000000) ? 1 : 0;
         n->n_rf_gain = 20.0 - (word & 0x3f) * 0.5;
+#if 0
+        /* wrong alternative: applies only if values are inverted */
+        n->n_rf_gain = -11.5 + (word & 0x3f) * 0.5;
+#endif 
 
         f->f_fs++;
       }
@@ -1299,7 +1319,7 @@ int detect_fmon(struct fmon_state *f)
 
   log_message_katcl(f->f_report, KATCP_LEVEL_DEBUG, f->f_server, "board contains %d fengines and %d xengines", f->f_fs, f->f_xs);
 
-  if(f->f_board > 0){
+  if((f->f_board > 0) || (f->f_fixed >= 0)){
     f->f_prior = f->f_board;
     return 0;
   } 
@@ -1355,6 +1375,7 @@ int update_sensor_status_fmon(struct fmon_state *f, struct fmon_sensor *s, unsig
 int update_sensor_fmon(struct fmon_state *f, struct fmon_sensor *s, int value, unsigned int status)
 {
   int change;
+  char *str;
 
   change = 0;
 
@@ -1368,6 +1389,16 @@ int update_sensor_fmon(struct fmon_state *f, struct fmon_sensor *s, int value, u
   }
 
   if(value != s->s_value){
+    switch(value){
+      case KATCP_STATUS_ERROR : 
+      case KATCP_STATUS_WARN  : 
+        str = name_status_sensor_katcl(value);
+        if(str == NULL){
+          str = "broken";
+        }
+        log_message_katcl(f->f_report, KATCP_LEVEL_DEBUG, f->f_server, "sensor %s now has status %s", s->s_name, str);
+      break;
+    }
     s->s_value = value;
     change++;
   }
@@ -1484,7 +1515,7 @@ int check_fengine_status(struct fmon_state *f, struct fmon_input *n, char *name)
     value_adc       = 1;
     status_adc      = KATCP_STATUS_UNKNOWN;
 
-    value_disabled  = 1;
+    value_disabled  = 0;
     status_disabled = KATCP_STATUS_UNKNOWN;
 
     value_fft       = 1;
@@ -1495,6 +1526,7 @@ int check_fengine_status(struct fmon_state *f, struct fmon_input *n, char *name)
 
     value_xaui      = 0;
     status_xaui     = KATCP_STATUS_UNKNOWN;
+    f->f_grace      = 0;
   } else {
 #ifdef DEBUG
     fprintf(stderr, "got status 0x%08x from %s\n", word, n->n_label);
@@ -1503,7 +1535,20 @@ int check_fengine_status(struct fmon_state *f, struct fmon_input *n, char *name)
     status_adc      = value_adc ? KATCP_STATUS_ERROR : KATCP_STATUS_NOMINAL;
 
     value_disabled  = (word & FMON_FSTATUS_ADC_DISABLED) ? 1 : 0;
-    status_disabled = value_disabled ? KATCP_STATUS_ERROR : KATCP_STATUS_NOMINAL;
+    if(value_disabled){
+      if(f->f_grace <= FMON_INIT_PERIOD){
+        status_disabled = KATCP_STATUS_UNKNOWN;
+      } else {
+        status_disabled = KATCP_STATUS_ERROR;
+      }
+    } else {
+      status_disabled = KATCP_STATUS_NOMINAL;
+      f->f_grace      = FMON_INIT_PERIOD;
+    }
+
+#ifdef DEBUG
+    fprintf(stderr, "disabled=%d, status=%d, grace=%d\n", value_disabled, status_disabled, f->f_grace);
+#endif
 
     value_fft       = (word & FMON_FSTATUS_FFT_OVERRANGE) ? 1 : 0;
     status_fft      = value_fft ? KATCP_STATUS_ERROR : KATCP_STATUS_NOMINAL;
@@ -1519,6 +1564,17 @@ int check_fengine_status(struct fmon_state *f, struct fmon_input *n, char *name)
     }
   }
 
+  if(status_sram == KATCP_STATUS_ERROR){
+    log_message_katcl(f->f_report, KATCP_LEVEL_WARN, f->f_server, "qdr not synchronised, attempting reset");
+
+    word = FMON_QDRCTRL_RESET;
+    if(write_word_fmon(f, "qdr0_ctrl", word)){
+      log_message_katcl(f->f_report, KATCP_LEVEL_ERROR, f->f_server, "unable to reset qdr");
+      return -1;
+    }
+
+  }
+
   update_sensor_fmon(f, sensor_adc,      value_adc,      status_adc);
   update_sensor_fmon(f, sensor_disabled, value_disabled, status_disabled);
   update_sensor_fmon(f, sensor_fft,      value_fft,      status_fft);
@@ -1531,7 +1587,7 @@ int check_fengine_status(struct fmon_state *f, struct fmon_input *n, char *name)
 int check_fengine_amplitude(struct fmon_state *f, struct fmon_input *n, char *name)
 {
   uint32_t word;
-  double result, dbm, fixed;
+  double result, dbm, corrected, plain;
   struct fmon_sensor *raw, *pow;
   unsigned int value;
   int status;
@@ -1546,38 +1602,44 @@ int check_fengine_amplitude(struct fmon_state *f, struct fmon_input *n, char *na
 
   value = word;
 
-  result = sqrt((double)value / ((double)f->f_amplitude_acc_len)) * f->f_adc_scale_factor;
+  plain = sqrt((double)value / ((double)f->f_amplitude_acc_len));
+
+  result = plain * f->f_adc_scale_factor;
 
   dbm = 10.0 * log10(result * result / 50.0 * 1000.0);
 
 #ifdef DEBUG
-  fprintf(stderr, "raw value 0x%x (%f, %d) -> %f (%f - %f)\n", value, f->f_adc_scale_factor, f->f_amplitude_acc_len, result, dbm, n->n_rf_gain);
+  fprintf(stderr, "raw value 0x%x (/%d) -> %f (*%f) -> %f -> %f (-%f)\n", 
+  value, f->f_amplitude_acc_len, 
+  plain, f->f_adc_scale_factor, 
+  result, 
+  dbm, n->n_rf_gain);
 #endif
 
-  update_sensor_double_fmon(f, raw, result, KATCP_STATUS_NOMINAL);
+  update_sensor_double_fmon(f, raw, plain, KATCP_STATUS_NOMINAL);
 
   if(n->n_rf_enabled){
 
-    fixed = dbm - n->n_rf_gain;
+    corrected = dbm - n->n_rf_gain;
     status = KATCP_STATUS_NOMINAL;
 
-    if(fixed > FMON_KATADC_WARN_HIGH){
-      if(fixed > FMON_KATADC_ERR_HIGH){
+    if(corrected > FMON_KATADC_WARN_HIGH){
+      if(corrected > FMON_KATADC_ERR_HIGH){
         status = KATCP_STATUS_ERROR;
       } else {
         status = KATCP_STATUS_WARN;
       }
     }
 
-    if(fixed < FMON_KATADC_WARN_LOW){
-      if(fixed < FMON_KATADC_ERR_LOW){
+    if(corrected < FMON_KATADC_WARN_LOW){
+      if(corrected < FMON_KATADC_ERR_LOW){
         status = KATCP_STATUS_ERROR;
       } else {
         status = KATCP_STATUS_WARN;
       }
     }
 
-    update_sensor_double_fmon(f, pow, fixed, status);
+    update_sensor_double_fmon(f, pow, corrected, status);
 
   } else {
     update_sensor_double_fmon(f, pow, FMON_KATADC_ERR_HIGH, KATCP_STATUS_UNKNOWN);
@@ -1645,7 +1707,7 @@ int check_all_inputs_fmon(struct fmon_state *f)
   }
 
   if(f->f_dirty){
-    log_message_katcl(f->f_report, KATCP_LEVEL_DEBUG, f->f_server, "clearing status bits");
+    log_message_katcl(f->f_report, KATCP_LEVEL_TRACE, f->f_server, "clearing status bits");
     clear_control_fmon(f);
   }
 
@@ -1699,15 +1761,13 @@ int check_adc_clock_fmon(struct fmon_state *f)
 
 void usage(char *app)
 {
-  printf("usage: %s [-t timeout] [-s server] [-h] [-r] [-l] [-v] [-q] commands\n", app);
+  printf("usage: %s [-t timeout] [-s server] [-h] [-r] [-l] [-v] [-q] [-b id] [server [id]]\n", app);
   printf("\n");
 
   printf("-h                this help\n");
   printf("-v                increase verbosity\n");
   printf("-q                operate quietly\n");
-#if 0
-  printf("-e                board number\n");
-#endif
+  printf("-b                fix board number rather than autodetect\n");
 
   printf("-s server:port    select the server to contact\n");
   printf("-t milliseconds   command timeout in ms\n");
@@ -1725,19 +1785,22 @@ void usage(char *app)
 
 int main(int argc, char **argv)
 {
-  int i, j, c;
+  int i, j, c, g;
   char *app, *server;
   int verbose, interval, reprobe;
   struct fmon_state *f;
   unsigned int timeout;
   struct sigaction sag;
+  unsigned int fixed;
 
   verbose = 1;
   i = j = 1;
+  g = 0;
   app = "fmon";
   timeout = 0;
   interval = 0;
   reprobe = (-1);
+  fixed = (-1);
 
   if(strncmp(argv[0], "roach", 5) == 0){
     server = argv[0];
@@ -1818,11 +1881,9 @@ int main(int argc, char **argv)
             case 'r' :
               reprobe = atoi(argv[i] + j);
               break;
-#if 0
-            case 'e' :
-              board = atoi(argv[i] + j);
+            case 'b' :
+              fixed = atoi(argv[i] + j);
               break;
-#endif
           }
 
           i++;
@@ -1842,8 +1903,19 @@ int main(int argc, char **argv)
           return 2;
       }
     } else {
-      server = argv[i];
+      switch(g){
+        case 0 :
+          server = argv[i];
+          break;
+        case 1 :
+          fixed = atoi(argv[i]);
+          break;
+        default :
+          fprintf(stderr, "%s: execess parameter %s\n", app, argv[i]);
+          return 2;
+      }
       i++;
+      g++;
     }
   }
 
@@ -1870,7 +1942,7 @@ int main(int argc, char **argv)
     timeout = FMON_DEFAULT_TIMEOUT;
   }
 
-  f = create_fmon(server, verbose, timeout, reprobe);
+  f = create_fmon(server, verbose, timeout, reprobe, fixed);
   if(f == NULL){
     fprintf(stderr, "%s: unable to allocate monitoring state\n", app);
     return 2;
@@ -1896,6 +1968,10 @@ int main(int argc, char **argv)
 
     if(catchup_fmon(f, interval) < 0){
       run = 0;
+    }
+
+    if(f->f_grace <= FMON_INIT_PERIOD){
+      f->f_grace += interval;
     }
   }
 

@@ -7,6 +7,7 @@
 #include <errno.h>
 
 #include "katpriv.h"
+#include "katcl.h"
 #include "katcp.h"
 
 #define PARSE_MAGIC 0xff7f1273
@@ -662,13 +663,13 @@ int get_tag_parse_katcl(struct katcl_parse *p)
   return p->p_tag;
 }
 
-int is_type_parse_katcl(struct katcl_parse *p, char mode)
+int is_type_parse_katcl(struct katcl_parse *p, char type)
 {
   if(p->p_got <= 0){
     return 0;
   }
 
-  if(p->p_buffer[p->p_args[0].a_begin] == mode){
+  if(p->p_buffer[p->p_args[0].a_begin] == type){
     return 1;
   }
 
@@ -760,6 +761,50 @@ long get_signed_long_parse_katcl(struct katcl_parse *p, unsigned int index)
   return value;
 }
 
+int get_byte_bit_parse_katcl(struct katcl_parse *p, unsigned int index, struct katcl_byte_bit *b)
+{
+  char *string, *end;
+#if 0
+  unsigned int extra;
+#endif
+
+  if(b == NULL){
+    return -1;
+  }
+
+  b->b_bit = 0;
+  b->b_byte = 0;
+
+  string = get_string_parse_katcl(p, index);
+  if(string == NULL){
+    return -1;
+  }
+
+  if(string[0] != ':'){
+    b->b_byte = strtoul(string, &end, 0);
+    if(end[0] == ':'){
+      string = end;
+    }
+  } else {
+    b->b_byte = 0;
+  }
+
+  if(string[0] == ':'){
+    b->b_bit = strtoul(string + 1, NULL, 0);
+  } else {
+    b->b_bit = 0;
+  }
+
+  /* WARNING: relies on other code to make sure bit is within reasonable range */
+
+#if 0 /* insufficient, use normalisation functions elsewhere */
+  b->b_byte += (extra / 32) * 4;
+  b->b_bit   = extra % 32;
+#endif
+
+  return 0;
+}
+
 #ifdef KATCP_USE_FLOATS
 double get_double_parse_katcl(struct katcl_parse *p, unsigned int index)
 {
@@ -828,7 +873,7 @@ static int stash_remainder_parse_katcl(struct katcl_parse *p, char *buffer, unsi
 
   sane_parse_katcl(p);
 
-#ifdef DEBUG
+#if DEBUG>2
   fprintf(stderr, "stashing %u bytes starting with <%c...> for next line\n", len, buffer[0]);
 #endif
   
@@ -895,7 +940,7 @@ int parse_katcl(struct katcl_line *l) /* transform buffer -> args */
   struct katcl_parse *p;
 
   p = l->l_next;
-#ifdef DEBUG
+#if DEBUG>2
   if(p == NULL){
     fprintf(stderr, "logic failure: expected a valid next entry in parse\n");
     abort();
