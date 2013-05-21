@@ -26,8 +26,6 @@
 #include "katcl.h"
 #include "katpriv.h"
 
-#define DEBUG
-
 #define ITEM_STAY              0x0
 #define ITEM_OK                0x1
 #define ITEM_FAIL              0x2
@@ -45,7 +43,9 @@
 #define NAME                "xport"
 
 #define DEFAULT_PORT         10001
-#define DEFAULT_WAIT            10
+
+#define DEFAULT_TOTAL          300
+#define DEFAULT_TIMEOUT          3
 
 #define ADD_READ               0x1
 #define ADD_WRITE              0x2
@@ -92,6 +92,10 @@ struct item{
 
   int i_tag;
 };
+
+/*********************************************************************/
+
+static char *item_names[4] = { "current", "next", "fail", "alternative" };
 
 /*********************************************************************/
 /* setup routines ****************************************************/
@@ -266,7 +270,7 @@ int issue_write(struct state *ss, unsigned int address, unsigned int value)
   char buffer[5];
   int wr;
 
-  buffer[0] = 0x01;
+  buffer[0] = 0x02;
   buffer[1] = address & 0xff;
   buffer[2] = (address >> 8) & 0xff;
   buffer[3] = value & 0xff;
@@ -336,6 +340,12 @@ void trim_buffer(struct state *ss)
   ss->s_done = 0;
 }
 
+void discard_buffer(struct state *ss)
+{
+  ss->s_have = 0;
+  ss->s_done = 0;
+}
+
 int load_buffer(struct state *ss, int force)
 {
   int result;
@@ -379,20 +389,16 @@ int find_ping_reply(struct state *ss)
 
   while(ss->s_done < ss->s_have){
     if(ss->s_buffer[ss->s_done] == 0x8){
+      ss->s_done++;
       trim_buffer(ss);
-      if(ss->s_have >= 3){
-        ss->s_done = 1;
-        return 0;
-      } else {
-        return 1;
-      }
+      return 1;
     } else {
       discard--;
     }
     ss->s_done++;
   }
 
-  return (discard == 0) ? 1 : discard;
+  return discard;
 }
 
 int find_read_reply(struct state *ss)
@@ -410,9 +416,9 @@ int find_read_reply(struct state *ss)
       if(ss->s_have >= 3){
         ss->s_value = (ss->s_buffer[1]) + (ss->s_buffer[2] * 256);
         ss->s_done = 3;
-        return 0;
-      } else {
         return 1;
+      } else {
+        return 0;
       }
     } else {
       discard--;
@@ -420,7 +426,30 @@ int find_read_reply(struct state *ss)
     ss->s_done++;
   }
 
-  return (discard == 0) ? 1 : discard;
+  return discard;
+}
+
+int find_write_reply(struct state *ss)
+{
+  int discard;
+  discard = 0;
+
+#ifdef DEBUG
+  fprintf(stderr, "looking for write ok: done=%u, have=%u\n", ss->s_done, ss->s_have);
+#endif
+
+  while(ss->s_done < ss->s_have){
+    if(ss->s_buffer[ss->s_done] == 0x1){
+      ss->s_done++;
+      trim_buffer(ss);
+      return 1;
+    } else {
+      discard--;
+    }
+    ss->s_done++;
+  }
+
+  return discard;
 }
 
 void clear_io_state(struct state *ss)
@@ -467,11 +496,13 @@ int setup_network_item(struct state *ss, int tag)
   ss->s_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 #else
   ss->s_fd = socket(AF_INET, SOCK_STREAM, 0);
-  flags = fcntl(fd, F_GETFL, NULL);
+  flags = fcntl(ss->s_fd, F_GETFL, NULL);
   if(flags >= 0){
-    flags = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    flags = fcntl(ss->s_fd, F_SETFL, flags | O_NONBLOCK);
   }
 #endif
+
+  log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "about to connect to roach %s", ss->s_name);
 
   if(ss->s_fd < 0){
     sync_message_katcl(ss->s_up, KATCP_LEVEL_ERROR, NAME, "unable to allocate a socket: %s", strerror(errno));
@@ -502,6 +533,7 @@ int complete_network_item(struct state *ss, int tag)
   int code, result;
 
   if(ss->s_fd < 0){
+    log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "no valid file descriptor to complete connect");
     return ITEM_FAIL;
   }
   
@@ -516,17 +548,25 @@ int complete_network_item(struct state *ss, int tag)
   result = getsockopt(ss->s_fd, SOL_SOCKET, SO_ERROR, &code, &len);
 
   if(result != 0){
+    log_message_katcl(ss->s_up, KATCP_LEVEL_WARN, NAME, "unable to retrieve connect status code");
     return ITEM_FAIL;
   }
 
   switch(code){
     case 0 :
       log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "async connect to %s succeeded", ss->s_name);
+
+      result = load_buffer(ss, 0);
+      if(result < 0){
+        return ITEM_FAIL;
+      }
+      discard_buffer(ss);
+
       return ITEM_OK;
 
     case EINPROGRESS : 
       log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "still waiting for async connect to complete");
-      set_timeout(ss, 4, 0, ITEM_FAIL);
+      set_timeout(ss, DEFAULT_TIMEOUT, 0, ITEM_FAIL);
       add_fd(ss, ss->s_fd, ADD_WRITE);
       return ITEM_STAY;
 
@@ -544,6 +584,8 @@ int request_ping_item(struct state *ss, int tag)
     return ITEM_FAIL;
   }
 
+  log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "about to ping roach %s", ss->s_name);
+
   result = issue_ping(ss);
   if(result < 0){
     log_message_katcl(ss->s_up, KATCP_LEVEL_ERROR, NAME, "write to %s failed: %s", ss->s_name, strerror(errno));
@@ -551,12 +593,13 @@ int request_ping_item(struct state *ss, int tag)
   }
 
   if(result > 0){
+    log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "%s not yet ready", ss->s_name);
     add_fd(ss, ss->s_fd, ADD_WRITE);
     return ITEM_STAY;
   }
 
 #if 0
-  set_timeout(ss, 3, 0, ITEM_FAIL);
+  set_timeout(ss, DEFAULT_TIMEOUT, 0, ITEM_FAIL);
   add_fd(ss, ss->s_fd, ADD_READ);
 #endif
 
@@ -572,27 +615,34 @@ int decode_ping_item(struct state *ss, int tag)
     return ITEM_FAIL;
   }
 
-  set_timeout(ss, 3, 0, ITEM_FAIL);
+  set_timeout(ss, DEFAULT_TIMEOUT, 0, ITEM_FAIL);
 
+#if 0
   if(result == 0){ /* no bytes available */
     add_fd(ss, ss->s_fd, ADD_READ);
     return ITEM_STAY;
   }
+#endif
 
   result = find_ping_reply(ss);
-  if(result != 0){
+  if(result <= 0){
     if(result < 0){
-      log_message_katcl(ss->s_up, KATCP_LEVEL_ERROR, NAME, "discarding %d bytes ahead of ping", result * (-1));
+      log_message_katcl(ss->s_up, KATCP_LEVEL_WARN, NAME, "discarding %d bytes ahead of ping", result * (-1));
     }
     add_fd(ss, ss->s_fd, ADD_READ);
     return ITEM_STAY;
   }
+
+  log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "got ping reply from roach %s", ss->s_name);
+  clear_io_state(ss);
 
   return ITEM_OK;
 }
 
 int reset_item(struct state *ss, int tag)
 {
+  log_message_katcl(ss->s_up, KATCP_LEVEL_TRACE, NAME, "restarting logic for roach %s", ss->s_name);
+
   if(ss->s_fd >= 0){
     close(ss->s_fd);
     ss->s_fd = (-1);
@@ -615,6 +665,8 @@ int request_read_item(struct state *ss, int tag)
   if(ss->s_fd < 0){
     return ITEM_FAIL;
   }
+
+  log_message_katcl(ss->s_up, KATCP_LEVEL_TRACE, NAME, "attempting to read power status of roach %s", ss->s_name);
 
   result = issue_read(ss, tag);
   if(result < 0){
@@ -640,16 +692,18 @@ int decode_powerstatus_item(struct state *ss, int tag)
     return ITEM_FAIL;
   }
 
+#if 0
   if(result == 0){ /* no bytes available */
     add_fd(ss, ss->s_fd, ADD_READ);
     return ITEM_STAY;
   }
+#endif
 
   result = find_read_reply(ss);
 #ifdef DEBUG
-    fprintf(stderr, "read reply is %d", result);
+    fprintf(stderr, "read reply is %d\n", result);
 #endif
-  if(result != 0){
+  if(result <= 0){
     add_fd(ss, ss->s_fd, ADD_READ);
     return ITEM_STAY;
   }
@@ -660,7 +714,9 @@ int decode_powerstatus_item(struct state *ss, int tag)
     return ITEM_FAIL;
   }
 
+
   value = ss->s_value;
+  clear_io_state(ss);
 
   log_message_katcl(ss->s_up, KATCP_LEVEL_TRACE, NAME, "powerstate value is 0x%04x", value);
 
@@ -678,7 +734,95 @@ int decode_powerstatus_item(struct state *ss, int tag)
     }
   }
 
+
+  return ITEM_OK;
+}
+
+int turn_on_item(struct state *ss, int tag)
+{
+  if(ss->s_fd < 0){
+    return ITEM_FAIL;
+  }
+
+
+  if(ss->s_power == POWER_ON){
+    log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "roach %s seems powered on", ss->s_name);
+    return ITEM_ALT;
+  }
+
+  log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "attempting to power on roach %s", ss->s_name);
+
+  if(issue_write(ss, REGISTER_POWERUP, 0xffff) < 0){
+    ss->s_power = POWER_NA; /* invalidate, force later checks */
+    log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "turning on roach %s", ss->s_name);
+    return ITEM_FAIL; 
+  }
+
+  return ITEM_OK;
+}
+
+int turn_off_item(struct state *ss, int tag)
+{
+  if(ss->s_fd < 0){
+    return ITEM_FAIL;
+  }
+
+
+  if(ss->s_power == POWER_OFF){
+    log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "roach %s seems powered off", ss->s_name);
+    return ITEM_ALT;
+  }
+
+  log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "attempting to power down roach %s", ss->s_name);
+
+  if(issue_write(ss, REGISTER_POWERDOWN, 0xffff) < 0){
+    ss->s_power = POWER_NA; /* invalidate, force later checks */
+    log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "turning off roach %s", ss->s_name);
+    return ITEM_FAIL; 
+  }
+
+  return ITEM_OK;
+}
+
+int complete_write_item(struct state *ss, int tag)
+{
+  int result;
+
+  result = load_buffer(ss, 0);
+  if(result < 0){
+    return ITEM_FAIL;
+  }
+
+  set_timeout(ss, DEFAULT_TIMEOUT, 0, ITEM_FAIL);
+
+  result = find_write_reply(ss);
+  if(result <= 0){
+    if(result < 0){
+      log_message_katcl(ss->s_up, KATCP_LEVEL_WARN, NAME, "discarding %d bytes ahead of write reply", result * (-1));
+    }
+    add_fd(ss, ss->s_fd, ADD_READ);
+    return ITEM_STAY;
+  }
+
+  log_message_katcl(ss->s_up, KATCP_LEVEL_TRACE, NAME, "write to %s completed", ss->s_name);
+
   clear_io_state(ss);
+
+  return ITEM_OK;
+}
+
+int sleep_item(struct state *ss, int tag)
+{
+  if(tag > 0){
+
+#if 0
+    /* never stops ... */
+    log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "pausing logic for %s for %d seconds", ss->s_name, tag);
+#endif
+
+    set_timeout(ss, tag, 0, ITEM_OK);
+    return ITEM_STAY;
+  }
 
   return ITEM_OK;
 }
@@ -690,8 +834,12 @@ void usage(char *app)
 {
   printf("usage: %s [flags] xport\n", app);
   printf("-h                 this help\n");
+  printf("-t seconds         length of time to retry executing command in case of failure");
+
+#if 0
   printf("-v                 increase verbosity\n");
   printf("-q                 run quietly\n");
+#endif
 
   printf("-U                 power up\n");
   printf("-Q                 query power status\n");
@@ -700,27 +848,54 @@ void usage(char *app)
   printf("return codes:\n");
   printf("0     command completed successfully\n");
   printf("1     command failed\n");
-  printf("3     network problems\n");
   printf("2     usage problems\n");
+  printf("3     network problems\n");
   printf("4     internal errors\n");
 }
 
-struct item poweron_table[7] = {
-  { setup_network_item,       2, 0, 0, 0 },
-  { reset_item,               0, 0, 0, 0 },
-  { complete_network_item,    3, 1, 0, 0 }, 
-  { request_ping_item,        4, 1, 0, 0 }, 
-  { decode_ping_item,         5, 1, 0, 0 }, 
-  { request_read_item,        6, 0, 0, REGISTER_POWERSTATE },
-  { decode_powerstatus_item, -1, 0, 0, 0 }
+struct item poweron_table[11] = {
+  { setup_network_item,       2,  0,  0,  0 },   /* 0 */
+  { reset_item,               0,  0,  0,  0 },   /* 1 */  
+  { complete_network_item,    3,  1,  0,  0 },   /* 2 */ 
+  { request_ping_item,        4,  1,  0,  0 },   /* 3 */
+  { decode_ping_item,         5,  1,  0,  0 },   /* 4 */
+  { request_read_item,        6,  1,  0,  REGISTER_POWERSTATE }, /* 5 */
+  { decode_powerstatus_item,  7,  1,  0,  0 },   /* 6 */
+  { turn_on_item,             8,  1, 10,  0 },   /* 7 */
+  { complete_write_item,      9,  1,  0,  0 },   /* 8 */
+  { sleep_item,               5,  1,  0,  5 },   /* 9 - poll pause, wait, then retry */
+  { sleep_item,              -1,  1,  0, 45 }   /* 10 - final pause, bit of time to boot up */
+};
+
+struct item powerdown_table[9] = {
+  { setup_network_item,       2,  0,  0,  0 },   /* 0 */
+  { reset_item,               0,  0,  0,  0 },   /* 1 */  
+  { complete_network_item,    3,  1,  0,  0 },   /* 2 */ 
+  { request_ping_item,        4,  1,  0,  0 },   /* 3 */
+  { decode_ping_item,         5,  1,  0,  0 },   /* 4 */
+  { request_read_item,        6,  1,  0,  REGISTER_POWERSTATE }, /* 5 */
+  { decode_powerstatus_item,  7,  1,  0,  0 },   /* 6 */
+  { turn_off_item,            8,  1, -1,  0 },   /* 7 */
+  { complete_write_item,     -1,  1,  0,  0 },   /* 8 */
+};
+
+struct item powerquery_table[7] = {
+  { setup_network_item,       2,  0,  0,  0 },   /* 0 */
+  { reset_item,               0,  0,  0,  0 },   /* 1 */  
+  { complete_network_item,    3,  1,  0,  0 },   /* 2 */ 
+  { request_ping_item,        4,  1,  0,  0 },   /* 3 */
+  { decode_ping_item,         5,  1,  0,  0 },   /* 4 */
+  { request_read_item,        6,  0,  0,  REGISTER_POWERSTATE }, /* 5 */
+  { decode_powerstatus_item, -1,  0,  0,  0 },   /* 6 */
 };
 
 int main(int argc, char **argv)
 {
   struct state *ss;
-  char *cmd;
-  int i, j, c, mfd, fd, verbose, result, status, len, run, want, power, code, valid;
+  int i, j, c, fd, verbose, result, run, power, code, valid, timeout;
+#if 0
   unsigned int value, address;
+#endif
   struct timeval now, target, delta;
   int *(call)(struct state *s, int tag);
   struct item *ix;
@@ -730,6 +905,7 @@ int main(int argc, char **argv)
     return 4;
   }
 
+  timeout = DEFAULT_TOTAL;
   power = POWER_ON;
 
 #if 0
@@ -776,8 +952,28 @@ int main(int argc, char **argv)
           power = POWER_NA;
           j++;
           break;
-          
 
+        case 't' :
+          j++;
+          if (argv[i][j] == '\0') {
+            j = 0;
+            i++;
+          }
+          if (i >= argc) {
+            sync_message_katcl(ss->s_up, KATCP_LEVEL_ERROR, NAME, "timeout needs a parameter");
+            return 2;
+          }
+
+          switch(c){
+            case 't' :
+              timeout = atoi(argv[i] + j);
+              break;
+          }
+
+          i++;
+          j = 1;
+          break;
+          
         case 'v' : 
           verbose++;
           j++;
@@ -809,16 +1005,33 @@ int main(int argc, char **argv)
     }
   }
 
-  /* TODO: select different tables */
+  ss->s_limit = timeout;
 
-  load_table(ss, poweron_table, 7);
+  switch(power){
+    case POWER_ON :
+      load_table(ss, poweron_table, 11);
+      break;
+    case POWER_OFF :
+      load_table(ss, powerdown_table, 9);
+      break;
+    case POWER_NA : /* overloading of a macro */
+      load_table(ss, powerquery_table, 7);
+      break;
+    default :
+      sync_message_katcl(ss->s_up, KATCP_LEVEL_ERROR, NAME, "logic problem - bad power request type");
+      return 4;
+  }
+
+  if(ss->s_name == NULL){
+    sync_message_katcl(ss->s_up, KATCP_LEVEL_ERROR, NAME, "need a roach xport to talk to");
+    return 2;
+  }
+
 
   if(ss->s_table == NULL){
     sync_message_katcl(ss->s_up, KATCP_LEVEL_ERROR, NAME, "need a table to be loaded");
-    return 1;
+    return 2;
   }
-
-  ss->s_limit = DEFAULT_WAIT;
 
   gettimeofday(&now, NULL);
 
@@ -830,13 +1043,13 @@ int main(int argc, char **argv)
   add_time_katcp(&(ss->s_total), &now, &delta);
 
   run = 1;
+  code = ITEM_OK;
 
   for(run = 1; run > 0; ){
 
     if(ss->s_index >= ss->s_size){
-      log_message_katcl(ss->s_up, KATCP_LEVEL_ERROR, NAME, "bad state return code %d", code);
-      /* break better */
-      return 1;
+      run = 0;
+      continue;
     }
 
     ix = &(ss->s_table[ss->s_index]);
@@ -845,6 +1058,9 @@ int main(int argc, char **argv)
 #ifdef DEBUG 
     fprintf(stderr, "run: state=%u, code=%d\n", ss->s_index, code);
 #endif
+    if(verbose > 1){
+      log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "state=%u, code=%d", ss->s_index, code);
+    }
 
     switch(code){
       case ITEM_STAY : 
@@ -864,11 +1080,11 @@ int main(int argc, char **argv)
         break;
       default :
         sync_message_katcl(ss->s_up, KATCP_LEVEL_ERROR, NAME, "bad state return code %d", code);
-        return 1;
+        return 4;
     }
 
     if(ss->s_index >= ss->s_size){
-      log_message_katcl(ss->s_up, KATCP_LEVEL_INFO, NAME, "entered terminal state with code %d", code);
+      log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "entered terminal state with code %d", code);
       run = 0;
       continue; /* break out of while loop */
     }
@@ -887,6 +1103,7 @@ int main(int argc, char **argv)
 
       if(cmp_time_katcp(&now, &(ss->s_single)) >= 0){
         code = ss->s_transition;
+
         ss->s_transition = ITEM_STAY;
         ss->s_max = (-1);
         switch(code){
@@ -899,10 +1116,13 @@ int main(int argc, char **argv)
           case ITEM_ALT : 
             ss->s_index = ix->i_alt;
             break;
+          default :
+            sync_message_katcl(ss->s_up, KATCP_LEVEL_ERROR, NAME, "logic failure, unreasonable return code %d", code);
+            break;
         }
-#ifdef DEBUG 
-        fprintf(stderr, "timeout: state now %u\n", ss->s_index);
-#endif
+
+        log_message_katcl(ss->s_up, KATCP_LEVEL_DEBUG, NAME, "timeout occurred, transition to %s state %d", item_names[code], ss->s_index);
+
       } else {
         target.tv_sec = ss->s_single.tv_sec;
         target.tv_usec = ss->s_single.tv_usec;
@@ -976,7 +1196,7 @@ int main(int argc, char **argv)
   while(write_katcl(ss->s_up) == 0);
   destroy_state(ss);
 
-  if(code == ITEM_OK){
+  if(code != ITEM_FAIL){
     return 0;
   } else {
     return 1;
