@@ -12,6 +12,10 @@ kcs_check_timeout()
   fi
 }
 
+kcs_set_frequency () {
+  kcpcmd -i -k nb-set-cf $1 | ( while read cmd stat first rest ; do if [ "$cmd" = "!nb-set-cf" -a "${stat}" = "ok" ] ; then echo "#sensor-list .centerfrequency current\_selected\_center\_frequency Hz integer 0 1000000000" ; echo "#sensor-status $(date +%s)000 1 .centerfrequency nominal ${first}" ; fi ; done)
+}
+
 kcs_input_to_index () {
   echo $[$(echo $1 | tr -d -c [:digit:])*2+$(echo $1 | tr -dc xy | tr xy 01)]
 }
@@ -88,6 +92,17 @@ kcs_config_numeric () {
   kcs_debug "${1} maps to ${value}"
 
   export $1=${value}
+}
+
+kcs_load_config () {
+  if [ $# -lt 1 ] ; then
+    config_file=${CORR_CONFIG}/${KATCP_MODE}
+  else
+    config_file=${CORR_CONFIG}/$1
+  fi
+
+  eval $(grep -v '^ *#' ${config_file} | grep \=  | sed -e 's/=/ = /' | (while read label sep value ; do echo var_${label}=${value}\; ; done) ; echo echo )
+
 }
 
 
