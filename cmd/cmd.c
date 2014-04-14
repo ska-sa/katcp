@@ -65,6 +65,13 @@ int print_arg(struct katcl_line *l, int index, int fmt)
 {
   char *ptr, *tmp;
   unsigned int want, have, safe, i, dfmt;
+  int c;
+
+  if(arg_null_katcl(l, index) > 0){
+    c = '\0';
+    fputc(c, stdout);
+    return 0;
+  }
 
   switch(fmt){
     case FMT_TEXT :
@@ -250,7 +257,10 @@ int main(int argc, char **argv)
   fd_set fsr, fsw;
   struct timeval tv;
 
-  label = KCPCMD_NAME;
+  label = getenv("KATCP_LABEL");
+  if(label == NULL){
+    label = KCPCMD_NAME;
+  }
   
   server = getenv("KATCP_SERVER");
   if(server == NULL){
