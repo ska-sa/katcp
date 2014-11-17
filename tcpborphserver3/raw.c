@@ -397,6 +397,49 @@ int delbof_cmd(struct katcp_dispatch *d, int argc)
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int phy_prog_cmd(struct katcp_dispatch *d, int argc)
+{
+    //....implementation to follow here.....
+
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "This is the PHY firmware programming command");
+    fprintf(stdout, "TESTING\n");
+    return KATCP_RESULT_OK;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 int word_write_cmd(struct katcp_dispatch *d, int argc)
 {
   struct tbs_raw *tr;
@@ -2382,6 +2425,8 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
   result = 0;
 
   result += register_flag_mode_katcp(d, "?finalise",     "mark register definitions as complete (?finalise)", &finalise_cmd, 0, TBS_MODE_RAW);
+
+  result += register_flag_mode_katcp(d, "?phyprog",      "programs phy", &phy_prog_cmd, 0, TBS_MODE_RAW);
 
   /* upload, not program */
   result += register_flag_mode_katcp(d, "?uploadbof",    "compatebility alias for ?saveremote (?uploadbof port filename [length [timeout]])", &upload_filesystem_cmd, 0, TBS_MODE_RAW);
