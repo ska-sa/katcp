@@ -418,10 +418,15 @@ int delbof_cmd(struct katcp_dispatch *d, int argc)
 int phy_prog_cmd(struct katcp_dispatch *d, int argc)
 {
     unsigned int i, phy_num, mezz_num;
+    uint16_t wordcount=0;
     uint8_t port_addr;
 
     char *mezz, *phy;
     char *name;
+
+    FILE *fptr;
+    uint16_t word = 0, Lword = 0, Uword = 0;      //buffer for file read operation
+    uint16_t tmp1 = 0, tmp2 = 0;
 
     struct tbs_raw *tr;
     struct tbs_entry *te = NULL;
@@ -458,15 +463,6 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     mezz_num = atoi(mezz);
     phy_num = atoi(phy);
 
-#if 0
-        te = find_data_avltree(tr->r_registers, "sfp_op_dbg");
-        if(te == NULL){
-            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "register %s not defined",  "sfp_op_dbg");
-            return KATCP_RESULT_FAIL;
-        }
-        fpga_reg_init( "sfp_op_dbg",  (uint32_t *)(tr->r_map + te->e_pos_base)  );
-#endif
-
     //get mapped fpga register addresses and store them
     for (i=0; i < MAX_REG_INDEX; i++ ){
         name = fpga_reg_name_lookup(i);
@@ -477,16 +473,9 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
         }
         fpga_reg_addr_init_by_index(i,  (uint32_t *)(tr->r_map + te->e_pos_base)  );
     }
-
-#if 0
-    fpga_set_reg(2, 0x52526677);        //testing - remove static declaration in phy module
-    printf("%x\n", fpga_get_reg(2));    //testing - remove static declaration in phy module
-
-    fpga_mdio_op(2, 0xdeadbeef, 0xCCDDEEFF);     //testing - remove static declaration in phy module
-    printf( "%x\n", fpga_mdio_op(6 , 0xdeedbeeb, 0));   //testing - remove static declaration in phy module
-#endif
-
-
+   
+    //configure the fpga registers to enable MDIO
+    fpga_mdio_sw_config();
 
     //reset the specific PHY chip
     if ( mezz_phy_reset_op( mezz_num , phy_num ) ){
@@ -497,13 +486,9 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
         log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "phy %s on mezzanine card %s: reset ok!", phy, mezz);
     }
 
-    
-    //configure the fpga registers to enable MDIO
-    fpga_mdio_sw_config();
-
     //select mezzanine card
-    mezz_select(mezz_num);
-    
+    mezz_select(mezz_num);     
+
     switch(phy_num){
         case 0:
             port_addr = PORTADDR_PHY0_CH0;      //firmware loading done by using CH0 of PHY
@@ -528,15 +513,102 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     }
 
     //Place PHY-MCU into sw reset - assert 1Ex0002:7
+    phy_write_op(port_addr, DEVADDR_MCU, 0x0002, 0x80);    // 1<<7);
 
+    //printf("0x%x\n", phy_read_op(port_addr, DEVADDR_MCU, 0x2) ); //DEBUG
+
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "Preparing to load PHY firmware...");
+    
     //Write data to appropriate PHY-RAM
+    if ( (fptr = fopen("phyfirmware.bin", "rb")) == NULL ){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not open or find firmware file"); 
+        fprintf(stderr, "cannot open file\n");
+        return KATCP_RESULT_FAIL;
+    }
+   
+    while( fread(&word, 1, 2, fptr) != 0 ){     //read a word of two bytes until end of file
+        
+        //word order swapped around in .bin file, therefore need to switch
+        
+        tmp1 = word;
+        tmp2 = word;
+        tmp1 = tmp1 << 8;
+        tmp2 = tmp2 >> 8;
+        Lword = tmp1 + tmp2;
 
+        //Lword = word;
+        word = 0;
+
+        fread(&word, 1, 2, fptr); 
+        tmp1 = word;
+        tmp2 = word;
+        tmp1 = tmp1 << 8;
+        tmp2 = tmp2 >> 8;
+        Uword = tmp1 + tmp2;
+        
+        //Uword = word;
+         word =0;    //clear word because fread wites to an address, so if only write one byte, upper byte may be incorrect
+
+        //printf("DEBUG::: word %d is 0x%x\n", wordcount, Uword);
+        phy_write_op(port_addr, DEVADDR_RAM, wordcount, Uword);
+        
+        //printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, wordcount) );
+
+
+        wordcount++;
+        
+        //printf("DEBUG::: word %d is 0x%x\n", wordcount, Lword);
+        phy_write_op(port_addr, DEVADDR_RAM, wordcount, Lword);
+        //printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, wordcount) );
+        wordcount++;
+    }
+
+    fclose(fptr);
+
+#if 0    
+    printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, 0x0) );
+    printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, 0x1) );
+    printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, 0x2) );
+    printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, 0x3) );
+#endif
+
+    //Disable the "automatic-firmware-load-on-watchdog-reset" feature on phy-MCU (must be done for MDIO firmware load!!)
+    phy_write_op(port_addr, DEVADDR_MCU, 0x0004, 0x0);   //???????is this needed? 
+    
     //Release PHY-MCU from sw reset
+    phy_write_op(port_addr, DEVADDR_MCU, 0x0002, 0x00);
+
+    sleep(3);
+
+    printf("DEBUG::: 0x%x\n", phy_read_op(port_addr, DEVADDR_MCU, 0x7fe1));  //testing to see change in watchdog
+    printf("DEBUG::: 0x%x\n", phy_read_op(port_addr, DEVADDR_MCU, 0x7fe1));
+    printf("DEBUG::: 0x%x\n", phy_read_op(port_addr, DEVADDR_MCU, 0x7fe1));
+    printf("DEBUG::: 0x%x\n", phy_read_op(port_addr, DEVADDR_MCU, 0x7fe1));
+
+    
+#if 0
 
     //check checksum register????
+    
+    sleep(1);
 
-    //check watchdog for MCU activity
+    //should wait with a while here.....
+    if ( (phy_read_op(port_addr, DEVADDR_MCU, 0x7fe0) & 0x2) == 1){   //check complete - 1Ex7FE0.1 is 1 on completion of checksum calculation
+        if ( (phy_read_op(port_addr, DEVADDR_MCU, 0x7fe0) & 0x1) == 0){   //check checksum -1Ex7FE0.0 is 0 for checksum errors
+            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "error loading firmware: checksum error", phy, mezz);
+            return KATCP_RESULT_FAIL;
+        }
+        else{
+            log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "phy %s on mezzanine card %s: firmware load checksum ok!", phy, mezz);
+        }
+    }
 
+
+    //check watchdog for MCU activity - maybe implement in a new command????
+
+
+
+#endif
 
     log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "This is the PHY firmware programming command");
     fprintf(stdout, "TESTING\n");

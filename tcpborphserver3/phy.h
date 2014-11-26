@@ -24,6 +24,7 @@
 #define MAX_REG_INDEX           12
 
 //PHY MDIO INSTRUCTION FRAME PORT ADDRESS DEFINITIONS
+//bit[7:5] = don't care ::: bit[4:1] = phy pin addr pins[4:1] ::: bit[0] = 0 for channel 0 or = 1 for ch 1
 #define PORTADDR_PHY0_CH0   0x00
 #define PORTADDR_PHY0_CH1   0x01
 #define PORTADDR_PHY1_CH0   0x1E
