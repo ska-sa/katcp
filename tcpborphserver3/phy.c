@@ -18,15 +18,9 @@
 
 #define UNKNOWN_ADDR    NULL
 
-#if 0
-static unsigned int abs_addr[ABS_ADDR_ARRAY_SIZE] = { 0 };   //array to hold absolute addresses of fpga registers, initialize to zero
-#endif
-
 struct fpga_reg {
-    //uint8_t         index;          //index for easy referencing using #define's
     const char      *name;          //name of the mapped fpga register
     uint32_t        *abs_addr;      //absolute addresses of fpga register = start of memory map + register position offset
-    //uint8_t         set;            //indicates if the address has been set (=1) or not (=0)
 };
 
 static struct fpga_reg fpga_reg_map[] = {
@@ -47,11 +41,8 @@ static struct fpga_reg fpga_reg_map[] = {
 
 
 /*****perform a basic register access set operation on the FPGA (into memory mapped registers)*****/
-//function expects the absolute memory mapped address i.e memory map base addr plus register base offset (tr->r_map + te->e_pos_base)
 static int fpga_set_reg(unsigned int index, uint32_t val){
     if (fpga_reg_map[index].abs_addr != NULL){
-        //fprintf(stderr, "%x written to %s at memory %x\n", val, fpga_reg_map[index].name, fpga_reg_map[index].abs_addr);
-        //fprintf(stderr, "%x written to %s at memory %p\n", val, fpga_reg_map[index].name, fpga_reg_map[index].abs_addr);
         *(fpga_reg_map[index].abs_addr) = val;
         return 0;    
     }
@@ -87,22 +78,16 @@ CONF_WRITE:   3, # 0b011
 CONF_READ:    5, # 0b101
  */
 static uint32_t fpga_mdio_op(uint32_t op_type, uint32_t addr, uint32_t payload){   //addr = mdio frame address, payload = mdio frame payload
-    //uint32_t result=0;
     fpga_set_reg( INDEX_SFP_OP_TYPE, op_type);
     fpga_set_reg( INDEX_SFP_OP_ADDR, addr);
     if ((op_type == READ) || (op_type == RD_ADDR_INC)){
-        ////usleep(1);   //a delay is required before the read operation is issued
         fpga_set_reg( INDEX_SFP_OP_ISSUE, 0x1);
         usleep(100); //by trial&error : delay required to allow MDIO I/F time to complete operation before reading sfp_op_result register
-                    //usleep(15) => seems to be the min delay for proper operation, make +- 3x larger as buffer
-        //result = fpga_get_reg( INDEX_SFP_OP_RESULT );
-        //return result;
         return fpga_get_reg( INDEX_SFP_OP_RESULT );
     }
     else{
         fpga_set_reg( INDEX_SFP_OP_DATA, payload);
         fpga_set_reg( INDEX_SFP_OP_ISSUE,   0x1);
-        //usleep(10); //by trial&error : delay required to allow MDIO I/F time to complete operation [usleep(1) seems to be ok too] 
         usleep(100);
         return 0;
     }
@@ -183,9 +168,7 @@ int mezz_phy_reset_op(int mezz_card, int phy_num){
 
 void fpga_mdio_sw_config(){
     //fpga_set_reg(INDEX_SFP_GPIO_DATA_DED, 0x618);  //0b0110 0001 1000 -> original
-
-    fpga_set_reg(INDEX_SFP_GPIO_DATA_DED, 0x659);  //0b0110 0101 1001 -> original plus MDIO enable of sfp  (??????)
-    
+    fpga_set_reg(INDEX_SFP_GPIO_DATA_DED, 0x659);  //0b0110 0101 1001 -> original plus MDIO enable of sfp
     fpga_mdio_op(CONF_WRITE, 0x340, 0x7f);        //set EMAC MDIO configuration clock divisor and enable MDIO
 }
 
@@ -224,7 +207,6 @@ int fpga_reg_addr_init_by_name(const char *reg_name, uint32_t *addr){
     while (fpga_reg_map[i].name != NULL){
         if ( strcmp(fpga_reg_map[i].name, reg_name) == 0 ){         //if strings equal
             fpga_reg_map[i].abs_addr = addr;
-            fprintf(stderr, "DEBUG::: %s   %s   %p\n", reg_name, fpga_reg_map[i].name, fpga_reg_map[i].abs_addr );
             return 0;
         }
         i++;
@@ -237,7 +219,6 @@ int fpga_reg_addr_init_by_name(const char *reg_name, uint32_t *addr){
 int fpga_reg_addr_init_by_index(uint8_t reg_index, uint32_t *addr){
     if (reg_index < MAX_REG_INDEX){
         fpga_reg_map[reg_index].abs_addr = addr;
-        fprintf(stderr, "DEBUG:::   %s   %p\n", fpga_reg_map[reg_index].name, fpga_reg_map[reg_index].abs_addr );
         return 0;
     }
     else{
