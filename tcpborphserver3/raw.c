@@ -504,7 +504,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "Preparing to load PHY firmware...");
     
     //Write data to appropriate PHY-RAM
-    if ( (fptr = fopen("phyfirmware.bin", "rb")) == NULL ){
+    if ( (fptr = fopen("/usr/bof/phyfirmware.bin", "rb")) == NULL ){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not open or find firmware file"); 
         fprintf(stderr, "cannot open file\n");
         return KATCP_RESULT_FAIL;
