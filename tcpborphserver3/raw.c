@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <time.h>
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -22,6 +23,9 @@
 #include "tcpborphserver3.h"
 #include "loadbof.h"
 #include "tg.h"
+
+#include "phy.h"
+#define ARRAY_SIZE 12
 
 /*********************************************************************/
 
@@ -395,6 +399,256 @@ int delbof_cmd(struct katcp_dispatch *d, int argc)
 
   return KATCP_RESULT_OK;
 }
+
+
+int phy_prog_cmd(struct katcp_dispatch *d, int argc)
+{
+    unsigned int i, phy_num, mezz_num;
+    uint16_t wordcount=0;
+    uint8_t port_addr;
+    
+    char *mezz, *phy;
+    char *name;
+
+    FILE *fptr;
+    uint16_t word = 0, Lword = 0, Uword = 0;      //buffer for file read operation
+    uint16_t tmp1 = 0;
+
+    struct tbs_raw *tr;
+    struct tbs_entry *te = NULL;
+    
+    tr = get_mode_katcp(d, TBS_MODE_RAW);
+    if(tr == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire raw mode state");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if(tr->r_fpga != TBS_FPGA_READY){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "fpga not programmed");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if(argc <= 2){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a mezzanine card number and phy number");
+        return KATCP_RESULT_INVALID;
+    }
+
+    mezz = arg_string_katcp(d, 1);
+    phy = arg_string_katcp(d, 2);
+    
+    if ( strcmp(mezz, "0") && strcmp(mezz, "1") ){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "not a valid mezzanine card number");
+        return KATCP_RESULT_INVALID;
+    }
+
+    if ( strcmp(phy, "0") && strcmp(phy, "1") ){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "not a valid phy number");
+        return KATCP_RESULT_INVALID;
+    }
+
+    mezz_num = atoi(mezz);
+    phy_num = atoi(phy);
+
+    //get mapped fpga register addresses and store them
+    for (i=0; i < MAX_REG_INDEX; i++ ){
+        name = fpga_reg_name_lookup(i);
+        te = find_data_avltree(tr->r_registers, name);
+        if(te == NULL){
+            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "register %s not defined", name);
+            return KATCP_RESULT_FAIL;
+        }
+        fpga_reg_addr_init_by_index(i,  (uint32_t *)(tr->r_map + te->e_pos_base)  );
+    }
+   
+    //configure the fpga registers to enable MDIO
+    fpga_mdio_sw_config();
+
+    //reset the specific PHY chip
+    if ( mezz_phy_reset_op( mezz_num , phy_num ) ){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not reset phy %s on mezzanine card %s", phy, mezz);
+        return KATCP_RESULT_FAIL;
+    }
+    else{
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "phy %s on mezzanine card %s: reset ok!", phy, mezz);
+    }
+
+    //select mezzanine card
+    mezz_select(mezz_num);     
+
+    switch(phy_num){
+        case 0:
+            port_addr = PORTADDR_PHY0_CH0;      //firmware loading done by using CH0 of PHY
+            break;
+
+        case 1:
+            port_addr = PORTADDR_PHY1_CH0;
+            break;
+
+        default:
+            return KATCP_RESULT_FAIL;           //for completeness - should never get here due to prev error check of phy
+            break;
+    }
+
+    //check connection to PHY by reading device ID (register 1Ex0000) Default = 0x8488
+    if ( phy_read_op(port_addr, DEVADDR_MCU, 0x0000) != 0x8488){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not connect to phy %s on mezzanine card %s", phy, mezz);
+        return KATCP_RESULT_FAIL;
+    }
+    else{
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "phy %s on mezzanine card %s: connection ok!", phy, mezz);
+    }
+
+    //Place PHY-MCU into sw reset - assert 1Ex0002:7
+    phy_write_op(port_addr, DEVADDR_MCU, 0x0002, 0x80);    // 1<<7);
+
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "Preparing to load PHY firmware...");
+    
+    //Write data to appropriate PHY-RAM
+    if ( (fptr = fopen("/usr/bof/phyfirmware.bin", "rb")) == NULL ){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not open or find firmware file"); 
+        fprintf(stderr, "cannot open file\n");
+        return KATCP_RESULT_FAIL;
+    }
+   
+    while( fread(&word, 1, 2, fptr) != 0 ){     //read a word of two bytes until end of file
+        
+        
+        tmp1 = word;
+        tmp1 = tmp1 << 8;
+        word = word >> 8;
+        Lword = tmp1 + word;
+        word = 0;
+
+        fread(&word, 1, 2, fptr); 
+        tmp1 = word;
+        tmp1 = tmp1 << 8;
+        word = word >> 8;
+        Uword = tmp1 + word;
+        
+        word = 0;
+
+        phy_write_op(port_addr, DEVADDR_RAM, wordcount, Uword);
+        //printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, wordcount) );
+        wordcount++;
+        
+        phy_write_op(port_addr, DEVADDR_RAM, wordcount, Lword);
+        //printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, wordcount) );
+        wordcount++;
+    }
+
+    fclose(fptr);
+    
+    //Release PHY-MCU from sw reset
+    phy_write_op(port_addr, DEVADDR_MCU, 0x0002, 0x00);
+
+    return KATCP_RESULT_OK;
+}
+
+
+int phy_watchdog_cmd(struct katcp_dispatch *d, int argc)
+{
+    unsigned int i, phy_num, mezz_num;
+    uint32_t watchdog = 0;
+    uint8_t port_addr;
+
+    char *mezz, *phy;
+    char *name;
+
+    struct tbs_raw *tr;
+    struct tbs_entry *te = NULL;
+
+    tr = get_mode_katcp(d, TBS_MODE_RAW);
+    if(tr == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire raw mode state");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if(tr->r_fpga != TBS_FPGA_READY){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "fpga not programmed");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if(argc <= 2){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a mezzanine card number and phy number");
+        return KATCP_RESULT_INVALID;
+    }
+
+    mezz = arg_string_katcp(d, 1);
+    phy = arg_string_katcp(d, 2);
+
+    if ( strcmp(mezz, "0") && strcmp(mezz, "1") ){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "not a valid mezzanine card number");
+        return KATCP_RESULT_INVALID;
+    }
+
+    if ( strcmp(phy, "0") && strcmp(phy, "1") ){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "not a valid phy number");
+        return KATCP_RESULT_INVALID;
+    }
+
+    mezz_num = atoi(mezz);
+    phy_num = atoi(phy);
+
+    //get mapped fpga register addresses and store them
+    for (i=0; i < MAX_REG_INDEX; i++ ){
+        name = fpga_reg_name_lookup(i);
+        te = find_data_avltree(tr->r_registers, name);
+        if(te == NULL){
+            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "register %s not defined", name);
+            return KATCP_RESULT_FAIL;
+        }
+        fpga_reg_addr_init_by_index(i,  (uint32_t *)(tr->r_map + te->e_pos_base)  );
+    }
+
+    //configure the fpga registers to enable MDIO
+    fpga_mdio_sw_config();
+
+    //select mezzanine card
+    mezz_select(mezz_num);
+
+    switch(phy_num){
+        case 0:
+            port_addr = PORTADDR_PHY0_CH0;      //firmware loading done by using CH0 of PHY
+            break;
+
+        case 1:
+            port_addr = PORTADDR_PHY1_CH0;
+            break;
+
+        default:
+            return KATCP_RESULT_FAIL;           //for completeness - should never get here due to prev error check of phy
+            break;
+    }
+
+    //check connection to PHY by reading device ID (register 1Ex0000) Default = 0x8488
+    if ( phy_read_op(port_addr, DEVADDR_MCU, 0x0000) != 0x8488){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not connect to phy %s on mezzanine card %s", phy, mezz);
+        return KATCP_RESULT_FAIL;
+    }
+    else{
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "phy %s on mezzanine card %s: connection ok!", phy, mezz);
+    }
+
+    watchdog = phy_read_op(port_addr, DEVADDR_MCU, 0x7fe1);
+
+    prepend_reply_katcp(d);
+    append_string_katcp(d, KATCP_FLAG_STRING, KATCP_OK);
+    append_hex_long_katcp(d, KATCP_FLAG_XLONG | KATCP_FLAG_LAST, watchdog);
+
+    return KATCP_RESULT_OWN;
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 int word_write_cmd(struct katcp_dispatch *d, int argc)
@@ -2382,6 +2636,10 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
   result = 0;
 
   result += register_flag_mode_katcp(d, "?finalise",     "mark register definitions as complete (?finalise)", &finalise_cmd, 0, TBS_MODE_RAW);
+
+  result += register_flag_mode_katcp(d, "?phyprog",      "programs firmware onto phy chip on mezzanine card (?phyprog [mezzanine card] [phy number])", &phy_prog_cmd, 0, TBS_MODE_RAW);
+  
+  result += register_flag_mode_katcp(d, "?phywatch",     "returns the watchdog counter value of phy chip on mezzanine card (?phywatch [mezzanine card] [phy number])", &phy_watchdog_cmd, 0, TBS_MODE_RAW);
 
   /* upload, not program */
   result += register_flag_mode_katcp(d, "?uploadbof",    "compatebility alias for ?saveremote (?uploadbof port filename [length [timeout]])", &upload_filesystem_cmd, 0, TBS_MODE_RAW);
