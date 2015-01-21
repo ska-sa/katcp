@@ -313,10 +313,12 @@ struct katcp_group *this_group_katcp(struct katcp_dispatch *d)
 #endif
 
   if(s->s_level < 0){
-#ifdef KATCP_CONSISTENCY_CHECKS
+#if 0  /* used to be ifdef KATCP_CONSISTENCY_CHECKS, but verbose cause of group stuff */
     fprintf(stderr, "flat: level is %d, negative\n", s->s_level);
 #endif
-    return NULL;
+
+    /* now fall back on default group - that means everything happens within the context of a group ... even "system" level activity */
+    return s->s_fallback;
   }
 
   f = s->s_this[s->s_level];
@@ -532,7 +534,6 @@ void destroy_flats_katcp(struct katcp_dispatch *d)
 
   for(j = 0; j < s->s_members; j++){
     gx = s->s_groups[j];
-    i = 0;
     for(i = 0; i < gx->g_count; i++){
       fx = gx->g_flats[i];
       gx->g_flats[i] = NULL;
@@ -753,6 +754,7 @@ static void deallocate_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *f
 
   f->f_log_level = (-1);
   f->f_scope = KATCP_SCOPE_INVALID;
+  f->f_stale = 0;
 
   f->f_magic = 0;
 
@@ -1614,6 +1616,7 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
   f->f_log_level = gx->g_log_level;
 
   f->f_scope = gx->g_scope;
+  f->f_stale = KATCP_STALE_SENSOR_NAIVE;
 
   f->f_max_defer = 0;
   f->f_deferring = 0;
@@ -2663,7 +2666,7 @@ int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer,
   }
 
   if(slot >= KATCP_SIZE_REPLY){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "resource problem: no free reply handler slots (%u in use)", slot);
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "resource problem: no free reply handler slots (%u in use) in client %s", slot, fx->f_name);
 #ifdef KATCP_CONSISTENCY_CHECKS
     fprintf(stderr, "problem: no free callback slots\n");
 #endif
@@ -3085,6 +3088,27 @@ int append_payload_vrbl_flat_katcp(struct katcp_dispatch *d, int flags, struct k
   }
 
   result = add_payload_vrbl_katcp(d, px, flags, vx, py);
+
+  return finish_append_flat_katcp(d, flags, result);
+}
+
+int append_timestamp_flat_katcp(struct katcp_dispatch *d, int flags, struct timeval *tv)
+{
+  struct katcl_parse *px;
+  struct katcp_flat *fx;
+  int result;
+
+  fx = require_flat_katcp(d);
+  if(fx == NULL){
+    return -1;
+  }
+
+  px = prepare_append_flat_katcp(fx, flags);
+  if(px == NULL){
+    return -1;
+  }
+
+  result = add_timestamp_parse_katcl(px, flags, tv);
 
   return finish_append_flat_katcp(d, flags, result);
 }

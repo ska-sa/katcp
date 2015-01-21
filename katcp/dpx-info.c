@@ -216,7 +216,7 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
   struct katcl_parse *px;
   struct katcp_vrbl *vx;
   struct katcp_endpoint *self, *remote, *origin;
-  char *name, *description, *units, *type, *ptr;
+  char *name, *description, *units, *type, *ptr, *strip;
   int len;
 
 #ifdef DEBUG
@@ -250,19 +250,31 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
       return -1;
     }
 
-    if(strchr(name, '*')){
+    /* WARNING: this is a bit of a mess, should be made part of the vrbl API */
+    ptr = strchr(name, '*');
+    if(ptr){
+
       ptr = strdup(name);
       if(ptr == NULL){
         return -1;
       }
-    } else {
-      len = strlen(name);
+
+    } else { /* would be case A, but since search not supported we transform it to case D */
+
+      /* TODO: still work out how to use k7 relative/absolute variable names, noting that client renames can happen ... */
+      if(name[0] == '.'){
+        strip = name + 1;
+      } else {
+        strip = name;
+      }
+
+      len = strlen(strip);
       ptr = malloc(len + 3);
       if(ptr == NULL){
         return -1;
       }
       ptr[0] = '*';
-      memcpy(ptr + 1, name, len);
+      memcpy(ptr + 1, strip, len);
       ptr[len + 1] = '*';
       ptr[len + 2] = '\0';
     }
@@ -303,7 +315,7 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
 
     if(configure_vrbl_katcp(d, vx, KATCP_VRF_SEN, NULL, NULL, NULL, NULL) < 0){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to configure new variable %s as sensor", ptr);
-      destroy_vrbl_katcp(d, name, vx);
+      destroy_vrbl_katcp(d, ptr, vx);
       free(ptr);
       return -1;
     }
@@ -316,6 +328,8 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
     }
 
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "declared variable %s as %s", name, ptr);
+
+    schedule_sensor_update_katcp(d, ptr);
 
     free(ptr);
 
