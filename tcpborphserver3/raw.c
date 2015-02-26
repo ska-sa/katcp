@@ -25,8 +25,9 @@
 #include "tg.h"
 
 #include "phy.h"
-#define ARRAY_SIZE 12
 
+#define ARRAY_SIZE 12
+#define DEFAULT_FILENAME    "vsc848x_EDC_FW_1_14.bin"
 /*********************************************************************/
 
 static volatile int bus_error_happened;
@@ -404,12 +405,13 @@ int delbof_cmd(struct katcp_dispatch *d, int argc)
 int phy_prog_cmd(struct katcp_dispatch *d, int argc)
 {
     unsigned int i, phy_num, mezz_num;
+    size_t len;
     uint16_t wordcount=0;
     uint8_t port_addr;
     
-    char *mezz, *phy;
+    char *mezz, *phy, *buffer;
     char *name;
-
+    char *filename = DEFAULT_FILENAME;
     FILE *fptr;
     uint16_t word = 0, Lword = 0, Uword = 0;      //buffer for file read operation
     uint16_t tmp1 = 0;
@@ -449,12 +451,54 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     mezz_num = atoi(mezz);
     phy_num = atoi(phy);
 
+    if (argc == 4)      //3 args plus program name(1st arg)
+    {
+        filename = arg_string_katcp(d, 3);    //get a handle on the arguement 3 i.e. filename
+    }
+    else if (argc > 4)
+    {
+        //too many aguements
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "too many arguements");
+        return KATCP_RESULT_FAIL;
+    }
+    //else -> no 3rd arguement so continue with default filename
+
+    /*do some validity checking on the filename*/
+    if(filename == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire file name to program");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if(strchr(filename, '/') != NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "file name %s may not contain a path component", filename);
+        return KATCP_RESULT_FAIL;
+    }
+
+    len = strlen(filename) + 1 + strlen(tr->r_bof_dir) + 1;
+    buffer = malloc(len);
+    if(buffer == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to allocate %d bytes", len);
+        return KATCP_RESULT_FAIL;
+    }
+
+    snprintf(buffer, len, "%s/%s", tr->r_bof_dir, filename);
+    buffer[len - 1] = '\0';
+
+    /*Try to open the file*/
+    if ( (fptr = fopen(buffer, "rb")) == NULL ){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not open or find firmware file"); 
+        fprintf(stderr, "cannot open PHY firmware file\n");
+        free(buffer);
+        return KATCP_RESULT_FAIL;
+    }
+
     //get mapped fpga register addresses and store them
     for (i=0; i < MAX_REG_INDEX; i++ ){
         name = fpga_reg_name_lookup(i);
         te = find_data_avltree(tr->r_registers, name);
         if(te == NULL){
             log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "register %s not defined", name);
+            free(buffer);
             return KATCP_RESULT_FAIL;
         }
         fpga_reg_addr_init_by_index(i,  (uint32_t *)(tr->r_map + te->e_pos_base)  );
@@ -466,6 +510,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     //reset the specific PHY chip
     if ( mezz_phy_reset_op( mezz_num , phy_num ) ){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not reset phy %s on mezzanine card %s", phy, mezz);
+        free(buffer);
         return KATCP_RESULT_FAIL;
     }
     else{
@@ -485,6 +530,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
             break;
 
         default:
+            free(buffer);
             return KATCP_RESULT_FAIL;           //for completeness - should never get here due to prev error check of phy
             break;
     }
@@ -492,6 +538,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     //check connection to PHY by reading device ID (register 1Ex0000) Default = 0x8488
     if ( phy_read_op(port_addr, DEVADDR_MCU, 0x0000) != 0x8488){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not connect to phy %s on mezzanine card %s", phy, mezz);
+        free(buffer);
         return KATCP_RESULT_FAIL;
     }
     else{
@@ -504,11 +551,6 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "Preparing to load PHY firmware...");
     
     //Write data to appropriate PHY-RAM
-    if ( (fptr = fopen("/usr/bof/phyfirmware.bin", "rb")) == NULL ){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not open or find firmware file"); 
-        fprintf(stderr, "cannot open file\n");
-        return KATCP_RESULT_FAIL;
-    }
    
     while( fread(&word, 1, 2, fptr) != 0 ){     //read a word of two bytes until end of file
         
@@ -541,6 +583,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     //Release PHY-MCU from sw reset
     phy_write_op(port_addr, DEVADDR_MCU, 0x0002, 0x00);
 
+    free(buffer);
     return KATCP_RESULT_OK;
 }
 
@@ -637,18 +680,6 @@ int phy_watchdog_cmd(struct katcp_dispatch *d, int argc)
 
     return KATCP_RESULT_OWN;
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 int word_write_cmd(struct katcp_dispatch *d, int argc)
@@ -2637,7 +2668,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
 
   result += register_flag_mode_katcp(d, "?finalise",     "mark register definitions as complete (?finalise)", &finalise_cmd, 0, TBS_MODE_RAW);
 
-  result += register_flag_mode_katcp(d, "?phyprog",      "programs firmware onto phy chip on mezzanine card (?phyprog [mezzanine card] [phy number])", &phy_prog_cmd, 0, TBS_MODE_RAW);
+  result += register_flag_mode_katcp(d, "?phyprog",      "programs firmware onto phy chip on mezzanine card (?phyprog [mezzanine card] [phy number] [filename optional])", &phy_prog_cmd, 0, TBS_MODE_RAW);
   
   result += register_flag_mode_katcp(d, "?phywatch",     "returns the watchdog counter value of phy chip on mezzanine card (?phywatch [mezzanine card] [phy number])", &phy_watchdog_cmd, 0, TBS_MODE_RAW);
 
