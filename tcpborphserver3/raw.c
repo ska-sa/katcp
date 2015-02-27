@@ -416,6 +416,9 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     uint16_t word = 0, Lword = 0, Uword = 0;      //buffer for file read operation
     uint16_t tmp1 = 0;
 
+    uint32_t watchdog1 = 0;
+    uint32_t watchdog2 = 0;
+
     struct tbs_raw *tr;
     struct tbs_entry *te = NULL;
     
@@ -486,11 +489,13 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
 
     /*Try to open the file*/
     if ( (fptr = fopen(buffer, "rb")) == NULL ){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not open or find firmware file"); 
-        fprintf(stderr, "cannot open PHY firmware file\n");
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not open or find firmware file: %s", buffer); 
+        fprintf(stderr, "cannot open PHY firmware file: %s\n", buffer);
         free(buffer);
         return KATCP_RESULT_FAIL;
     }
+
+    free(buffer);
 
     //get mapped fpga register addresses and store them
     for (i=0; i < MAX_REG_INDEX; i++ ){
@@ -498,7 +503,6 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
         te = find_data_avltree(tr->r_registers, name);
         if(te == NULL){
             log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "register %s not defined", name);
-            free(buffer);
             return KATCP_RESULT_FAIL;
         }
         fpga_reg_addr_init_by_index(i,  (uint32_t *)(tr->r_map + te->e_pos_base)  );
@@ -510,7 +514,6 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     //reset the specific PHY chip
     if ( mezz_phy_reset_op( mezz_num , phy_num ) ){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not reset phy %s on mezzanine card %s", phy, mezz);
-        free(buffer);
         return KATCP_RESULT_FAIL;
     }
     else{
@@ -530,7 +533,6 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
             break;
 
         default:
-            free(buffer);
             return KATCP_RESULT_FAIL;           //for completeness - should never get here due to prev error check of phy
             break;
     }
@@ -538,7 +540,6 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     //check connection to PHY by reading device ID (register 1Ex0000) Default = 0x8488
     if ( phy_read_op(port_addr, DEVADDR_MCU, 0x0000) != 0x8488){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not connect to phy %s on mezzanine card %s", phy, mezz);
-        free(buffer);
         return KATCP_RESULT_FAIL;
     }
     else{
@@ -548,8 +549,9 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     //Place PHY-MCU into sw reset - assert 1Ex0002:7
     phy_write_op(port_addr, DEVADDR_MCU, 0x0002, 0x80);    // 1<<7);
 
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "Preparing to load PHY firmware...");
-    
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "preparing to load PHY firmware...");
+    write_katcp(d);
+
     //Write data to appropriate PHY-RAM
    
     while( fread(&word, 1, 2, fptr) != 0 ){     //read a word of two bytes until end of file
@@ -583,7 +585,40 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     //Release PHY-MCU from sw reset
     phy_write_op(port_addr, DEVADDR_MCU, 0x0002, 0x00);
 
-    free(buffer);
+
+    /*Now ensure that PHY-MCU running by doing two consecutive mcu-watchdog reads,they must be unequal*/
+    /*watchdog counter increments every +-100ms or less - poll it a few times to detect counter change*/
+    i=0;
+    while ( (i<150) && (watchdog1==0) )
+    {
+        usleep(1000);
+        watchdog1 = phy_read_op(port_addr, DEVADDR_MCU, 0x7fe1);
+        i++;
+    }
+
+    //do the same for 2nd watchdog read
+    i=0;
+    while ( (i<150) && (watchdog2==0) )
+    {
+        usleep(1000);
+        watchdog2 = phy_read_op(port_addr, DEVADDR_MCU, 0x7fe1);
+        i++;
+    }
+
+#if 0
+    usleep(150000);     //watchdog counter increments every +-100ms
+    watchdog1 = phy_read_op(port_addr, DEVADDR_MCU, 0x7fe1);
+    usleep(150000);
+    watchdog2 = phy_read_op(port_addr, DEVADDR_MCU, 0x7fe1);
+#endif
+
+    if (watchdog1 == watchdog2)
+    {
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "two consecutive phy watchdog counter values are equal: 0x%x  0x%x ...firmware not running", watchdog1, watchdog2);
+        return KATCP_RESULT_FAIL;
+    }
+
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "watchdog counters:  0x%x  0x%x", watchdog1, watchdog2); 
     return KATCP_RESULT_OK;
 }
 
