@@ -103,6 +103,8 @@ static int deallocate_group_katcp(struct katcp_dispatch *d, struct katcp_group *
     g->g_name = NULL;
   }
 
+  g->g_flags = 0;
+
   for(i = 0; i < KATCP_SIZE_MAP; i++){
     destroy_cmd_map_katcp(g->g_maps[i]);
     g->g_maps[i] = NULL;
@@ -195,6 +197,7 @@ struct katcp_group *create_group_katcp(struct katcp_dispatch *d, char *name)
   }
 
   g->g_name = NULL;
+  g->g_flags = 0;
 
   for(i = 0; i < KATCP_SIZE_MAP; i++){
     g->g_maps[i] = NULL;
@@ -262,6 +265,7 @@ struct katcp_group *duplicate_group_katcp(struct katcp_dispatch *d, struct katcp
     return NULL;
   }
 
+  gx->g_flags = go->g_flags;
   gx->g_log_level = go->g_log_level;
   gx->g_scope = go->g_scope;
   gx->g_flushdefer = go->g_flushdefer;
@@ -1569,7 +1573,7 @@ int reconfigure_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, unsi
     trigger_connect_flat(d, fx);
   }
 
-  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN);
+  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED);
 
   return 0;
 }
@@ -1580,7 +1584,7 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
   struct katcp_flat *f, **tmp;
   struct katcp_shared *s;
   struct katcp_group *gx;
-  unsigned int i;
+  unsigned int i, mask, set;
 
   s = d->d_shared;
 
@@ -1718,7 +1722,18 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
 
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "created instance for %s", name ? name : "<anonymous");
 
-  reconfigure_flat_katcp(d, f, flags);
+  set  = 0;
+  mask = 0;
+
+  if(gx->g_flags & KATCP_GROUP_OVERRIDE_SENSOR){
+    if(gx->g_flags & KATCP_FLAT_PREFIXED){
+      set = KATCP_FLAT_PREFIXED;
+    } else {
+      mask = KATCP_FLAT_PREFIXED;
+    }
+  }
+
+  reconfigure_flat_katcp(d, f, (flags & (~mask)) | set);
 
   return f;
 }
@@ -1787,50 +1802,7 @@ int broadcast_flat_katcp(struct katcp_dispatch *d, struct katcp_group *gx, struc
   return sum;
 }
 
-struct katcp_flat *find_name_flat_katcp(struct katcp_dispatch *d, char *group, char *name, int limit)
-{
-  struct katcp_group *gx;
-#if 0
-  struct katcp_flat *fx;
-  struct katcp_shared *s;
-  unsigned int i, j;
-
-  s = d->d_shared;
-
-  if(name == NULL){
-    return NULL;
-  }
-
-  for(j = 0; j < s->s_members; j++){
-    gx = s->s_groups[j];
-    if((group == NULL) || (gx->g_name && (strcmp(group, gx->g_name) == 0))){
-      for(i = 0; i < gx->g_count; i++){
-        fx = gx->g_flats[i];
-        if(fx->f_name && (strcmp(name, fx->f_name) == 0)){
-          return fx;
-        }
-      }
-    }
-  }
-
-  return NULL;
-#endif
-
-  if(group){
-    gx = find_group_katcp(d, group);
-    if(gx == NULL){
-      if(limit){
-        return NULL;
-      }
-    }
-  } else {
-    gx = NULL;
-  }
-
-  return search_name_flat_katcp(d, name, gx, limit);
-}
-
-struct katcp_flat *search_name_flat_katcp(struct katcp_dispatch *d, char *name, struct katcp_group *gx, int limit)
+static struct katcp_flat *search_name_flat_katcp(struct katcp_dispatch *d, char *name, struct katcp_group *gx, int limit)
 {
   struct katcp_flat *fx;
   struct katcp_group *gt, *gr;
@@ -1880,6 +1852,119 @@ struct katcp_flat *search_name_flat_katcp(struct katcp_dispatch *d, char *name, 
   return NULL;
 }
 
+struct katcp_flat *find_name_flat_katcp(struct katcp_dispatch *d, char *group, char *name, int limit)
+{
+  struct katcp_group *gx;
+#if 0
+  struct katcp_flat *fx;
+  struct katcp_shared *s;
+  unsigned int i, j;
+
+  s = d->d_shared;
+
+  if(name == NULL){
+    return NULL;
+  }
+
+  for(j = 0; j < s->s_members; j++){
+    gx = s->s_groups[j];
+    if((group == NULL) || (gx->g_name && (strcmp(group, gx->g_name) == 0))){
+      for(i = 0; i < gx->g_count; i++){
+        fx = gx->g_flats[i];
+        if(fx->f_name && (strcmp(name, fx->f_name) == 0)){
+          return fx;
+        }
+      }
+    }
+  }
+
+  return NULL;
+#endif
+
+  if(group){
+    gx = find_group_katcp(d, group);
+    if(gx == NULL){
+      if(limit){
+        return NULL;
+      }
+    }
+  } else {
+    gx = NULL;
+  }
+
+  return search_name_flat_katcp(d, name, gx, limit);
+}
+
+struct katcp_flat *scope_name_full_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, char *group, char *name)
+{
+  struct katcp_flat *fy;
+  struct katcp_group *gy;
+  int limit;
+
+  if(name == NULL){
+    return NULL;
+  }
+
+  if(fx == NULL){
+    fy = this_flat_katcp(d);
+    if(fy == NULL){
+      return NULL;
+    }
+  }
+
+  switch(fy->f_scope){
+    case KATCP_SCOPE_SINGLE :
+      if(fy->f_name == NULL){
+        return NULL;
+      }
+      if(strcmp(name, fy->f_name)){
+        return NULL;
+      }
+      return fy;
+    case KATCP_SCOPE_GROUP :
+      gy = fy->f_group;
+#ifdef KATCP_CONSISTENCY_CHECKS
+      if(gy == NULL){
+        fprintf(stderr, "logic problem: flat %p does not have a group\n", fy);
+        abort();
+      }
+#endif
+      if(group){
+        if(gy->g_name == NULL){
+#ifdef KATCP_CONSISTENCY_CHECKS
+          fprintf(stderr, "possible logic problem: group %p does not have a name\n", gy);
+#endif
+          return NULL;
+        }
+        if(strcmp(group, gy->g_name)){
+          return NULL;
+        }
+      }
+      return search_name_flat_katcp(d, name, gy, 1);
+    case KATCP_SCOPE_GLOBAL :
+      gy = NULL;
+      if((group == NULL) || (strcmp(group, "*"))){ /* WARNING: '*' now means any group ... */
+        gy = fy->f_group;
+        limit = 0;
+      } else {
+        gy = find_group_katcp(d, group);
+        if(gy == NULL){
+          return NULL;
+        }
+        limit = 1;
+      }
+      return search_name_flat_katcp(d, name, gy, limit);
+    default :
+#ifdef KATCP_CONSISTENCY_CHECKS
+      fprintf(stderr, "logic problem: flat %p has scope value %d which is invalid\n", fy, fy->f_scope);
+      abort();
+#endif
+      return NULL;
+  }
+}
+
+#if 0
+/* superceeded by scope_name_full ... */
 struct katcp_flat *scope_name_flat_katcp(struct katcp_dispatch *d, char *name, struct katcp_flat *fx)
 {
   if((fx == NULL) || (name == NULL)){
@@ -1913,6 +1998,7 @@ struct katcp_flat *scope_name_flat_katcp(struct katcp_dispatch *d, char *name, s
       return NULL;
   }
 }
+#endif
 
 struct katcp_group *scope_name_group_katcp(struct katcp_dispatch *d, char *name, struct katcp_flat *fx)
 {
@@ -1935,6 +2021,9 @@ struct katcp_group *scope_name_group_katcp(struct katcp_dispatch *d, char *name,
     case KATCP_SCOPE_GROUP :
     case KATCP_SCOPE_SINGLE :
       if(fx->f_name == NULL){
+        return NULL;
+      }
+      if(gx->g_name){
         return NULL;
       }
       if(strcmp(name, gx->g_name)){
@@ -3776,6 +3865,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "group-create", "create a new group (?group-create name [group])", 0, &group_create_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "group-list", "list groups (?group-list)", 0, &group_list_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "group-halt", "halt a group (?group-halt [group])", 0, &group_halt_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "group-config", "set a group option (?group-config option [group])", 0, &group_config_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "listener-create", "create a listener (?listener-create label [port [interface [group]]])", 0, &listener_create_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "listener-halt", "stop a listener (?listener-halt port)", 0, &listener_halt_group_cmd_katcp, NULL, NULL);
