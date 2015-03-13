@@ -490,7 +490,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     /*Try to open the file*/
     if ( (fptr = fopen(buffer, "rb")) == NULL ){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not open or find firmware file: %s", buffer); 
-        fprintf(stderr, "cannot open PHY firmware file: %s\n", buffer);
+        /*fprintf(stderr, "cannot open PHY firmware file: %s\n", buffer);*/
         free(buffer);
         return KATCP_RESULT_FAIL;
     }
@@ -549,7 +549,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     //Place PHY-MCU into sw reset - assert 1Ex0002:7
     phy_write_op(port_addr, DEVADDR_MCU, 0x0002, 0x80);    // 1<<7);
 
-    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "preparing to load PHY firmware...");
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "preparing to load phy firmware...");
     write_katcp(d);
 
     //Write data to appropriate PHY-RAM
@@ -614,10 +614,12 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
 
     if (watchdog1 == watchdog2)
     {
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "phy firmware not running");
         log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "two consecutive phy watchdog counter values are equal: 0x%x  0x%x ...firmware not running", watchdog1, watchdog2);
         return KATCP_RESULT_FAIL;
     }
 
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "phy firmware loaded");
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "watchdog counters:  0x%x  0x%x", watchdog1, watchdog2); 
     return KATCP_RESULT_OK;
 }
