@@ -25,6 +25,7 @@
 #include "tcpborphserver3.h"
 #include "loadbof.h"
 #include "tg.h"
+#include "lock.h"
 
 #define MTU               1024*64
 
@@ -572,6 +573,12 @@ int upload_bin_cmd(struct katcp_dispatch *d, int argc)
   struct tbs_raw *tr;
   struct katcp_notice *nx;
 
+
+  if (testlock() == LOCKED){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
+      return KATCP_RESULT_FAIL;
+  }
+
   dl = template_shared_katcp(d);
   if(dl == NULL){
     return KATCP_RESULT_FAIL;
@@ -976,6 +983,13 @@ int upload_program_cmd(struct katcp_dispatch *d, int argc)
   unsigned int port, timeout, expected;
   struct tbs_raw *tr;
   struct katcp_notice *nx;
+
+
+  if (testlock() == LOCKED){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
+      return KATCP_RESULT_FAIL;
+  }
+
 
   dl = template_shared_katcp(d);
   if(dl == NULL){
