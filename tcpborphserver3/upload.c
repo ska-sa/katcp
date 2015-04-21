@@ -573,12 +573,6 @@ int upload_bin_cmd(struct katcp_dispatch *d, int argc)
   struct tbs_raw *tr;
   struct katcp_notice *nx;
 
-
-  if (testlock() == LOCKED){
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
-      return KATCP_RESULT_FAIL;
-  }
-
   dl = template_shared_katcp(d);
   if(dl == NULL){
     return KATCP_RESULT_FAIL;
@@ -589,6 +583,11 @@ int upload_bin_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
  
+  if ((tr->r_lkey != NULL) && strcmp(tr->r_lkey, d->d_name)){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
+    return KATCP_RESULT_FAIL;
+  }
+
   expected = 0;
   timeout = 0;
   port = UPLOAD_PORT;
@@ -984,13 +983,6 @@ int upload_program_cmd(struct katcp_dispatch *d, int argc)
   struct tbs_raw *tr;
   struct katcp_notice *nx;
 
-
-  if (testlock() == LOCKED){
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
-      return KATCP_RESULT_FAIL;
-  }
-
-
   dl = template_shared_katcp(d);
   if(dl == NULL){
     return KATCP_RESULT_FAIL;
@@ -1001,6 +993,11 @@ int upload_program_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
  
+  if ((tr->r_lkey != NULL) && strcmp(tr->r_lkey, d->d_name)){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
+    return KATCP_RESULT_FAIL;
+  }
+
   expected = 0;
   timeout = 0;
   port = UPLOAD_PORT;

@@ -5,18 +5,34 @@
 
 #include "lock.h"
 
-static struct device_lock lock = { .status=UNLOCKED };
+//static struct device_lock lock = { .status=UNLOCKED };
 
+#if 0
 int testlock(){
     return lock.status;
 }
+#endif
 
-int lockdev_cmd(struct katcp_dispatch *d){
+int lockdev_cmd(struct katcp_dispatch *d, int argc){
 
-    if (lock.status == LOCKED){
+    struct tbs_raw *tr;
+
+    tr = get_mode_katcp(d, TBS_MODE_RAW);
+    if(tr == NULL){
+        log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "unable to acquire state");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if (tr->lkey != NULL){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device already locked");
         return KATCP_RESULT_FAIL;
     }
+
+
+    return KATCP_RESULT_OK;
+#if 0 
+
+
 
     srand(time(NULL));
     lock.key = rand();
@@ -27,8 +43,11 @@ int lockdev_cmd(struct katcp_dispatch *d){
     append_string_katcp(d, KATCP_FLAG_STRING, KATCP_OK);
     append_hex_long_katcp(d, KATCP_FLAG_XLONG | KATCP_FLAG_LAST, lock.key);
     return KATCP_RESULT_OWN;
+#endif
 }
 
+
+#if 0
 int lockgetkey_cmd(struct katcp_dispatch *d){
 
     if (lock.status != LOCKED){
@@ -75,3 +94,5 @@ int unlockdev_cmd(struct katcp_dispatch *d, int argc){
     return KATCP_RESULT_OK;
 }
 
+
+#endif

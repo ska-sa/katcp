@@ -25,22 +25,10 @@
 #include "tg.h"
 
 #include "phy.h"
-#include "lock.h"
 
 #define ARRAY_SIZE 12
 #define DEFAULT_FILENAME    "vsc848x_EDC_FW_1_14.bin"
 /*********************************************************************/
-
-#if 0
-struct device_lock{
-    int status;
-    int key;
-    char *owner;
-};
-
-static struct device_lock lock = { .status=UNLOCKED };
-#endif
-
 
 static volatile int bus_error_happened;
 
@@ -1034,7 +1022,7 @@ int write_cmd(struct katcp_dispatch *d, int argc)
 
 #ifdef DEBUG
     if(remaining_bits >= 32){
-      fprintf(stderr, "write: logic problem, remaining bits too large at %u", remaining_bits);
+      f)printf(stderr, "write: logic problem, remaining bits too large at %u", remaining_bits);
       abort();
     }
 #endif
@@ -1874,14 +1862,14 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
   struct katcp_notice *nx;
   char *argv[3];
 
-  if (testlock() == LOCKED){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
-    return KATCP_RESULT_FAIL;
-  }
-
   tr = get_mode_katcp(d, TBS_MODE_RAW);
   if(tr == NULL){
     log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "unable to acquire state");
+    return KATCP_RESULT_FAIL;
+  }
+
+  if ((tr->r_lkey != NULL) && strcmp(tr->r_lkey, d->d_name)){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
     return KATCP_RESULT_FAIL;
   }
 
@@ -1978,70 +1966,104 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
   return status;
 }
 
-#if 0
-int lockdev_cmd(struct katcp_dispatch *d){
 
-    if (lock.status == LOCKED){
+int lockdev_cmd(struct katcp_dispatch *d, int argc){
+    struct tbs_raw *tr;
+
+    tr = get_mode_katcp(d, TBS_MODE_RAW);
+    if(tr == NULL){
+        log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "unable to acquire state");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if (tr->r_lkey != NULL){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device already locked");
         return KATCP_RESULT_FAIL;
     }
 
-    srand(time(NULL));
-    lock.key = rand();
-    lock.owner = d->d_name;
-    lock.status = LOCKED;
-
-    prepend_reply_katcp(d);
-    append_string_katcp(d, KATCP_FLAG_STRING, KATCP_OK);
-    append_hex_long_katcp(d, KATCP_FLAG_XLONG | KATCP_FLAG_LAST, lock.key);
-    return KATCP_RESULT_OWN;
-}
-
-int lockgetkey_cmd(struct katcp_dispatch *d){
-
-    if (lock.status != LOCKED){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device is not locked");
-        return KATCP_RESULT_FAIL;
-    }
-
-    prepend_reply_katcp(d);
-    append_string_katcp(d, KATCP_FLAG_STRING, KATCP_OK);
-    append_hex_long_katcp(d, KATCP_FLAG_XLONG | KATCP_FLAG_LAST, lock.key);
-    return KATCP_RESULT_OWN;
-}
-
-int unlockdev_cmd(struct katcp_dispatch *d, int argc){
-    
-    char *temp;
-    int tempkey;
-
-    if (lock.status == UNLOCKED){
-        return KATCP_RESULT_OK;
-    }
-    
-    if (argc != 2){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid number of arguements");
+    if (argc > 2){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "too many arguments");
         return KATCP_RESULT_INVALID;
     }
 
-    temp = arg_string_katcp(d, 1); 
-    tempkey = atoi(temp);
+    if (argc == 1){
+        tr->r_lkey = strdup(d->d_name);
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "key = %s", tr->r_lkey);
+    }
 
-    if (tempkey != lock.key){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid key");
+    if (argc == 2){
+        tr->r_lkey = arg_copy_string_katcp(d,1);
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "key = %s", tr->r_lkey);
+    }
+
+    return KATCP_RESULT_OK;
+}
+
+
+
+int retrieve_dev_key_cmd(struct katcp_dispatch *d){
+    struct tbs_raw *tr;
+
+    tr = get_mode_katcp(d, TBS_MODE_RAW);
+
+    if(tr == NULL){
+        log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "unable to acquire state");
         return KATCP_RESULT_FAIL;
     }
 
-#if 0
-    if ((key != lock.key) && (d->d_name != lock.owner)){
-        return -1;
+    if (tr->r_lkey == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device not locked");
+        return KATCP_RESULT_FAIL;
     }
-#endif
+    
+    prepend_reply_katcp(d);
+    append_string_katcp(d, KATCP_FLAG_STRING, KATCP_OK);
+    append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, tr->r_lkey);
 
-    lock.status = UNLOCKED;
+    return KATCP_RESULT_OWN;
+}
+
+
+int unlockdev_cmd(struct katcp_dispatch *d, int argc){
+    struct tbs_raw *tr;
+
+    tr = get_mode_katcp(d, TBS_MODE_RAW);
+
+    if(tr == NULL){
+        log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "unable to acquire state");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if (tr->r_lkey == NULL){
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "device not locked");
+        return KATCP_RESULT_OK;
+    }
+
+    if (argc > 2){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "too many arguments");
+        return KATCP_RESULT_INVALID;
+    }
+
+    if (argc == 1){
+        if (strcmp(tr->r_lkey, d->d_name)){
+            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid key");
+            return KATCP_RESULT_FAIL;
+        }
+    }
+
+    if (argc == 2){
+        if (strcmp(tr->r_lkey, arg_string_katcp(d,1))){
+            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid key");
+            return KATCP_RESULT_FAIL;
+        }
+    }
+
+    free(tr->r_lkey);
+    tr->r_lkey = NULL;
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "device unlocked successfully");
+
     return KATCP_RESULT_OK;
 }
-#endif
 
 
 void add_to_list(struct katcp_dispatch *d, struct meta_entry *node, struct meta_entry *data)
@@ -2648,6 +2670,11 @@ void destroy_raw_tbs(struct katcp_dispatch *d, struct tbs_raw *tr)
     tr->r_bof_dir = NULL;
   }
 
+  if (tr->r_lkey){
+      free(tr->r_lkey);
+      tr->r_lkey = NULL;
+  }
+
   free(tr);
 }
 
@@ -2739,6 +2766,8 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
 
   tr->r_meta = NULL;
   /* clear out further structure elements */
+  
+  tr->r_lkey = NULL;
 
   /* allocate structure elements */
   tr->r_registers = create_avltree();
@@ -2839,7 +2868,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
 
   result += register_flag_mode_katcp(d, "?lockdev",    "lock fpga programmability", &lockdev_cmd, 0, TBS_MODE_RAW);
   result += register_flag_mode_katcp(d, "?unlockdev",    "unlock the fpga programmability", &unlockdev_cmd, 0, TBS_MODE_RAW);
-  result += register_flag_mode_katcp(d, "?devkey",    "get the fpga locking key", &lockgetkey_cmd, 0, TBS_MODE_RAW);
+  result += register_flag_mode_katcp(d, "?devkey",    "get the fpga locking key", &retrieve_dev_key_cmd, 0, TBS_MODE_RAW);
 
   tr->r_chassis = chassis_init_tbs(d, TBS_ROACH_CHASSIS);
   if(tr->r_chassis){
