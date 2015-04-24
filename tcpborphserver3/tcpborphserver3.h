@@ -151,6 +151,8 @@ struct tbs_raw
   unsigned int r_instances;
 
   struct avl_tree *r_meta;
+
+  char *r_lkey;
 };
 
 struct meta_entry

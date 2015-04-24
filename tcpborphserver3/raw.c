@@ -549,7 +549,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     //Place PHY-MCU into sw reset - assert 1Ex0002:7
     phy_write_op(port_addr, DEVADDR_MCU, 0x0002, 0x80);    // 1<<7);
 
-    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "preparing to load phy firmware...");
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "preparing to load firmware on phy %s on mezzanine card %s", phy, mezz);
     write_katcp(d);
 
     //Write data to appropriate PHY-RAM
@@ -614,13 +614,13 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
 
     if (watchdog1 == watchdog2)
     {
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "phy firmware not running");
-        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "two consecutive phy watchdog counter values are equal: 0x%x  0x%x ...firmware not running", watchdog1, watchdog2);
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "phy %s on mezzanine %s - firmware not running", phy, mezz);
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "mezz[%s]phy[%s] two consecutive phy watchdog counter values are equal: 0x%x  0x%x ...firmware not running", mezz, phy, watchdog1, watchdog2);
         return KATCP_RESULT_FAIL;
     }
 
-    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "phy firmware loaded");
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "watchdog counters:  0x%x  0x%x", watchdog1, watchdog2); 
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "phy %s on mezzanine %s - firmware loaded successfully", phy, mezz);
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "mezz[%s]phy[%s] watchdog counters:  0x%x  0x%x", mezz, phy, watchdog1, watchdog2); 
     return KATCP_RESULT_OK;
 }
 
@@ -1868,6 +1868,11 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
+  if ((tr->r_lkey != NULL) && strcmp(tr->r_lkey, d->d_name)){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
+    return KATCP_RESULT_FAIL;
+  }
+
   nx = find_notice_katcp(d, TBS_KCPFPG_PATH);
   if(nx){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "not proceeding with programming as another instance is already in flight");
@@ -1960,6 +1965,106 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
 
   return status;
 }
+
+
+int lockdev_cmd(struct katcp_dispatch *d, int argc){
+    struct tbs_raw *tr;
+
+    tr = get_mode_katcp(d, TBS_MODE_RAW);
+    if(tr == NULL){
+        log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "unable to acquire state");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if (tr->r_lkey != NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device already locked");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if (argc > 2){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "too many arguments");
+        return KATCP_RESULT_INVALID;
+    }
+
+    if (argc == 1){
+        tr->r_lkey = strdup(d->d_name);
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "device locked; key = %s", tr->r_lkey);
+    }
+
+    if (argc == 2){
+        tr->r_lkey = arg_copy_string_katcp(d,1);
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "device locked; key = %s", tr->r_lkey);
+    }
+
+    return KATCP_RESULT_OK;
+}
+
+
+
+int retrieve_dev_key_cmd(struct katcp_dispatch *d){
+    struct tbs_raw *tr;
+
+    tr = get_mode_katcp(d, TBS_MODE_RAW);
+
+    if(tr == NULL){
+        log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "unable to acquire state");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if (tr->r_lkey == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device not locked");
+        return KATCP_RESULT_FAIL;
+    }
+
+    prepend_reply_katcp(d);
+    append_string_katcp(d, KATCP_FLAG_STRING, KATCP_OK);
+    append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, tr->r_lkey);
+
+    return KATCP_RESULT_OWN;
+}
+
+
+int unlockdev_cmd(struct katcp_dispatch *d, int argc){
+    struct tbs_raw *tr;
+
+    tr = get_mode_katcp(d, TBS_MODE_RAW);
+
+    if(tr == NULL){
+        log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "unable to acquire state");
+        return KATCP_RESULT_FAIL;
+    }
+
+    if (tr->r_lkey == NULL){
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "device not locked");
+        return KATCP_RESULT_OK;
+    }
+
+    if (argc > 2){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "too many arguments");
+        return KATCP_RESULT_INVALID;
+    }
+
+    if (argc == 1){
+        if (strcmp(tr->r_lkey, d->d_name)){
+            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid key");
+            return KATCP_RESULT_FAIL;
+        }
+    }
+
+    if (argc == 2){
+        if (strcmp(tr->r_lkey, arg_string_katcp(d,1))){
+            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid key");
+            return KATCP_RESULT_FAIL;
+        }
+    }
+
+    free(tr->r_lkey);
+    tr->r_lkey = NULL;
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "device unlocked successfully");
+
+    return KATCP_RESULT_OK;
+}
+
 
 void add_to_list(struct katcp_dispatch *d, struct meta_entry *node, struct meta_entry *data)
 {
@@ -2567,6 +2672,11 @@ void destroy_raw_tbs(struct katcp_dispatch *d, struct tbs_raw *tr)
     tr->r_bof_dir = NULL;
   }
 
+  if (tr->r_lkey){
+      free(tr->r_lkey);
+      tr->r_lkey = NULL;
+  }
+
   free(tr);
 }
 
@@ -2660,6 +2770,8 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
 
   tr->r_meta = NULL;
   /* clear out further structure elements */
+  
+  tr->r_lkey = NULL;
 
   /* allocate structure elements */
   tr->r_registers = create_avltree();
@@ -2731,6 +2843,9 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
   /* not upload, just program */
   result += register_flag_mode_katcp(d, "?progdev",      "program the fpga (?progdev [filename])", &progdev_cmd, 0, TBS_MODE_RAW);
 
+  result += register_flag_mode_katcp(d, "?unlockdev",    "unlock the fpga programmability (?unlockdev [key]. key optional if locked with no key parameter during current connection)", &unlockdev_cmd, 0, TBS_MODE_RAW);
+  result += register_flag_mode_katcp(d, "?devkey",    "retrieve the fpga programmability locking key (?devkey)", &retrieve_dev_key_cmd, 0, TBS_MODE_RAW);
+  result += register_flag_mode_katcp(d, "?lockdev",    "lock fpga programmability (?lockdev [key optional]. if key ommitted, current connection parameters used)", &lockdev_cmd, 0, TBS_MODE_RAW);
 
   result += register_flag_mode_katcp(d, "?register",     "name a memory location (?register name position bit-offset length)", &register_cmd, 0, TBS_MODE_RAW);
 
