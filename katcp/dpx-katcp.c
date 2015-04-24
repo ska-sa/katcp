@@ -530,6 +530,8 @@ int restart_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "restart request from %s", fx->f_name ? fx->f_name : "<unknown party>");
+
   switch(fx->f_scope){
     case KATCP_SCOPE_SINGLE :
       if(terminate_flat_katcp(d, fx) < 0){
@@ -566,6 +568,8 @@ int halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "halt request from %s", fx->f_name ? fx->f_name : "<unknown party>");
+
   switch(fx->f_scope){
     case KATCP_SCOPE_SINGLE :
       if(terminate_flat_katcp(d, fx) < 0){
@@ -575,12 +579,14 @@ int halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     case KATCP_SCOPE_GROUP :
       gx = fx->f_group;
       if(gx){
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "initiating halt for %s group", gx->g_name ? gx->g_name : "<unnamed>");
         if(terminate_group_katcp(d, gx, 1) == 0){
           return KATCP_RESULT_OK;
         }
       }
       return KATCP_RESULT_FAIL;
     case KATCP_SCOPE_GLOBAL :
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "initiating global halt");
       terminate_katcp(d, KATCP_EXIT_HALT);
       return KATCP_RESULT_OK;
     default :
