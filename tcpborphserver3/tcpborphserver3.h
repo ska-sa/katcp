@@ -142,7 +142,6 @@ struct tbs_raw
   struct avl_tree *r_meta;
 
   char *r_lkey;
-  //int r__lstat;
 };
 
 struct meta_entry

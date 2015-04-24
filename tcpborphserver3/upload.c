@@ -25,7 +25,6 @@
 #include "tcpborphserver3.h"
 #include "loadbof.h"
 #include "tg.h"
-#include "lock.h"
 
 #define MTU               1024*64
 

@@ -1022,7 +1022,7 @@ int write_cmd(struct katcp_dispatch *d, int argc)
 
 #ifdef DEBUG
     if(remaining_bits >= 32){
-      f)printf(stderr, "write: logic problem, remaining bits too large at %u", remaining_bits);
+      fprintf(stderr, "write: logic problem, remaining bits too large at %u", remaining_bits);
       abort();
     }
 #endif
@@ -1988,12 +1988,12 @@ int lockdev_cmd(struct katcp_dispatch *d, int argc){
 
     if (argc == 1){
         tr->r_lkey = strdup(d->d_name);
-        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "key = %s", tr->r_lkey);
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "device locked; key = %s", tr->r_lkey);
     }
 
     if (argc == 2){
         tr->r_lkey = arg_copy_string_katcp(d,1);
-        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "key = %s", tr->r_lkey);
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "device locked; key = %s", tr->r_lkey);
     }
 
     return KATCP_RESULT_OK;
@@ -2015,7 +2015,7 @@ int retrieve_dev_key_cmd(struct katcp_dispatch *d){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device not locked");
         return KATCP_RESULT_FAIL;
     }
-    
+
     prepend_reply_katcp(d);
     append_string_katcp(d, KATCP_FLAG_STRING, KATCP_OK);
     append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, tr->r_lkey);
@@ -2835,6 +2835,9 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
   /* not upload, just program */
   result += register_flag_mode_katcp(d, "?progdev",      "program the fpga (?progdev [filename])", &progdev_cmd, 0, TBS_MODE_RAW);
 
+  result += register_flag_mode_katcp(d, "?unlockdev",    "unlock the fpga programmability (?unlockdev [key]. key optional if locked with no key parameter during current connection)", &unlockdev_cmd, 0, TBS_MODE_RAW);
+  result += register_flag_mode_katcp(d, "?devkey",    "retrieve the fpga programmability locking key (?devkey)", &retrieve_dev_key_cmd, 0, TBS_MODE_RAW);
+  result += register_flag_mode_katcp(d, "?lockdev",    "lock fpga programmability (?lockdev [key optional]. if key ommitted, current connection parameters used)", &lockdev_cmd, 0, TBS_MODE_RAW);
 
   result += register_flag_mode_katcp(d, "?register",     "name a memory location (?register name position bit-offset length)", &register_cmd, 0, TBS_MODE_RAW);
 
@@ -2864,11 +2867,6 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
 
   result += register_flag_mode_katcp(d, "?chassis-start",  "initialise chassis interface", &start_chassis_cmd, 0, TBS_MODE_RAW);
   result += register_flag_mode_katcp(d, "?chassis-led",    "set a chassis led (?chassis-led led state)", &led_chassis_cmd, 0, TBS_MODE_RAW);
-
-
-  result += register_flag_mode_katcp(d, "?lockdev",    "lock fpga programmability", &lockdev_cmd, 0, TBS_MODE_RAW);
-  result += register_flag_mode_katcp(d, "?unlockdev",    "unlock the fpga programmability", &unlockdev_cmd, 0, TBS_MODE_RAW);
-  result += register_flag_mode_katcp(d, "?devkey",    "get the fpga locking key", &retrieve_dev_key_cmd, 0, TBS_MODE_RAW);
 
   tr->r_chassis = chassis_init_tbs(d, TBS_ROACH_CHASSIS);
   if(tr->r_chassis){
