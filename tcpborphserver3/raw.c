@@ -2001,7 +2001,7 @@ int lockdev_cmd(struct katcp_dispatch *d, int argc){
 
 
 
-int retrieve_dev_key_cmd(struct katcp_dispatch *d){
+int retrieve_dev_key_cmd(struct katcp_dispatch *d, int argc){
     struct tbs_raw *tr;
 
     tr = get_mode_katcp(d, TBS_MODE_RAW);
