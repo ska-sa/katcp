@@ -192,22 +192,16 @@ int text_to_mac(uint8_t *binary, const char *text)
   return 0;
 }
 
-static unsigned int compute_spam_rate(unsigned int *array, unsigned int index, unsigned int self)
+static unsigned int compute_spam_rate(struct getap_state *gs, unsigned int index)
 {
   /* WARNING: better make sure this array is actually the correct size */
   unsigned int third, value;
 
-  if(array[GETAP_PERIOD_CURRENT] >= array[GETAP_PERIOD_STOP]){
-    return array[GETAP_PERIOD_STOP];
+  if(gs->s_spam_period[GETAP_PERIOD_CURRENT] >= gs->s_spam_period[GETAP_PERIOD_STOP]){
+    return gs->s_spam_period[GETAP_PERIOD_STOP];
   }
 
-  if(index <= 2){
-    if(index == ((self == 1) ? 2 : 1)){
-      array[GETAP_PERIOD_CURRENT] += array[GETAP_PERIOD_INCREMENT];
-    }
-  }
-
-  third = array[GETAP_PERIOD_CURRENT] / 3;
+  third = gs->s_spam_period[GETAP_PERIOD_CURRENT] / 3;
   if(third <= 0){
     third = 1;
   }
@@ -216,22 +210,31 @@ static unsigned int compute_spam_rate(unsigned int *array, unsigned int index, u
   value = (2 + (((index + array[GETAP_PERIOD_CURRENT]) * COPRIME_C) % 3) ? 1 : 0) * third;
 #endif
 
-  value = (2 + (((index * index * COPRIME_A) + (index * COPRIME_B) + (self * array[GETAP_PERIOD_CURRENT])) % 3) ? 1 : 0) * third;
+  value = (2 + (((index * index * COPRIME_A) + (index * COPRIME_B) + (gs->s_self * gs->s_spam_period[GETAP_PERIOD_CURRENT])) % 3) ? 1 : 0) * third;
   
   return value;
 }
 
-static unsigned int compute_announce_rate(unsigned int *array)
+static void fixup_spam_rate(struct getap_state *gs)
+{
+  gs->s_spam_period[GETAP_PERIOD_CURRENT] = gs->s_spam_period[GETAP_PERIOD_CURRENT] + gs->s_spam_period[GETAP_PERIOD_INCREMENT];
+
+  if(gs->s_spam_period[GETAP_PERIOD_CURRENT] > gs->s_spam_period[GETAP_PERIOD_STOP]){
+    gs->s_spam_period[GETAP_PERIOD_CURRENT] =  gs->s_spam_period[GETAP_PERIOD_STOP];
+  }
+}
+
+static unsigned int compute_announce_rate(struct getap_state *gs)
 {
   /* WARNING: better make sure this array is actually the correct size */
 
-  if(array[GETAP_PERIOD_CURRENT] >= array[GETAP_PERIOD_STOP]){
-    return array[GETAP_PERIOD_STOP];
+  if(gs->s_announce_period[GETAP_PERIOD_CURRENT] >= gs->s_announce_period[GETAP_PERIOD_STOP]){
+    return gs->s_announce_period[GETAP_PERIOD_STOP];
   }
 
-  array[GETAP_PERIOD_CURRENT] += array[GETAP_PERIOD_INCREMENT];
+  gs->s_announce_period[GETAP_PERIOD_CURRENT] += gs->s_announce_period[GETAP_PERIOD_INCREMENT];
 
-  return array[GETAP_PERIOD_CURRENT];
+  return gs->s_announce_period[GETAP_PERIOD_CURRENT];
 }
 
 /* arp related functions  ***********************************************/
@@ -337,7 +340,7 @@ void announce_arp(struct getap_state *gs)
   }
 #endif
 
-  gs->s_arp_fresh[gs->s_self] = gs->s_iteration + compute_announce_rate(gs->s_announce_period);
+  gs->s_arp_fresh[gs->s_self] = gs->s_iteration + compute_announce_rate(gs);
 }
 
 static void request_arp(struct getap_state *gs, int index)
@@ -397,7 +400,7 @@ static void request_arp(struct getap_state *gs, int index)
   gs->s_arp_fresh[index] = mine;
 #endif
 
-  gs->s_arp_fresh[index] = gs->s_iteration + compute_spam_rate(gs->s_spam_period, index, gs->s_self);
+  gs->s_arp_fresh[index] = gs->s_iteration + compute_spam_rate(gs, index);
 
   gs->s_arp_len = 42;
 #ifdef DEBUG
@@ -517,6 +520,8 @@ void spam_arp(struct getap_state *gs)
     }
     gs->s_index++;
   }
+
+  fixup_spam_rate(gs);
 
   gs->s_index = 1;
   gs->s_iteration++;
@@ -1216,6 +1221,8 @@ void destroy_getap(struct katcp_dispatch *d, struct getap_state *gs)
     gs->s_mcast_fd = (-1);
   }
 
+  gs->s_mcast_count = 0;
+
   /* now ensure that things are invalidated */
 
   gs->s_raw_mode = NULL;
@@ -1372,6 +1379,7 @@ struct getap_state *create_getap(struct katcp_dispatch *d, unsigned int instance
   gs->s_tap_io = NULL;
   gs->s_tap_fd = (-1);
   gs->s_mcast_fd = (-1);
+  gs->s_mcast_count = 0;
 
   gs->s_timer = 0;
 
@@ -1816,6 +1824,8 @@ void tap_print_info(struct katcp_dispatch *d, struct getap_state *gs)
   log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "current arp spam deferrals %u", gs->s_deferrals);
   log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "current buffers arp=%u/rx=%u/tx=%u", gs->s_arp_len, gs->s_rx_len, gs->s_tx_len);
 
+  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "subscribed to %d groups via fd=%d", gs->s_mcast_count, gs->s_mcast_fd);
+
   prepend_inform_katcp(d);
   append_string_katcp(d, KATCP_FLAG_STRING, gs->s_tap_name);
   append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, gs->s_address_name);
@@ -2025,8 +2035,10 @@ int tap_multicast_add_group_cmd(struct katcp_dispatch *d, int argc)
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to add multicast membership to 0x%08x on %s (%s)", start + i, name, strerror(errno));
         return KATCP_RESULT_FAIL;
       }
+
       
-      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "assigned group %s", inet_ntoa(grp.imr_multiaddr));
+      gs->s_mcast_count++;
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "assigned group %s (%d in total)", inet_ntoa(grp.imr_multiaddr), gs->s_mcast_count);
     }
     
   } else if (strncmp(mode, "send", 4) == 0){
@@ -2048,6 +2060,8 @@ int tap_multicast_add_group_cmd(struct katcp_dispatch *d, int argc)
       close(gs->s_mcast_fd);
       return KATCP_RESULT_FAIL;
     }
+
+    gs->s_mcast_count++;
     
   } else {
     log_message_katcp(d, KATCP_LEVEL_ERROR , NULL, "invalid mode <%s> [send | recv]", mode);
@@ -2072,14 +2086,13 @@ int tap_multicast_remove_group_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
-  if (argc < 3){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "usage tap-name multicast-address");
+  if (argc < 2){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "usage tap-name [multicast-address]");
     return KATCP_RESULT_FAIL;
   }
   
   name  = arg_string_katcp(d, 1);
-  grpip = arg_string_katcp(d, 2);
-  
+
   a = find_arb_katcp(d, name);
   if(a == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate %s", name);
@@ -2092,19 +2105,30 @@ int tap_multicast_remove_group_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
-  grp.imr_multiaddr.s_addr = inet_addr(grpip);
-  grp.imr_interface.s_addr = inet_addr(gs->s_address_name);
-  if (setsockopt(gs->s_mcast_fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *) &grp, sizeof(grp)) < 0){
-    //close(gs->s_mcast_fd);
-    //gs->s_mcast_fd = (-1);
-    //log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to drop multicast membership to %s on %s (%s)", grpip, name, strerror(errno));
-    //return KATCP_RESULT_FAIL;
+  if(argc >= 2){
+    grpip = arg_string_katcp(d, 2);
+    if(grpip){
+      grp.imr_multiaddr.s_addr = inet_addr(grpip);
+      grp.imr_interface.s_addr = inet_addr(gs->s_address_name);
+      if (setsockopt(gs->s_mcast_fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *) &grp, sizeof(grp)) < 0){
+        log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unable to drop multicast membership to %s on %s (%s)", grpip, name, strerror(errno));
+        //close(gs->s_mcast_fd);
+        //gs->s_mcast_fd = (-1);
+        //return KATCP_RESULT_FAIL;
+      } else {
+        if(gs->s_mcast_count > 0){
+          gs->s_mcast_count--;
+        }
+      }
+    }
+  } else {
+    gs->s_mcast_count = 0;
   }
   
-  close(gs->s_mcast_fd);
-  
-  gs->s_mcast_fd = (-1);
-
+  if(gs->s_mcast_count <= 0){
+    close(gs->s_mcast_fd);
+    gs->s_mcast_fd = (-1);
+  }
   
   return KATCP_RESULT_OK;
 } 
