@@ -54,7 +54,7 @@ unsigned int infer_fpga_range(struct katcp_dispatch *d);
 #define GETAP_IP_BUFFER         16
 #define GETAP_MAC_BUFFER        18
 #define GETAP_MAC_SIZE           6
-#define GETAP_ARP_FRAME         64
+#define GETAP_ARP_FRAME         72 /* needs to be round8(min_frame+4) */
 #define GETAP_MAX_FRAME       4096
 
 #define GETAP_ARP_CACHE        256
@@ -80,6 +80,7 @@ struct getap_state{
   char s_mac_name[GETAP_MAC_BUFFER];
 
   unsigned short s_port;
+  unsigned int s_subnet;
 
   unsigned int s_self;
   unsigned int s_index;
@@ -116,12 +117,30 @@ struct getap_state{
   unsigned int s_tx_len;
   unsigned int s_arp_len;
 
+  unsigned long s_tx_arp;
+  unsigned long s_tx_user;
+  unsigned long s_tx_error;
+
+  unsigned long s_rx_arp;
+  unsigned long s_rx_user;
+  unsigned long s_rx_error;
+
   unsigned char s_rxb[GETAP_MAX_FRAME];
   unsigned char s_txb[GETAP_MAX_FRAME];
+
+  unsigned int s_rx_big;
+  unsigned int s_rx_small;
+
+  unsigned int s_tx_big;
+  unsigned int s_tx_small;
+
+  unsigned int s_table_size;
+
   unsigned char s_arp_buffer[GETAP_ARP_FRAME];
 
   uint8_t s_arp_table[GETAP_ARP_CACHE][GETAP_MAC_SIZE];
   uint32_t s_arp_fresh[GETAP_ARP_CACHE];
+
 };
 
 #define TBS_FPGA_DOWN        0
