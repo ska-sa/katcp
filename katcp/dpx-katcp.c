@@ -109,7 +109,7 @@ int generic_log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc, unsign
       }
       switch(type){
         case LEVEL_EXTENT_FLAT    :
-          fx = find_name_flat_katcp(d, NULL, name);
+          fx = scope_name_full_katcp(d, NULL, NULL, name);
           if(fx == NULL){
             log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate a client with the name %s", name);
             return KATCP_RESULT_FAIL;
@@ -347,11 +347,23 @@ int watchdog_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
 /* client list */
 
-static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *fx)
+static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, char *name)
 {
   int result, r, pending;
   char *ptr;
   struct katcp_group *gx;
+
+  if(fx->f_name == NULL){
+    return 0;
+  }
+
+  if(name && strcmp(name, fx->f_name)){
+    return 0;
+  }
+
+  if((fx->f_flags & KATCP_FLAT_HIDDEN) && (name == NULL)){
+    return 0;
+  }
 
   r = prepend_inform_katcp(d);
   if(r < 0){
@@ -390,12 +402,33 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s may field requests as peer is a client", fx->f_name);
   }
 
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s prefix its name to sensor definitions", fx->f_name, (fx->f_flags & KATCP_FLAT_PREFIXED) ? "will" : "will not");
+
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s translate relayed inform messages", fx->f_name, (fx->f_flags & KATCP_FLAT_RETAINFO) ? "will not" : "will");
+
   ptr = string_from_scope_katcp(fx->f_scope);
   if(ptr){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has %s scope", fx->f_name, ptr);
   } else {
-    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has invalid scope", fx->f_name);
+    log_message_katcp(d, KATCP_LEVEL_WARN | KATCP_LEVEL_LOCAL, NULL, "client %s has invalid scope", fx->f_name);
   }
+
+  switch((fx->f_stale & KATCP_STALE_MASK_SENSOR)){
+    case KATCP_STALE_SENSOR_NAIVE :
+      log_message_katcp(d, KATCP_LEVEL_DEBUG | KATCP_LEVEL_LOCAL, NULL, "client %s has not listed sensors", fx->f_name);
+      break;
+    case KATCP_STALE_SENSOR_CURRENT :
+      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has up to date sensor listing", fx->f_name);
+      break;
+    case KATCP_STALE_SENSOR_STALE :
+      log_message_katcp(d, KATCP_LEVEL_WARN | KATCP_LEVEL_LOCAL, NULL, "client %s has sensor listing which is out of date", fx->f_name);
+      break;
+    default :
+      log_message_katcp(d, KATCP_LEVEL_FATAL | KATCP_LEVEL_LOCAL, NULL, "client %s has corrupt sensor state tracking", fx->f_name);
+      break;
+  }
+
+  log_message_katcp(d, ((fx->f_max_defer > 0) ? KATCP_LEVEL_WARN : KATCP_LEVEL_INFO) | KATCP_LEVEL_LOCAL, NULL, "client %s has had a maximum of %d requests outstanding", fx->f_name, fx->f_max_defer);
 
   if(flushing_katcl(fx->f_line)){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has output pending", fx->f_name);
@@ -424,6 +457,7 @@ int client_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   struct katcp_group *gx;
   struct katcp_flat *fx, *fy;
   unsigned int i, j, total;
+  char *name;
 
   s = d->d_shared;
   total = 0;
@@ -434,13 +468,17 @@ int client_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
+  if(argc > 1){
+    name = arg_string_katcp(d, 1);
+  } else {
+    name = NULL;
+  }
+
   switch(fx->f_scope){
     case KATCP_SCOPE_SINGLE :
       /* WARNING: maybe a client can not be hidden from itself ? */
-      if((fx->f_flags & KATCP_FLAT_HIDDEN) == 0){
-        if(print_client_list_katcp(d, fx) > 0){
-          total++;
-        }
+      if(print_client_list_katcp(d, fx, name) > 0){
+        total++;
       }
       break;
     case KATCP_SCOPE_GROUP :
@@ -448,10 +486,8 @@ int client_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
       if(gx){
         for(i = 0; i < gx->g_count; i++){
           fy = gx->g_flats[i];
-          if((fy->f_flags & KATCP_FLAT_HIDDEN) == 0){
-            if(print_client_list_katcp(d, fy) > 0){
-              total++;
-            }
+          if(print_client_list_katcp(d, fy, name) > 0){
+            total++;
           }
         }
       }
@@ -462,10 +498,8 @@ int client_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
         if(gx){
           for(i = 0; i < gx->g_count; i++){
             fy = gx->g_flats[i];
-            if((fy->f_flags & KATCP_FLAT_HIDDEN) == 0){
-              if(print_client_list_katcp(d, fy) > 0){
-                total++;
-              }
+            if(print_client_list_katcp(d, fy, name) > 0){
+              total++;
             }
           }
         }
@@ -474,6 +508,10 @@ int client_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     default :
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid client scope %d for %s\n", fx->f_scope, fx->f_name);
       return KATCP_RESULT_FAIL;
+  }
+
+  if((total == 0) && (name != NULL)){
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
   }
 
   return extra_response_katcp(d, KATCP_RESULT_OK, "%u", total);
@@ -494,6 +532,8 @@ int restart_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "restart request from %s", fx->f_name ? fx->f_name : "<unknown party>");
+
   switch(fx->f_scope){
     case KATCP_SCOPE_SINGLE :
       if(terminate_flat_katcp(d, fx) < 0){
@@ -501,7 +541,7 @@ int restart_group_cmd_katcp(struct katcp_dispatch *d, int argc)
       }
       return KATCP_RESULT_OK;
     case KATCP_SCOPE_GROUP :
-      gx = this_group_katcp(d);
+      gx = fx->f_group; 
       if(gx){
         if(terminate_group_katcp(d, gx, 0) == 0){
           return KATCP_RESULT_OK;
@@ -530,6 +570,8 @@ int halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "halt request from %s", fx->f_name ? fx->f_name : "<unknown party>");
+
   switch(fx->f_scope){
     case KATCP_SCOPE_SINGLE :
       if(terminate_flat_katcp(d, fx) < 0){
@@ -537,14 +579,16 @@ int halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
       }
       return KATCP_RESULT_OK;
     case KATCP_SCOPE_GROUP :
-      gx = this_group_katcp(d);
+      gx = fx->f_group;
       if(gx){
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "initiating halt for %s group", gx->g_name ? gx->g_name : "<unnamed>");
         if(terminate_group_katcp(d, gx, 1) == 0){
           return KATCP_RESULT_OK;
         }
       }
       return KATCP_RESULT_FAIL;
     case KATCP_SCOPE_GLOBAL :
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "initiating global halt");
       terminate_katcp(d, KATCP_EXIT_HALT);
       return KATCP_RESULT_OK;
     default :
@@ -559,9 +603,14 @@ int halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
 int sensor_list_callback_katcp(struct katcp_dispatch *d, unsigned int *count, char *key, struct katcp_vrbl *vx)
 {
-  struct katcp_vrbl_payload *hy, *vy, *uy;
-  char *type;
+  struct katcp_vrbl_payload *value, *help, *units, *type, *range;
+  char *fallback;
   int result;
+#if 0
+  struct katcp_vrbl_payload *prefix;
+  struct katcp_flat *fx;
+  char *front;
+#endif
 
   result = is_vrbl_sensor_katcp(d, vx);
   if(result <= 0){
@@ -575,41 +624,88 @@ int sensor_list_callback_katcp(struct katcp_dispatch *d, unsigned int *count, ch
     return result;
   }
 
-  vy = find_payload_katcp(d, vx, ":value");
-  uy = find_payload_katcp(d, vx, ":units");
-  hy = find_payload_katcp(d, vx, ":help");
+  if(vx->v_flags & KATCP_VRF_HID){
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "subpressing listing of hidden sensor %s", key);
+    return 0;
+  }
 
-  if(vy == NULL){
+
+#if 0
+  vy = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_VALUE);
+  uy = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_UNITS);
+  hy = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_HELP);
+  ty = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_TYPE);
+#endif
+
+  value = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_VALUE);
+  if(value == NULL){
     return 0;
   }
-  type = type_to_string_vrbl_katcp(d, vy->p_type);
-  if(type == NULL){
+  fallback = type_to_string_vrbl_katcp(d, value->p_type);
+  if(fallback == NULL){
     return 0;
   }
+
+#if 0
+  prefix = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_PREFIX);
+  if(prefix){
+    /* TODO: should extract the prefix, convert it to a string (no vrbl API for that yet, then store it in front */
+  }
+#endif
+
+#if 0
+  front = NULL;
+  fx = this_flat_katcp(d);
+  if(fx){
+    if(fx->f_flags & KATCP_FLAT_PREFIXED){
+      front = fx->f_name;
+    }
+  }
+#endif
 
   prepend_inform_katcp(d);
 
-  append_string_katcp(d, KATCP_FLAG_STRING, key);
+#if 0
+  if(front){
+    append_args_katcp(d, KATCP_FLAG_STRING, "%s.%s", front, key);
+  } else {
+#endif
+    append_string_katcp(d, KATCP_FLAG_STRING, key);
+#if 0
+  }
+#endif
 
-  if(hy && (hy->p_type == KATCP_VRT_STRING)){
-    append_payload_vrbl_katcp(d, 0, vx, hy);
+  help = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_HELP);
+  if(help && (help->p_type == KATCP_VRT_STRING)){
+    append_payload_vrbl_katcp(d, 0, vx, help);
   } else {
     append_string_katcp(d, KATCP_FLAG_STRING, "undocumented");
   }
 
-  if(uy && (uy->p_type == KATCP_VRT_STRING)){
-    append_payload_vrbl_katcp(d, 0, vx, uy);
+  units = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_UNITS);
+  if(units && (units->p_type == KATCP_VRT_STRING)){
+    append_payload_vrbl_katcp(d, 0, vx, units);
   } else {
     append_string_katcp(d, KATCP_FLAG_STRING, "none");
   }
 
-  append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, type);
+  range = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_RANGE);
+
+  type = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_TYPE);
+  if(type && (type->p_type == KATCP_VRT_STRING)){
+    /* allows us to override the native type to something in sensor world */
+    append_payload_vrbl_katcp(d, (range ? 0 : KATCP_FLAG_LAST), vx, type);
+  } else {
+    append_string_katcp(d, KATCP_FLAG_STRING | (range ? 0 : KATCP_FLAG_LAST), fallback);
+  }
+
+  if(range){
+    append_payload_vrbl_katcp(d, KATCP_FLAG_LAST, vx, range);
+  }
 
   if(count){
     *count = (*count) + 1;
   }
-
-  /* TODO: add possible range definitions */
 
   return 0;
 }
@@ -631,11 +727,13 @@ int sensor_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   unsigned int i, count;
   int result;
   struct katcp_vrbl *vx;
+  struct katcp_flat *fx;
 
   result = 0;
   count = 0;
 
   if(argc > 1){
+    /* One of the few commands which accepts lots of parameters */
     for(i = 1 ; i < argc ; i++){
       key = arg_string_katcp(d, i);
       if(key == NULL){
@@ -653,6 +751,10 @@ int sensor_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     }
   } else {
     result = traverse_vrbl_katcp(d, (void *)&count, &sensor_list_void_callback_katcp);
+    fx = this_flat_katcp(d);
+    if(fx){
+      fx->f_stale = (fx->f_stale & (~KATCP_STALE_MASK_SENSOR)) | KATCP_STALE_SENSOR_CURRENT;
+    }
   }
 
   if(result < 0){
@@ -697,6 +799,11 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
   }
 
+  if(vx->v_flags & KATCP_VRF_HID){
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "not using hidden sensor %s", key);
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+  }
+
   fx = this_flat_katcp(d);
   if(fx == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "sensor sampling not available outside duplex context");
@@ -704,16 +811,14 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   if(argc <= 2){
-    /* TODO - work out this properly */
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "sampling strategy display still to be implemented");
-    strategy = strategy_to_string_sensor_katcp(d, KATCP_STRATEGY_OFF);
+    stg = current_strategy_sensor_katcp(d, vx, fx);
+    /* WARNING: will have to get more information for period sensors ... */
 
-    if(strategy){
-      return extra_response_katcp(d, KATCP_RESULT_OK, strategy);
+    strategy = strategy_to_string_sensor_katcp(d, stg);
+
+    if(strategy == NULL){
+      return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
     } 
-
-    /* TODO */
-    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
 
   } else {
 
@@ -729,11 +834,16 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
           log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to register event based sampling for sensor %s", key);
           return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
         }
+        break;
 
-        return extra_response_katcp(d, KATCP_RESULT_OK, strategy);
+      case KATCP_STRATEGY_OFF :
+        if(forget_event_variable_katcp(d, vx, fx) < 0){
+          log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to release event based sampling for sensor %s", key);
+          return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+        }
+        break;
 
       /* TODO */
-      case KATCP_STRATEGY_OFF :
       case KATCP_STRATEGY_PERIOD :
       case KATCP_STRATEGY_DIFF :
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "sampling strategy %s not implemented for sensor %s", strategy, key);
@@ -745,6 +855,22 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     }
   }
 
+  /* WARNING: all ERROR paths should have exited above ... can safely report now */
+
+#ifdef KATCP_CONSISTENCY_CHECKS
+  if((key == NULL) || (strategy == NULL)){
+    fprintf(stderr, "dpx: sensor-sampling: logic problem: essential display field left out\n");
+    abort();
+  }
+#endif
+
+  prepend_reply_katcp(d);
+
+  append_string_katcp(d, KATCP_FLAG_STRING, KATCP_OK);
+  append_string_katcp(d, KATCP_FLAG_STRING, key);
+  append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, strategy);
+
+  return KATCP_RESULT_OWN;
 }
 
 /********************************************************************************/
@@ -752,9 +878,28 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 int sensor_value_callback_katcp(struct katcp_dispatch *d, unsigned int *count, char *key, struct katcp_vrbl *vx)
 {
   struct katcl_parse *px;
+  int result;
+
+  result = is_vrbl_sensor_katcp(d, vx);
+  if(result <= 0){
+#ifdef DEBUG
+    fprintf(stderr, "sensor value: %p not a sensor\n", vx);
+#endif
+    return result;
+  }
+
+  if(vx->v_flags & KATCP_VRF_HID){
+#ifdef DEBUG
+    fprintf(stderr, "sensor value: %p is hidden\n", vx);
+#endif
+    return 0;
+  }
 
   px = make_sensor_katcp(d, key, vx, KATCP_SENSOR_VALUE_INFORM);
   if(px == NULL){
+#ifdef DEBUG
+    fprintf(stderr, "sensor value: unable to assemble output for %p\n", vx);
+#endif
     return -1;
   }
 
@@ -803,6 +948,7 @@ int sensor_value_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   count = 0;
 
   if(argc > 1){
+    /* One of the few commands which accepts lots of parameters */
     for(i = 1 ; i < argc ; i++){
       key = arg_string_katcp(d, i);
       if(key == NULL){

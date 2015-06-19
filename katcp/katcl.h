@@ -4,6 +4,7 @@
 /******************* lower level functions *******/
 
 #include <stdarg.h>
+#include <sys/time.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,9 +57,11 @@ int append_args_katcl(struct katcl_line *l, int flags, char *fmt, ...);
 int append_double_katcl(struct katcl_line *l, int flags, double v);
 #endif
 int append_buffer_katcl(struct katcl_line *l, int flags, void *buffer, int len);
+int append_timestamp_katcl(struct katcl_line *l, int flags, struct timeval *tv);
 int append_parameter_katcl(struct katcl_line *l, int flags, struct katcl_parse *px, unsigned int index); /* single field */
 int append_trailing_katcl(struct katcl_line *l, int flags, struct katcl_parse *px, unsigned int start); /* all further fields */
 int append_parse_katcl(struct katcl_line *l, struct katcl_parse *p); /* the whole line */
+int append_end_katcl(struct katcl_line *l);
 
 int vsend_katcl(struct katcl_line *l, va_list ap);
 int send_katcl(struct katcl_line *l, ...);
@@ -108,6 +111,8 @@ struct katcl_line *create_extended_rpc_katcl(char *name, int flags);
 void destroy_rpc_katcl(struct katcl_line *l);
 int await_reply_rpc_katcl(struct katcl_line *l, unsigned int timeout);
 
+#include <sys/time.h>
+
 int complete_rpc_katcl(struct katcl_line *l, unsigned int flags, struct timeval *until);
 int send_rpc_katcl(struct katcl_line *l, unsigned int timeout, ...);
 
@@ -139,6 +144,10 @@ void *get_precedence_head_gueue_katcl(struct katcl_gueue *g, unsigned int preced
 void *remove_head_gueue_katcl(struct katcl_gueue *g);
 void *remove_from_head_gueue_katcl(struct katcl_gueue *g, unsigned int position);
 void *remove_datum_gueue_katcl(struct katcl_gueue *g, void *datum);
+
+/* specific queue implemenetations ... should replace all of queue.c */
+
+struct katcl_gueue *create_parse_gueue_katcl();
 
 #ifdef __cplusplus
 }

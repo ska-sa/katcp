@@ -271,6 +271,8 @@ int broadcast_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, str
     }
 #endif
 
+    /* WARNING: for events: should we check that something actually has changed ? */
+
     if(sub->s_strategy == KATCP_STRATEGY_EVENT){
       if(send_message_endpoint_katcp(d, w->w_endpoint, sub->s_endpoint, px, 0) < 0){
         /* other end could have gone away, notice it ... */
@@ -302,7 +304,7 @@ int is_vrbl_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx)
     return 0;
   }
 
-  py = find_payload_katcp(d, vx, ":value");
+  py = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_VALUE);
   if(py == NULL){
     return 0;
   }
@@ -348,6 +350,18 @@ int strategy_from_string_sensor_katcp(struct katcp_dispatch *d, char *name)
   return -1;
 }
 
+unsigned int current_strategy_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx)
+{
+  struct katcp_subscribe *sub;
+
+  sub = locate_subscribe_katcp(d, vx, fx);
+  if(sub == NULL){
+    return KATCP_STRATEGY_OFF;
+  }
+
+  return sub->s_strategy;
+}
+
 /*************************************************************************/
 
 int add_partial_sensor_katcp(struct katcp_dispatch *d, struct katcl_parse *px, char *name, int flags, struct katcp_vrbl *vx)
@@ -372,23 +386,25 @@ int add_partial_sensor_katcp(struct katcp_dispatch *d, struct katcl_parse *px, c
 
   r = 0;
 
-#if KATCP_PROTOCOL_MAJOR_VERSION >= 5   
-  results[r++] = add_timestamp_parse_katcl(px, flags & KATCP_FLAG_FIRST, NULL);
+  py = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_TIME);
+  if(py){
+    results[r++] = add_payload_vrbl_katcp(d, px, 0, vx, py);
+  } else {
+    results[r++] = add_timestamp_parse_katcl(px, flags & KATCP_FLAG_FIRST, NULL);
+  }
+
   results[r++] = add_string_parse_katcl(px, KATCP_FLAG_STRING, "1");
-#else
-  results[r++] = add_string_parse_katcl(px, (flags & KATCP_FLAG_FIRST) | KATCP_FLAG_STRING, "1");
-#endif
 
   results[r++] = add_string_parse_katcl(px, KATCP_FLAG_STRING, ptr);
 
-  py = find_payload_katcp(d, vx, ":status");
+  py = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_STATUS);
   if(py){
     results[r++] = add_payload_vrbl_katcp(d, px, 0, vx, py);
   } else {
     results[r++] = add_string_parse_katcl(px, KATCP_FLAG_STRING, "unknown");
   }
 
-  py = find_payload_katcp(d, vx, ":value");
+  py = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_VALUE);
   if(py){
     results[r++] = add_payload_vrbl_katcp(d, px, flags & KATCP_FLAG_LAST, vx, py);
   } else {
@@ -449,6 +465,10 @@ int change_sensor_katcp(struct katcp_dispatch *d, void *state, char *name, struc
 #ifdef DEBUG
   fprintf(stderr, "sensor: triggering sensor change logic on sensor %s\n", name);
 #endif
+
+  if(vx->v_flags & KATCP_VRF_HID){
+    return 0;
+  }
 
   px = make_sensor_katcp(d, name, vx, KATCP_SENSOR_STATUS_INFORM);
   if(px == NULL){
@@ -535,6 +555,120 @@ int monitor_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx
   append_parse_katcp(d, px);
   destroy_parse_katcl(px);
 
+  return 0;
+}
+
+int forget_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx)
+{
+  int index;
+  struct katcp_wit *w;
+
+  if(vx->v_extra == NULL){
+    return 1;
+  }
+ 
+  w = vx->v_extra;
+
+  sane_wit(w);
+
+  index = find_subscribe_katcp(d, w, fx);
+  if(index < 0){
+    return 1;
+  }
+
+  return delete_subscribe_katcp(d, w, index);
+}
+
+/***************************************************************************/
+
+int perform_sensor_update_katcp(struct katcp_dispatch *d, void *data)
+{
+  struct katcp_shared *s;
+  unsigned int i, j, count;
+  struct katcp_flat *fx;
+  struct katcp_group *gx;
+  struct katcl_parse *px;
+
+  s = d->d_shared;
+  if(s == NULL){
+    return -1;
+  }
+
+  if(s->s_changes <= 0){
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "logic problem: scheduled device update, but nothing requires updating");
+    return -1;
+  }
+
+  px = create_referenced_parse_katcl();
+  if(px == NULL){
+    return -1;
+  }
+
+  add_string_parse_katcl(px, KATCP_FLAG_FIRST | KATCP_FLAG_STRING, KATCP_DEVICE_CHANGED_INFORM);
+  add_string_parse_katcl(px, KATCP_FLAG_LAST | KATCP_FLAG_STRING, "sensor-list");
+
+  count = 0;
+
+  for(j = 0; j < s->s_members; j++){
+    gx = s->s_groups[j];
+    for(i = 0; i < gx->g_count; i++){
+      fx = gx->g_flats[i];
+      if((fx->f_stale & KATCP_STALE_MASK_SENSOR) == KATCP_STALE_SENSOR_STALE){
+        fx->f_stale = KATCP_STALE_SENSOR_NAIVE;
+
+        if(fx->f_flags & KATCP_FLAT_TOCLIENT){
+          /* TODO: shouldn't we use the fancy queue infrastructure ? */
+          append_parse_katcl(fx->f_line, px);
+          count++;
+        }
+      }
+    }
+  }
+
+  log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "notified %u clients of %u sensor %s", count, s->s_changes, (s->s_changes == 1) ? "change" : "changes");
+
+  destroy_parse_katcl(px);
+
+  s->s_changes = 0;
+
+  return 0;
+}
+
+int mark_stale_flat_katcp(struct katcp_dispatch *d, void *state, struct katcp_flat *fx)
+{
+  if(fx != NULL){
+    /* insane, init ? */
+    fx->f_stale |= KATCP_STALE_SENSOR_NAIVE;
+  }
+
+  return 0;
+}
+
+int schedule_sensor_update_katcp(struct katcp_dispatch *d, char *name)
+{
+  struct timeval tv;
+  struct katcp_shared *s;
+  struct katcp_flat *fx;
+
+  s = d->d_shared;
+  if(s == NULL){
+    return -1;
+  }
+
+  fx = this_flat_katcp(d);
+
+  for_all_flats_vrbl_katcp(d, fx, name, NULL, &mark_stale_flat_katcp);
+
+  tv.tv_sec = 0;
+  tv.tv_usec = KATCP_NAGLE_CHANGE;
+
+  if(register_in_tv_katcp(d, &tv, &perform_sensor_update_katcp, &(s->s_changes)) < 0){
+    return -1;
+  }
+
+  log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "scheduled change notification");
+
+  s->s_changes++;
   return 0;
 }
 

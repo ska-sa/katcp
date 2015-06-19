@@ -2151,6 +2151,19 @@ int append_payload_vrbl_katcp(struct katcp_dispatch *d, int flags, struct katcp_
 }
 #endif
 
+int append_timestamp_katcp(struct katcp_dispatch *d, int flags, struct timeval *tv)
+{
+  sane_katcp(d);
+
+#ifdef KATCP_EXPERIMENTAL
+  if(this_flat_katcp(d)){
+    return append_timestamp_flat_katcp(d, flags, tv);
+  }
+#endif
+
+  return append_timestamp_katcl(d->d_line, flags, tv);
+}
+
 int append_parameter_katcp(struct katcp_dispatch *d, int flags, struct katcl_parse *p, unsigned int index)
 {
   sane_katcp(d);
@@ -2237,6 +2250,20 @@ int append_args_katcp(struct katcp_dispatch *d, int flags, char *fmt, ...)
 
   return result;
 }
+
+int append_end_katcp(struct katcp_dispatch *d)
+{
+  sane_katcp(d);
+
+#ifdef KATCP_EXPERIMENTAL
+  if(this_flat_katcp(d)){
+    return append_end_flat_katcp(d);
+  }
+#endif
+
+  return append_end_katcl(d->d_line);
+}
+
 
 /**************************************************************/
 

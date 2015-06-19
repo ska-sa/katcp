@@ -19,6 +19,8 @@
 #include <katpriv.h>
 #include <katcl.h>
 
+/* client stuff *******************************************************************/
+
 int client_exec_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
   char *label, *group;
@@ -71,7 +73,7 @@ int client_exec_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     vector = NULL;
   }
 
-  fx = create_exec_flat_katcp(d, KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT, label, gx, vector);
+  fx = create_exec_flat_katcp(d, KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_PREFIXED, label, gx, vector);
   if(vector){
     free(vector);
   }
@@ -102,7 +104,7 @@ int client_connect_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   if(argc > 2){
-    group = arg_string_katcp(d, 3);
+    group = arg_string_katcp(d, 2);
     if(group == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire group name");
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
@@ -119,11 +121,12 @@ int client_connect_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   fd = net_connect(client, 0, NETC_ASYNC);
   if(fd < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to initiate connection to %s: %s", client, errno ? strerror(errno) : "unknown error");
+    return KATCP_RESULT_FAIL;
   }
 
   fcntl(fd, F_SETFD, FD_CLOEXEC);
 
-  if(create_flat_katcp(d, fd, KATCP_FLAT_CONNECTING | KATCP_FLAT_TOSERVER, client, gx) == NULL){
+  if(create_flat_katcp(d, fd, KATCP_FLAT_CONNECTING | KATCP_FLAT_TOSERVER | KATCP_FLAT_PREFIXED, client, gx) == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to allocate client connection");
     close(fd);
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
@@ -145,23 +148,23 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   if(argc < 2){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a destination to connect to");
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need an option");
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
   }
 
   option = arg_string_katcp(d, 1);
   if(option == NULL){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire new name");
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire a flag");
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
   }
   
   if(argc > 2){
-    client = arg_string_katcp(d, 3);
+    client = arg_string_katcp(d, 2);
     if(client == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire client name");
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
     } 
-    fx = scope_name_flat_katcp(d, client, fy);
+    fx = scope_name_full_katcp(d, NULL, NULL, client);
     if(fx == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate client %s", client);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
@@ -170,27 +173,36 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     fx = fy;
   }
 
-  mask = ~0;
   set  = 0;
+  mask = 0;
 
   if(!strcmp(option, "duplex")){
     set   = KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT;
   } else if(!strcmp(option, "server")){
-    mask   = ~KATCP_FLAT_TOSERVER;
-    set    =  KATCP_FLAT_TOCLIENT;
+    mask   = KATCP_FLAT_TOSERVER;
+    set    = KATCP_FLAT_TOCLIENT;
   } else if(!strcmp(option, "client")){
-    mask   = ~KATCP_FLAT_TOCLIENT;
-    set    =  KATCP_FLAT_TOSERVER;
+    mask   = KATCP_FLAT_TOCLIENT;
+    set    = KATCP_FLAT_TOSERVER;
   } else if(!strcmp(option, "hidden")){
-    set    =  KATCP_FLAT_HIDDEN;
+    set    = KATCP_FLAT_HIDDEN;
   } else if(!strcmp(option, "visible")){
-    mask   = ~KATCP_FLAT_HIDDEN;
+    mask   = KATCP_FLAT_HIDDEN;
+  } else if(!strcmp(option, "prefixed")){
+    set    = KATCP_FLAT_PREFIXED;
+  } else if(!strcmp(option, "fixed")){
+    mask   = KATCP_FLAT_PREFIXED;
+  } else if(!strcmp(option, "translate")){
+    mask   = KATCP_FLAT_RETAINFO;
+  } else if(!strcmp(option, "native")){
+    set    = KATCP_FLAT_RETAINFO;
   } else {
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid configuration option %s", option);
-    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
+    /* WARNING: does not error out in an effort to be forward compatible */
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unknown configuration option %s", option);
+    return KATCP_RESULT_OK;
   }
 
-  if(reconfigure_flat_katcp(d, fx, (fx->f_flags & mask) | set) < 0){
+  if(reconfigure_flat_katcp(d, fx, (fx->f_flags & (~mask)) | set) < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to change flags on client %s", fx->f_name);
     return KATCP_RESULT_FAIL;
   }
@@ -203,28 +215,26 @@ int client_halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   char *client, *group;
   struct katcp_flat *fx;
 
-  if(argc < 2){
-    client = NULL;
-  } else {
+  client = NULL;
+  group = NULL;
+
+  if(argc > 1){
     client = arg_string_katcp(d, 1);
     if(client == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire new name");
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
     }
-  }
-
-  if(argc > 2){
-    group = arg_string_katcp(d, 3);
-    if(group == NULL){
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire group name");
-      return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
-    } 
-  } else {
-    group = NULL;
+    if(argc > 2){
+      group = arg_string_katcp(d, 2);
+      if(group == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire group name");
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+      } 
+    }
   }
 
   if(client){
-    fx = find_name_flat_katcp(d, group, client);
+    fx = scope_name_full_katcp(d, NULL, group, client);
     if(fx == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no client with name %s", client);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
@@ -265,19 +275,22 @@ int client_switch_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   if(argc > 2){
-    client = arg_string_katcp(d, 3);
+    client = arg_string_katcp(d, 2);
     if(client == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire client name");
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
     } 
-    fx = find_name_flat_katcp(d, group, client);
+    fx = scope_name_full_katcp(d, NULL, NULL, client);
     if(fx == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no client with name %s", client);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
     }
   } else {
     client = NULL;
-    fx = require_flat_katcp(d);
+    fx = this_flat_katcp(d);
+    if(fx == NULL){
+      return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+    }
   }
 
   if(switch_group_katcp(d, fx, gx) < 0){
@@ -440,24 +453,47 @@ int group_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   struct katcp_shared *s;
   struct katcp_cmd_map *mx;
   int j, count, i;
-  char *ptr, *group;
+  char *ptr, *group, *name;
 
   s = d->d_shared;
 
   count = 0;
+
+  if(argc >= 2){
+    name = arg_string_katcp(d, 1);
+    if(name == NULL){
+      return extra_response_katcp(d, KATCP_RESULT_INVALID, KATCP_FAIL_BUG);
+    }
+  } else {
+    name = NULL;
+  }
 
   for(j = 0; j < s->s_members; j++){
     gx = s->s_groups[j];
 
     if(gx->g_name){
       group = gx->g_name;
+      if(name && strcmp(group, name)){
+        /* WARNING */
+        continue;
+      }
     } else {
       group = "<anonymous>";
+      if(name){
+        /* WARNING */
+        continue;
+      }
     }
 
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s has %d references", group, gx->g_use);
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s has %u members", group, gx->g_count);
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s will %s if not used", group, gx->g_autoremove ? "disappear" : "persist");
+
+    if(gx->g_flags & KATCP_GROUP_OVERRIDE_SENSOR){
+      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s forces sensor names to be %s", group, (gx->g_flags & KATCP_FLAT_PREFIXED) ? "prefixed" : "without prefix");
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s leaves sensor prefixing decision to client creation context", group);
+    }
 
     ptr = log_to_string_katcl(gx->g_log_level);
     if(ptr){
@@ -487,7 +523,77 @@ int group_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     }
   }
 
+  if((count == 0) && (name != NULL)){
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+  }
+
   return extra_response_katcp(d, KATCP_RESULT_OK, "%d", count);
+}
+
+int group_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
+{
+  struct katcp_flat *fx;
+  struct katcp_group *gx;
+  struct katcp_shared *s;
+  char *option, *group;
+  unsigned int mask, set;
+
+  s = d->d_shared;
+
+  fx = this_flat_katcp(d);
+  if(fx == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no client scope available");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+  }
+
+  if(argc < 2){
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "prefixed option forces name prefix in sensors");
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "fixed option inhibits name prefix in sensors");
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "flexible option decides does not force sensor prefix");
+    return KATCP_RESULT_FAIL;
+  }
+
+  option = arg_string_katcp(d, 1);
+  if(option == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire a flag");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+  }
+  
+  if(argc > 2){
+    group = arg_string_katcp(d, 2);
+    if(group == NULL){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire group name");
+      return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+    } 
+    gx = scope_name_group_katcp(d, group, fx);
+  } else {
+    gx = this_group_katcp(d);
+  }
+
+  if(gx == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate group %s", group ? group : "of current client");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+  }
+
+  set  = 0;
+  mask = 0;
+
+  if(!strcmp(option, "prefixed")){        /* prefix sensor paths */
+    set    = (KATCP_GROUP_OVERRIDE_SENSOR | KATCP_FLAT_PREFIXED);
+  } else if(!strcmp(option, "fixed")){    /* make sensor paths absolute */
+    set    = KATCP_GROUP_OVERRIDE_SENSOR;
+    mask   = KATCP_FLAT_PREFIXED;      
+  } else if(!strcmp(option, "flexible")){ /* pick whatever the calling logic prefers */
+    mask   = (KATCP_GROUP_OVERRIDE_SENSOR | KATCP_FLAT_PREFIXED);
+  } else {
+    /* WARNING: does not error out in an effort to be forward compatible */
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unknown configuration option %s", option);
+    return KATCP_RESULT_OK;
+  }
+
+  gx->g_flags = (gx->g_flags & (~mask)) | set;
+
+  return KATCP_RESULT_OK;
 }
 
 /* listener related commands ******************************************************/
@@ -629,6 +735,8 @@ int listener_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   int count;
   struct katcp_arb *a;
 
+  name = NULL;
+
   if(argc > 1){
     name = arg_string_katcp(d, 1);
     if(name == NULL){
@@ -639,7 +747,7 @@ int listener_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     a = find_type_arb_katcp(d, name, KATCP_ARB_TYPE_LISTENER);
     if(a == NULL){
       log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "no listener %s found", name);
-      return KATCP_RESULT_FAIL;
+      return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
     }
 
     count = print_listener_katcp(d, a, NULL);
@@ -649,7 +757,6 @@ int listener_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   if(count < 0){
     return KATCP_RESULT_FAIL;
-
   }
 
   return extra_response_katcp(d, KATCP_RESULT_OK, "%d", count);
@@ -802,12 +909,7 @@ int scope_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     }
 
     if(!strcmp(ptr, "client")){
-      gx = this_group_katcp(d);
-      if(gx == NULL){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no current group available");
-        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_API);
-      }
-      fx = search_name_flat_katcp(d, name, gx, 0);
+      fx = scope_name_full_katcp(d, NULL, NULL, name);
       if(fx == NULL){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "client %s not found", name);
         return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
@@ -837,6 +939,108 @@ int scope_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     }
 
     fx->f_scope = scope;
+  }
+
+  return KATCP_RESULT_OK;
+}
+
+/*********************************************************************************/
+
+int broadcast_group_cmd_katcp(struct katcp_dispatch *d, int argc)
+{
+  char *inform, *group;
+  struct katcl_parse *px, *py;
+  struct katcp_flat *fx;
+  struct katcp_group *gx;
+  char *ptr;
+
+  py = arg_parse_katcp(d);
+  if(py == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "interesting internal problem: unable to acquire current parser message");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+  }
+
+  fx = this_flat_katcp(d);
+  if(fx == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "logic problem: broadcast not run in flat scope");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+  }
+
+
+  if(argc < 3){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a group and a message");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
+  }
+
+  group = arg_string_katcp(d, 1);
+  if(group){
+
+    gx = scope_name_group_katcp(d, group, fx);
+    if(gx == NULL){
+      if(strcmp(group, "*")){ /* WARNING: made up syntax - needs to be checked across everything */
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate group called %s", group);
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+      }
+    }
+
+    /* TODO: should check scope - if not global, restrict to current one ... */
+
+  } else {
+    /* group is null, assume everybody */
+    switch(fx->f_scope){
+      case KATCP_SCOPE_GROUP : 
+        gx = this_group_katcp(d);
+        break;
+      case KATCP_SCOPE_GLOBAL : 
+        break;
+      /* case KATCP_SCOPE_SINGLE :  */
+      default :
+        /* TODO: should spam ourselves ... in order not to give away that we are restricted */
+        return KATCP_RESULT_OK;
+    }
+  }
+
+  inform = arg_string_katcp(d, 2);
+  if(inform == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a non-null inform");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
+  }
+
+  switch(inform[0]){
+    case KATCP_REPLY : 
+    case KATCP_REQUEST :
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "refusing to broadcast a message which is not an inform");
+      return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
+    /* case KATCP_INFORM : */
+    default :
+      break;
+  }
+  
+  ptr = default_message_type_katcm(inform, KATCP_INFORM);
+  if(ptr == NULL){
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
+  }
+
+  px = create_parse_katcl();
+  if(px == NULL){
+    free(ptr);
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
+  }
+
+  if(argc > 3){
+    add_string_parse_katcl(px, KATCP_FLAG_FIRST | KATCP_FLAG_STRING, ptr);
+
+    add_trailing_parse_katcl(px, KATCP_FLAG_LAST, py, 3);
+
+  } else {
+    add_string_parse_katcl(px, KATCP_FLAG_FIRST | KATCP_FLAG_LAST | KATCP_FLAG_STRING, ptr);
+  }
+
+  free(ptr);
+  ptr = NULL;
+
+  if(broadcast_flat_katcp(d, gx, px, NULL, NULL) < 0){
+    return KATCP_RESULT_FAIL;
   }
 
   return KATCP_RESULT_OK;

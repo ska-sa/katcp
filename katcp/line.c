@@ -664,6 +664,24 @@ int append_buffer_katcl(struct katcl_line *l, int flags, void *buffer, int len)
   return after_append_katcl(l, flags, result);
 }
 
+int append_timestamp_katcl(struct katcl_line *l, int flags, struct timeval *tv)
+{
+  struct katcl_parse *p;
+  int result;
+
+  p = before_append_katcl(l, flags);
+  if(p == NULL){
+#ifdef DEBUG
+    fprintf(stderr, "append: before_append failed\n");
+#endif
+    return -1;
+  }
+
+  result = add_timestamp_parse_katcl(p, flags, tv);
+
+  return after_append_katcl(l, flags, result);
+}
+
 int append_parameter_katcl(struct katcl_line *l, int flags, struct katcl_parse *px, unsigned int index)
 {
   struct katcl_parse *p;
@@ -725,6 +743,24 @@ int append_parse_katcl(struct katcl_line *l, struct katcl_parse *p)
   result = add_tail_queue_katcl(l->l_queue, p);	
 
   return result;
+}
+
+int append_end_katcl(struct katcl_line *l)
+{
+  struct katcl_parse *p;
+  int result;
+
+  p = before_append_katcl(l, KATCP_FLAG_LAST);
+  if(p == NULL){
+#ifdef DEBUG
+    fprintf(stderr, "append: before_append failed at end\n");
+#endif
+    return -1;
+  }
+
+  result = add_end_parse_katcl(p);
+
+  return after_append_katcl(l, KATCP_FLAG_LAST, result);
 }
 
 /**************************************************************/

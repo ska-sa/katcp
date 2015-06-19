@@ -154,6 +154,7 @@ struct katcl_parse *generate_relay_forward(struct katcp_dispatch *d, struct forw
   struct forward_symbolic_parm *pf;
   struct katcp_vrbl *vx;
   struct katcp_flat *fx;
+  struct katcp_vrbl_payload *py;
   struct katcp_group *gx;
   unsigned int size;
   int flags, run, result, i, limit;
@@ -187,6 +188,8 @@ struct katcl_parse *generate_relay_forward(struct katcp_dispatch *d, struct forw
       case FOP_SINGLE :
       case FOP_TRAIL :
         if(pf->p_num >= size){
+          /* TODO - print insufficient parameters message, if that is always desirable ? */ 
+          /* log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "internal error where a message triggering a relay is entirely empty"); */
 #ifdef DEBUG
           fprintf(stderr, "forwarding: ignoring trailing parameter %u (want %u, currently have %u)\n", limit, pf->p_num, size);
 #endif
@@ -196,10 +199,19 @@ struct katcl_parse *generate_relay_forward(struct katcp_dispatch *d, struct forw
         }
         break;
       case FOP_VAR :
-        if(find_vrbl_katcp(d, pf->p_str) == NULL){
+#ifdef DEBUG
+        fprintf(stderr, "forwarding: attempting to look up variable %s\n", pf->p_str);
+#endif
+        vx = find_vrbl_katcp(d, pf->p_str);
+        if(vx == NULL){
           limit--;
         } else {
-          run = 0;
+          py = find_payload_katcp(d, vx, pf->p_str);
+          if(py == NULL){
+            limit--;
+          } else {
+            run = 0;
+          }
         }
         break;
       default :
@@ -223,6 +235,10 @@ struct katcl_parse *generate_relay_forward(struct katcp_dispatch *d, struct forw
     flags = (i == limit) ? KATCP_FLAG_LAST : 0;
     result = 0;
 
+#ifdef DEBUG
+    fprintf(stderr, "forwarding: adding op %u with field %p\n", pf->p_op, pf->p_str);
+#endif
+
     switch(pf->p_op){
       case FOP_LITTERAL :
         result = add_string_parse_katcl(px, KATCP_FLAG_STRING | flags, pf->p_str);
@@ -236,13 +252,26 @@ struct katcl_parse *generate_relay_forward(struct katcp_dispatch *d, struct forw
             result = add_trailing_parse_katcl(px, flags, po, pf->p_num);
           }
         } else {
-          result = (-1);
+          if(pf->p_op == FOP_SINGLE){
+            result = add_buffer_parse_katcl(px, flags, NULL, 0);
+          } else {
+            result = (-1);
+          }
         }
         break;
       case FOP_VAR :
         vx = find_vrbl_katcp(d, pf->p_str);
+#ifdef DEBUG
+        fprintf(stderr, "forwarding: look up of variable %s yields %p\n", pf->p_str, vx);
+#endif
         if(vx){
-          result = add_payload_vrbl_katcp(d, px, flags, vx, NULL);
+          py = find_payload_katcp(d, vx, pf->p_str);
+          /* WARNING: this test is for the not found case, rather than just a string variable */
+          if((py == NULL) && (path_suffix_vrbl_katcp(d, pf->p_str) != NULL)){
+            result = (-1);
+          } else {
+            result = add_payload_vrbl_katcp(d, px, flags, vx, py);
+          }
         } else {
           result = (-1);
         }
@@ -393,27 +422,25 @@ int complete_relay_generic_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 #endif
 
-  if(is_reply_parse_katcl(px)){
-    prepend_reply_katcp(d);
+  if(is_inform_parse_katcl(px) && (fx->f_flags & KATCP_FLAT_RETAINFO)){
+    append_parse_katcp(d, px);
   } else {
-    prepend_inform_katcp(d);
-  }
+    if(is_inform_parse_katcl(px)){
+      prepend_inform_katcp(d);
+    } else {
+      prepend_reply_katcp(d);
+    }
 
-  if(get_count_parse_katcl(px) > 1){
-    append_trailing_katcp(d, KATCP_FLAG_LAST, px, 1);
-  } else {
-    /* treat px without any parameters as a failure */
-    append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, KATCP_FAIL);
+    if(get_count_parse_katcl(px) > 1){
+      append_trailing_katcp(d, KATCP_FLAG_LAST, px, 1);
+    } else {
+      if(is_inform_parse_katcl(px)){
+        append_end_katcp(d);
+      } else {
+        append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, KATCP_FAIL);
+      }
+    }
   }
-
-#if 0
-  /* TODO relay the response payload */
-  append_parse_katcp(d, px);
-
-  if(is_reply_ok_parse_katcl(px)){
-    return KATCP_RESULT_OK;
-  }
-#endif
 
   return KATCP_RESULT_OWN;
 }
@@ -445,7 +472,7 @@ int relay_generic_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
   source = handler_of_flat_katcp(d, fx);
 
-  fy = find_name_flat_katcp(d, NULL, name);
+  fy = find_name_flat_katcp(d, NULL, name, 0);
   if(fy == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not look up name %s", name);
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
@@ -559,7 +586,7 @@ int perform_forward_symbolic_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
   source = handler_of_flat_katcp(d, fx);
 
-  fy = find_name_flat_katcp(d, NULL, fs->f_peer);
+  fy = find_name_flat_katcp(d, NULL, fs->f_peer, 0);
   if(fy == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no peer matching %s available to process request %s", fs->f_peer, req);
     return KATCP_RESULT_FAIL;
