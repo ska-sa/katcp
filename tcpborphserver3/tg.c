@@ -35,7 +35,7 @@
 #define SMALL_DELAY           10 /* wait this long before announcing ourselves, after arp reply */
 
 #define SPAM_INITIAL           5 /* how often we spam an address initially */
-#define SPAM_FINAL         12000 /* rate at which we end up */
+#define SPAM_FINAL         21000 /* rate at which we end up */
 #define SPAM_STEP            700 /* amount by which we increment */
 
 #if 0
@@ -204,13 +204,15 @@ int text_to_mac(uint8_t *binary, const char *text)
 static unsigned int compute_spam_rate(struct getap_state *gs, unsigned int index)
 {
   /* WARNING: better make sure this array is actually the correct size */
-  unsigned int third, value;
+  unsigned int third, extra, value;
 
   if(gs->s_spam_period[GETAP_PERIOD_CURRENT] >= gs->s_spam_period[GETAP_PERIOD_STOP]){
-    return gs->s_spam_period[GETAP_PERIOD_STOP];
+    gs->s_spam_period[GETAP_PERIOD_CURRENT] = gs->s_spam_period[GETAP_PERIOD_STOP];
   }
 
-  third = gs->s_spam_period[GETAP_PERIOD_CURRENT] / 3;
+  third = (gs->s_spam_period[GETAP_PERIOD_CURRENT] / 3);
+  extra = (third / gs->s_table_size) * index;
+
   if(third <= 0){
     third = 1;
   }
@@ -219,7 +221,7 @@ static unsigned int compute_spam_rate(struct getap_state *gs, unsigned int index
   value = (2 + (((index + array[GETAP_PERIOD_CURRENT]) * COPRIME_C) % 3) ? 1 : 0) * third;
 #endif
 
-  value = (2 + (((index * index * COPRIME_A) + (index * COPRIME_B) + (gs->s_self * gs->s_spam_period[GETAP_PERIOD_CURRENT])) % 3) ? 1 : 0) * third;
+  value = (2 * third) + ((((index * COPRIME_A) + (gs->s_iteration * COPRIME_B) + (gs->s_self * gs->s_spam_period[GETAP_PERIOD_CURRENT])) % 3) ? extra : third);
   
   return value;
 }
@@ -269,6 +271,7 @@ int set_entry_arp(struct getap_state *gs, unsigned int index, const uint8_t *mac
 void glean_arp(struct getap_state *gs, uint8_t *mac, uint8_t *ip)
 {
   uint32_t v;
+  unsigned int index;
 
   v = ((ip[0] << 24) & 0xff000000) | 
       ((ip[1] << 16) & 0xff0000) |
@@ -283,6 +286,8 @@ void glean_arp(struct getap_state *gs, uint8_t *mac, uint8_t *ip)
     return;
   }
 
+  index = ip[3];
+
   if((v & gs->s_mask_binary) != gs->s_network_binary){
 #ifdef DEBUG
     fprintf(stderr, "glean: not my network 0x%08x != 0x%08x\n", v & gs->s_mask_binary, gs->s_network_binary);
@@ -291,10 +296,10 @@ void glean_arp(struct getap_state *gs, uint8_t *mac, uint8_t *ip)
   }
 
 #ifdef DEBUG
-  fprintf(stderr, "glean: adding entry %d\n", ip[3]);
+  fprintf(stderr, "glean: adding entry %d\n", index);
 #endif
 
-  set_entry_arp(gs, ip[3], mac, gs->s_valid_period);
+  set_entry_arp(gs, ip[3], mac, gs->s_valid_period + (gs->s_table_size - ((index > gs->s_self) ? (index - gs->s_self) : (gs->s_self - index))));
 }
 
 void announce_arp(struct getap_state *gs)
@@ -499,13 +504,14 @@ int process_arp(struct getap_state *gs)
 #ifdef DEBUG
       fprintf(stderr, "arp: saw request\n");
 #endif
-      glean_arp(gs, gs->s_rxb + SIZE_FRAME_HEADER + ARP_SHA_BASE, gs->s_rxb + SIZE_FRAME_HEADER + ARP_SIP_BASE);
       if(!memcmp(gs->s_rxb + SIZE_FRAME_HEADER + ARP_TIP_BASE, &(gs->s_address_binary), 4)){
 #ifdef DEBUG
         fprintf(stderr, "arp: somebody is looking for me\n");
 #endif
         return reply_arp(gs);
       } else {
+        gs->s_x_glean++;
+        glean_arp(gs, gs->s_rxb + SIZE_FRAME_HEADER + ARP_SHA_BASE, gs->s_rxb + SIZE_FRAME_HEADER + ARP_SIP_BASE);
         return 1;
       }
     default :
@@ -1046,18 +1052,20 @@ int run_timer_tap(struct katcp_dispatch *d, void *data)
               mode_arb_katcp(d, a, KATCP_ARB_READ | KATCP_ARB_WRITE);
               run = 0; /* don't bother getting more if we can't send it on */
             }
+            gs->s_rx_user++;
             break;
 
           case 0x06 : /* arp packet */
             
             result = process_arp(gs);
             if(result == 0){
+              gs->s_rx_arp++;
               run = 0; /* arp reply stalled, wait ... */
             } else {
               if(result < 0){
                 gs->s_rx_error++;
               } else {
-                gs->s_rx_arp = 0;
+                gs->s_rx_arp++;
               }
             }
             forget_receive(gs);
@@ -1383,6 +1391,10 @@ void destroy_getap(struct katcp_dispatch *d, struct getap_state *gs)
 
   gs->s_magic = 0;
 
+  gs->s_x_glean = (-1);
+  gs->s_rx_error = (-1);
+  gs->s_tx_error = (-1);
+
   free(gs);
 }
 
@@ -1541,6 +1553,8 @@ struct getap_state *create_getap(struct katcp_dispatch *d, unsigned int instance
 
   gs->s_tx_big = 0;
   gs->s_tx_small = GETAP_MAX_FRAME + 1;
+
+  gs->s_x_glean = 0;
 
   gs->s_table_size = 1;
   for(i = gs->s_subnet; i < 32; i++){
@@ -2014,6 +2028,7 @@ void tap_print_info(struct katcp_dispatch *d, struct getap_state *gs)
 
   log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "RX arp=%lu user=%lu error=%lu total=%lu", gs->s_rx_arp, gs->s_rx_user, gs->s_rx_error, gs->s_rx_arp + gs->s_rx_user);
   log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "RX sizes smallest=%u biggest=%u", gs->s_rx_small, gs->s_rx_big);
+  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "arp requests used to glean stations %u", gs->s_x_glean);
   log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "link status word is 0x%08x", link);
 
   prepend_inform_katcp(d);
