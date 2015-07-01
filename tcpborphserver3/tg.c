@@ -274,6 +274,10 @@ void glean_arp(struct getap_state *gs, uint8_t *mac, uint8_t *ip)
 
   memcpy(&v, ip, 4);
 
+#ifdef DEBUG
+  fprintf(stderr, "glean: considering ip %08x", v);
+#endif
+
   if(v == 0){
     return;
   }
@@ -426,7 +430,7 @@ static void request_arp(struct getap_state *gs, int index)
 
   gs->s_arp_len = 42;
 #ifdef DEBUG
-  if(gs->s_arp_len + 4 < GETAP_ARP_FRAME){ /* test should be more sophisticated ... */
+  if((gs->s_arp_len + 4) > GETAP_ARP_FRAME){ /* test should be more sophisticated ... */
     fprintf(stderr, "arp: critical problem: arp packet of %u bytes exceeds buffer\n", gs->s_arp_len);
   }
 #endif
@@ -2063,6 +2067,8 @@ void tap_print_info(struct katcp_dispatch *d, struct getap_state *gs)
   log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "RX sizes smallest=%u biggest=%u", gs->s_rx_small, gs->s_rx_big);
   log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "arp requests used to glean stations %u", gs->s_x_glean);
   log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "link status word is 0x%08x", link);
+
+  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_DEBUG, NULL, "binary: ip=%08x, netmask=%08x, subnet=%08x", gs->s_address_binary, gs->s_mask_binary, gs->s_network_binary);
 
   prepend_inform_katcp(d);
   append_string_katcp(d, KATCP_FLAG_STRING, gs->s_tap_name);
