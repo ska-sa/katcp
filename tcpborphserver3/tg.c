@@ -22,6 +22,7 @@
 #include "tcpborphserver3.h"
 #include "tapper.h"
 #include "tg.h"
+#include "dhcp.h"
 
 #define POLL_INTERVAL         10  /* polling interval, in msecs, how often we look at register */
 #define CACHE_DIVISOR          4  /* 256 / div - longest initial delay */
@@ -2517,4 +2518,70 @@ int tap_route_add_cmd(struct katcp_dispatch *d, int argc)
 
   return KATCP_RESULT_OK;
 }
+
+
+
+/**************************DHCP functions**************************/
+
+
+int tap_dhcp_cmd(struct katcp_dispatch *d, int argc){
+
+    char *name;
+    struct katcp_arb *a;
+    struct getap_state *gs;
+    int ret, i;
+
+    if(argc <= 1){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a register name");
+        return KATCP_RESULT_INVALID;
+    }
+
+    name = arg_string_katcp(d, 1);
+    if(name == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "internal failure while acquiring parameters");
+        return KATCP_RESULT_FAIL;
+    }
+
+    a = find_arb_katcp(d, name);
+    if(a == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate %s", name);
+        return KATCP_RESULT_FAIL;
+    }
+
+    gs = data_arb_katcp(d, a);
+    if(gs == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no user state found for %s", name);
+        return KATCP_RESULT_FAIL;
+    }
+
+
+    ret = dhcp_msg(gs, DHCPDISCOVER);
+    if (ret){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to generate dhcp message");
+        return KATCP_RESULT_FAIL;
+    }
+
+
+//#ifdef DEBUG
+    for (i=0; i<GETAP_DHCP_BUFFER_SIZE; i++){
+        fprintf(stdout, "%#4x ", gs->s_dhcp_buffer[i]);
+    }
+    fprintf(stdout, "\n");
+    //write(STDOUT_FILENO, gs->s_dhcp_buffer, GETAP_DHCP_BUFFER_SIZE);
+//#endif
+
+    ret = write_frame_fpga(gs, gs->s_dhcp_buffer, GETAP_DHCP_BUFFER_SIZE);
+    if(ret != 0){
+        if(ret > 0){
+            printf("sent\n");
+        } else {
+            printf("error\n");
+        }
+    }
+
+
+    return KATCP_RESULT_OK;
+}
+
+
 

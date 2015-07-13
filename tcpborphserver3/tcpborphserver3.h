@@ -66,6 +66,8 @@ unsigned int infer_fpga_range(struct katcp_dispatch *d);
 
 #define GETAP_VECTOR_PERIOD      4
 
+#define GETAP_DHCP_BUFFER_SIZE 320
+
 struct getap_state{
   uint32_t s_magic;
 
@@ -144,6 +146,11 @@ struct getap_state{
 
   uint8_t s_arp_table[GETAP_ARP_CACHE][GETAP_MAC_SIZE];
   uint32_t s_arp_fresh[GETAP_ARP_CACHE];
+
+  //unsigned char *s_dhcp_buffer = NULL;
+  unsigned char s_dhcp_buffer[GETAP_DHCP_BUFFER_SIZE];
+  uint32_t s_dhcp_xid;
+  uint16_t s_dhcp_sec_start;
 
 };
 
