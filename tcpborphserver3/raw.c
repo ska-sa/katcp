@@ -25,7 +25,6 @@
 #include "tg.h"
 
 #include "phy.h"
-#include "dhcp.h"
 
 #define ARRAY_SIZE 12
 #define DEFAULT_FILENAME    "vsc848x_EDC_FW_1_14.bin"
