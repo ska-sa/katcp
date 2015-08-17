@@ -21,6 +21,7 @@
 
 #include <katcp.h>
 #include <katcl.h>
+#include <katpriv.h>
 #include <avltree.h>
 
 #include "tcpborphserver3.h"
@@ -115,6 +116,7 @@
 #define ARP_MODE_SINGLE    1 /* once */
 #define ARP_MODE_DEFAULT   3 /* three sweeps */
 
+#define MCAST_DRAIN_PERIOD 3  /* drain interval, seconds */
 
 /*********************dhcp macro definitions*********************/
 /*indices of start of specific parameters in frame, contains suffix "_I" */
@@ -240,7 +242,6 @@
 #define IP_FRAME_HDR_LEN            (UDP_FRAME_START_INDEX - IP_FRAME_START_INDEX)
 
 #define MASK16 0xFFFF
-
 /*********************dhcp macro definitions end here*********************/
 
 
@@ -1596,8 +1597,12 @@ void unlink_getap(struct katcp_dispatch *d, struct getap_state *gs)
 
 void stop_all_getap(struct katcp_dispatch *d, int final)
 {
-  unsigned int i;
+  unsigned int i, mcast, pkts;
   struct tbs_raw *tr;
+  struct getap_state *gs;
+  struct timeval when, delta, now;
+  fd_set fsr;
+  int max, result;
 
   tr = get_current_mode_katcp(d);
   if(tr == NULL){
@@ -1607,6 +1612,71 @@ void stop_all_getap(struct katcp_dispatch *d, int final)
 
   if(tr->r_taps == NULL){
     return;
+  }
+
+  FD_ZERO(&fsr);
+  max = (-1);
+
+  mcast = 0;
+
+  for(i = 0; i < tr->r_instances; i++){
+    gs = tr->r_taps[i];
+    if(gs){
+      if(gs->s_mcast_count >= 0){
+        if(!final){
+          log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "%s still subscribed to %u groups, attempting to release them", gs->s_tap_name, gs->s_mcast_count);
+        }
+        if(gs->s_mcast_fd >= 0){
+          close(gs->s_mcast_fd);
+          gs->s_mcast_fd = (-1);
+        }
+        mcast += gs->s_mcast_count;
+        if(gs->s_tap_fd >= 0){
+          FD_SET(gs->s_tap_fd, &fsr);
+          if(gs->s_tap_fd > max){
+            max = gs->s_tap_fd;
+          }
+        }
+      }
+    }
+  }
+
+  if(max >= 0){
+    pkts = 0;
+
+    gettimeofday(&when, NULL);
+
+    when.tv_sec += MCAST_DRAIN_PERIOD;
+
+    do{
+      sub_time_katcp(&delta, &when, &now);
+
+      result = select(max + 1, &fsr, NULL, NULL, &delta);
+      if(result > 0){
+        for(i = 0; i < tr->r_instances; i++){
+          gs = tr->r_taps[i];
+          if(gs && (gs->s_tap_fd >= 0)){
+            if(FD_ISSET(gs->s_tap_fd, &fsr)){
+              result = receive_ip_kernel(d, gs);
+              if(result > 0){
+                pkts++;
+                transmit_ip_fpga(gs);
+              }
+            }
+            if(gs->s_mcast_count >= 0){
+              FD_SET(gs->s_tap_fd, &fsr);
+            }
+          }
+        }
+      }
+
+      gettimeofday(&now, NULL);
+    } while(cmp_time_katcp(&when, &now) > 0);
+
+    if(!final){
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "let %u packets drain after unsubscription of %u groups over %u seconds", pkts, mcast, MCAST_DRAIN_PERIOD);
+    }
+
   }
 
   for(i = 0; i < tr->r_instances; i++){

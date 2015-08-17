@@ -412,12 +412,18 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     char *mezz, *phy, *buffer;
     char *name;
     char *filename = DEFAULT_FILENAME;
+    char *force_arg = NULL;
     FILE *fptr;
     uint16_t word = 0, Lword = 0, Uword = 0;      //buffer for file read operation
     uint16_t tmp1 = 0;
 
     uint32_t watchdog1 = 0;
     uint32_t watchdog2 = 0;
+
+    int force_load_flag = 0;
+
+    char *curr_arg_string;
+    int arg_index;
 
     struct tbs_raw *tr;
     struct tbs_entry *te = NULL;
@@ -454,21 +460,32 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     mezz_num = atoi(mezz);
     phy_num = atoi(phy);
 
-    if (argc == 4)      //3 args plus program name(1st arg)
-    {
-        filename = arg_string_katcp(d, 3);    //get a handle on the arguement 3 i.e. filename
+    /*parse any optional arguments*/
+    if (argc > 3){
+        for (arg_index=3; arg_index<argc; arg_index++){
+            curr_arg_string = arg_string_katcp(d, arg_index);
+            if (strcmp(curr_arg_string, "file") == 0){
+                arg_index++;
+                if (arg_index > argc-1){
+                    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a filename");
+                    return KATCP_RESULT_INVALID;
+                } else {
+                    filename = arg_string_katcp(d, arg_index);
+                }
+            }
+            else if (strcmp(curr_arg_string, "force") == 0){
+                force_load_flag = 1;
+            }
+            else{
+                log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid argument '%s'", curr_arg_string);
+                return KATCP_RESULT_INVALID;
+            }
+        }
     }
-    else if (argc > 4)
-    {
-        //too many aguements
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "too many arguements");
-        return KATCP_RESULT_FAIL;
-    }
-    //else -> no 3rd arguement so continue with default filename
 
     /*do some validity checking on the filename*/
     if(filename == NULL){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire file name to program");
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire file name argument");
         return KATCP_RESULT_FAIL;
     }
 
@@ -511,14 +528,6 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     //configure the fpga registers to enable MDIO
     fpga_mdio_sw_config();
 
-    //reset the specific PHY chip
-    if ( mezz_phy_reset_op( mezz_num , phy_num ) ){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not reset phy %s on mezzanine card %s", phy, mezz);
-        return KATCP_RESULT_FAIL;
-    }
-    else{
-        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "phy %s on mezzanine card %s: reset ok!", phy, mezz);
-    }
 
     //select mezzanine card
     mezz_select(mezz_num);     
@@ -535,6 +544,48 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
         default:
             return KATCP_RESULT_FAIL;           //for completeness - should never get here due to prev error check of phy
             break;
+    }
+
+    /*logic to force phy firmware loading, alternatively check if firmware already running*/
+    if (force_load_flag == 1){
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "forcing phy firmware load");
+    } else {
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "checking if phy firmware already running...");
+        i=0;
+        watchdog1=0;
+        while ( (i<150) && (watchdog1==0) )
+        {
+            usleep(1000);
+            watchdog1 = phy_read_op(port_addr, DEVADDR_MCU, 0x7fe1);
+            i++;
+        }
+
+        //do the same for 2nd watchdog read
+        i=0;
+        watchdog2=0;
+        while ( (i<150) && (watchdog2==0) )
+        {
+            usleep(1000);
+            watchdog2 = phy_read_op(port_addr, DEVADDR_MCU, 0x7fe1);
+            i++;
+        }
+
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "mezz[%s]phy[%s] the two consecutive phy watchdog counter values read are : 0x%x and 0x%x", mezz, phy, watchdog1, watchdog2);
+
+        if (watchdog1 != watchdog2)
+        {
+            log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "phy %s on mezzanine %s - firmware already running. Use force option to force phy firmware load", phy, mezz);
+            return KATCP_RESULT_OK;
+        }
+    }
+
+    //reset the specific PHY chip
+    if ( mezz_phy_reset_op( mezz_num , phy_num ) ){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not reset phy %s on mezzanine card %s", phy, mezz);
+        return KATCP_RESULT_FAIL;
+    }
+    else{
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "phy %s on mezzanine card %s: reset ok!", phy, mezz);
     }
 
     //check connection to PHY by reading device ID (register 1Ex0000) Default = 0x8488
@@ -589,6 +640,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     /*Now ensure that PHY-MCU running by doing two consecutive mcu-watchdog reads,they must be unequal*/
     /*watchdog counter increments every +-100ms or less - poll it a few times to detect counter change*/
     i=0;
+    watchdog1=0;
     while ( (i<150) && (watchdog1==0) )
     {
         usleep(1000);
@@ -598,6 +650,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
 
     //do the same for 2nd watchdog read
     i=0;
+    watchdog2=0;
     while ( (i<150) && (watchdog2==0) )
     {
         usleep(1000);
@@ -2825,9 +2878,9 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
 
   result += register_flag_mode_katcp(d, "?finalise",     "mark register definitions as complete (?finalise)", &finalise_cmd, 0, TBS_MODE_RAW);
 
-  result += register_flag_mode_katcp(d, "?phyprog",      "programs firmware onto phy chip on mezzanine card (?phyprog [mezzanine card] [phy number] [filename optional])", &phy_prog_cmd, 0, TBS_MODE_RAW);
+  result += register_flag_mode_katcp(d, "?phyprog",      "programs firmware onto phy chip on mezzanine card (?phyprog mezzanine_card phy_number [file <filename>] [force])", &phy_prog_cmd, 0, TBS_MODE_RAW);
   
-  result += register_flag_mode_katcp(d, "?phywatch",     "returns the watchdog counter value of phy chip on mezzanine card (?phywatch [mezzanine card] [phy number])", &phy_watchdog_cmd, 0, TBS_MODE_RAW);
+  result += register_flag_mode_katcp(d, "?phywatch",     "returns the watchdog counter value of phy chip on mezzanine card (?phywatch mezzanine_card phy_number)", &phy_watchdog_cmd, 0, TBS_MODE_RAW);
 
   /* upload, not program */
   result += register_flag_mode_katcp(d, "?uploadbof",    "compatebility alias for ?saveremote (?uploadbof port filename [length [timeout]])", &upload_filesystem_cmd, 0, TBS_MODE_RAW);
