@@ -12,9 +12,12 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/utsname.h>
+#include <sys/ioctl.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <net/if.h>
+#include <net/route.h>
 
 #include <katcp.h>
 #include <katcl.h>
@@ -260,6 +263,8 @@ static DHCP_MSG_TYPE process_dhcp(struct getap_state *gs);
 static int dhcp_statemachine(struct getap_state *gs);
 static int dhcp_configure_if(struct getap_state *gs);
 static int dhcp_convert_netmask(struct getap_state *gs);
+static int dhcp_set_kernel_if_addr(char *if_name, char *ip, char *netmask);
+static int dhcp_set_kernel_route(char *dest, char *gateway, char *genmask);
 
 /************************************************************************/
 
@@ -2675,7 +2680,7 @@ int tap_route_add_cmd(struct katcp_dispatch *d, int argc)
 }
 
 /**************************DHCP functions**************************/
-#define DEBUG 2
+//#define DEBUG 2
 static uint16_t dhcp_checksum(uint8_t *data, uint16_t index_start, uint16_t index_end){
     int i, len;
     uint16_t tmp=0;
@@ -3125,7 +3130,11 @@ int tap_dhcp_cmd(struct katcp_dispatch *d, int argc){
 static int dhcp_statemachine(struct getap_state *gs){
     int retval = 0;
     DHCP_MSG_TYPE mt;
-    int subnet; 
+    int subnet;
+    char ip_buff[16];
+    char dest_buff[16];
+    char subnet_buff[16];
+    uint8_t dest[4];
 
     gs->s_dhcp_sm_count++;
 
@@ -3196,8 +3205,23 @@ static int dhcp_statemachine(struct getap_state *gs){
 
                     subnet = dhcp_convert_netmask(gs);
 
-                    snprintf(gs->s_address_name, GETAP_IP_BUFFER, "%d.%d.%d.%d/%d", gs->s_dhcp_yip_addr[0], gs->s_dhcp_yip_addr[1], gs->s_dhcp_yip_addr[2], gs->s_dhcp_yip_addr[3], subnet);
+                    dest[0] = gs->s_dhcp_yip_addr[0] & gs->s_dhcp_submask[0];
+                    dest[1] = gs->s_dhcp_yip_addr[1] & gs->s_dhcp_submask[1];
+                    dest[2] = gs->s_dhcp_yip_addr[2] & gs->s_dhcp_submask[2];
+                    dest[3] = gs->s_dhcp_yip_addr[3] & gs->s_dhcp_submask[3];
+
+                    snprintf(ip_buff, sizeof(ip_buff), "%d.%d.%d.%d", gs->s_dhcp_yip_addr[0], gs->s_dhcp_yip_addr[1], gs->s_dhcp_yip_addr[2], gs->s_dhcp_yip_addr[3]);
+                    ip_buff[15] = '\0';
+                    snprintf(subnet_buff, sizeof(subnet_buff), "%d.%d.%d.%d", gs->s_dhcp_submask[0], gs->s_dhcp_submask[1], gs->s_dhcp_submask[2], gs->s_dhcp_submask[3]);
+                    subnet_buff[15] = '\0';
+
+//                    snprintf(gs->s_address_name, GETAP_IP_BUFFER, "%d.%d.%d.%d/%d", gs->s_dhcp_yip_addr[0], gs->s_dhcp_yip_addr[1], gs->s_dhcp_yip_addr[2], gs->s_dhcp_yip_addr[3], subnet);
+                    snprintf(gs->s_address_name, GETAP_IP_BUFFER, "%s/%d", ip_buff, subnet);
+
                     snprintf(gs->s_gateway_name, GETAP_IP_BUFFER, "%d.%d.%d.%d", gs->s_dhcp_route[0], gs->s_dhcp_route[1], gs->s_dhcp_route[2], gs->s_dhcp_route[3]);
+
+                    snprintf(dest_buff, sizeof(dest_buff), "%d.%d.%d.%d", dest[0], dest[1], dest[2], dest[3]);
+                    dest_buff[15] = '\0';
 #ifdef DEBUG
                     fprintf(stderr, "dhcp: ip/mask is %s\n", gs->s_address_name);
                     fprintf(stderr, "dhcp: route is %s\n", gs->s_gateway_name);
@@ -3222,6 +3246,9 @@ static int dhcp_statemachine(struct getap_state *gs){
                         announce_arp(gs);
                         gs->s_dhcp_state = BOUND;
                     }
+
+                    dhcp_set_kernel_if_addr(gs->s_tap_name, ip_buff, subnet_buff);
+                    dhcp_set_kernel_route(dest_buff, gs->s_gateway_name, subnet_buff);
                     
 #if 0
                     retval = dhcp_configure_if(gs);
@@ -3278,4 +3305,124 @@ static int dhcp_convert_netmask(struct getap_state *gs){
 
     return count;
 }
-#undef DEBUG
+
+static int dhcp_set_kernel_if_addr(char *if_name, char *ip, char *netmask){
+    int sfd;
+    struct sockaddr_in *sin;
+    struct ifreq ifr;
+
+    sfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (sfd == -1){
+#ifdef DEBUG
+        fprintf(stderr, "could not open socket\n");
+#endif
+        return -1;
+    }
+
+    //first clear the structure
+    memset(&ifr, 0, sizeof(ifr));
+
+    sin = (struct sockaddr_in *) &ifr.ifr_addr;
+    sin->sin_family = AF_INET;
+
+    if (inet_pton(AF_INET, ip, &sin->sin_addr) != 1){
+#ifdef DEBUG
+        fprintf(stderr, "ip address not valid\n");
+#endif
+        close(sfd);
+        return -1;
+    }
+
+    /*man pages -> netdevice*/
+    memcpy(&ifr.ifr_name, if_name, IFNAMSIZ);
+
+    if (ioctl(sfd, SIOCSIFADDR , &ifr) != 0){
+#ifdef DEBUG
+        fprintf(stderr, "could not set if addr\n");
+#endif
+        close(sfd);
+        return -1;
+    }
+
+    sin = (struct sockaddr_in *) &ifr.ifr_netmask;
+    sin->sin_family = AF_INET;
+    if (inet_pton(AF_INET, netmask, &sin->sin_addr) != 1){
+#ifdef DEBUG
+        fprintf(stderr, "netmask not valid\n");
+#endif
+        close(sfd);
+        return -1;
+    }
+
+    if (ioctl(sfd, SIOCSIFNETMASK, &ifr) != 0){
+#ifdef DEBUG
+        fprintf(stderr, "could not set i/f netmask\n");
+#endif
+        close(sfd);
+        return -1;
+    }
+
+    close(sfd);
+    return 0;
+}
+
+
+static int dhcp_set_kernel_route(char *dest, char *gateway, char *genmask){
+    int sfd;
+    struct sockaddr_in *sin;
+    struct rtentry rt;
+
+    sfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (sfd == -1){
+#ifdef DEBUG
+        fprintf(stderr, "could not open socket\n");
+#endif
+        return -1;
+    }
+
+    memset(&rt, 0, sizeof(rt));
+    sin = (struct sockaddr_in *) &rt.rt_dst;
+    sin->sin_family = AF_INET;
+    if (inet_pton(AF_INET, dest, &sin->sin_addr) != 1){
+#ifdef DEBUG
+        fprintf(stderr, "route destination not valid\n");
+#endif
+        close(sfd);
+        return -1;
+    }
+
+    sin = (struct sockaddr_in *) &rt.rt_gateway;
+    sin->sin_family = AF_INET;
+    if (inet_pton(AF_INET, gateway, &sin->sin_addr) != 1){
+#ifdef DEBUG
+        fprintf(stderr, "route gateway not valid\n");
+#endif
+        close(sfd);
+        return -1;
+    }
+
+    sin = (struct sockaddr_in *) &rt.rt_genmask;
+    sin->sin_family = AF_INET;
+    if (inet_pton(AF_INET, genmask, &sin->sin_addr) != 1){
+#ifdef DEBUG
+        fprintf(stderr, "route genmask not valid\n");
+#endif
+        close(sfd);
+        return -1;
+    }
+
+    rt.rt_flags = RTF_UP | RTF_GATEWAY;
+
+    if (ioctl(sfd, SIOCADDRT, &rt) != 0){
+#ifdef DEBUG
+        fprintf(stderr, "could not add route\n");
+#endif
+        close(sfd);
+        return -1;
+    }
+
+    close(sfd);
+    return 0;
+
+}
+//#undef DEBUG
