@@ -271,6 +271,7 @@ static int dhcp_configure_if(struct getap_state *gs);
 static int dhcp_convert_netmask(struct getap_state *gs);
 static int dhcp_set_kernel_if_addr(char *if_name, char *ip, char *netmask);
 static int dhcp_set_kernel_route(char *dest, char *gateway, char *genmask);
+static int dhcp_resume_callback(struct katcp_dispatch *d, struct katcp_notice *n, void *data);
 
 /************************************************************************/
 
@@ -3114,14 +3115,14 @@ static DHCP_MSG_TYPE process_dhcp(struct getap_state *gs){
             case 53:        //message type
                 if(gs->s_dhcp_rx_buffer[opt_index + 2] == DHCPOFFER){
                     mt = DHCPOFFER;
-                    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp offer recieved on %s with xid %#x", mt, gs->s_tap_name, gs->s_dhcp_xid);
+                    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp offer recieved on %s with xid %#x", gs->s_tap_name, gs->s_dhcp_xid);
 #ifdef DEBUG
                     fprintf(stderr, "dhcp: received offer message\n");
 #endif
                 }
                 else if(gs->s_dhcp_rx_buffer[opt_index + 2] == DHCPACK){
                     mt = DHCPACK;
-                    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp ack recieved on %s with xid %#x", mt, gs->s_tap_name, gs->s_dhcp_xid);
+                    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp ack recieved on %s with xid %#x", gs->s_tap_name, gs->s_dhcp_xid);
                 }
                 opt_index = opt_index + 3; 
                 break;
@@ -3195,6 +3196,7 @@ int tap_dhcp_cmd(struct katcp_dispatch *d, int argc){
     char *name;
     struct katcp_arb *a;
     struct getap_state *gs;
+    //struct katcp_notice *n;
 
     if(argc <= 1){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a register name");
@@ -3219,10 +3221,22 @@ int tap_dhcp_cmd(struct katcp_dispatch *d, int argc){
         return KATCP_RESULT_FAIL;
     }
     
+    gs->s_dhcp_notice = find_notice_katcp(d, "dhcp-notice");
+    if (gs->s_dhcp_notice != NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "another instance already active");
+        return KATCP_RESULT_FAIL;
+    }
+
+    gs->s_dhcp_notice = register_notice_katcp(d, "dhcp-notice", 0, &dhcp_resume_callback, &gs->s_dhcp_result);
+    if(gs->s_dhcp_notice == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to create notice object");
+        return KATCP_RESULT_FAIL;
+    }
+
     gs->s_dhcp_state = INIT;
     gs->s_dhcp_sm_enable = 1;
     
-    return KATCP_RESULT_OK;
+    return KATCP_RESULT_PAUSE;
 }
 
 #define DHCP_RETRIES    5
@@ -3243,6 +3257,8 @@ static int dhcp_statemachine(struct getap_state *gs){
         if (gs->s_dhcp_sm_retries >= DHCP_RETRIES){
             gs->s_dhcp_sm_retries = 0;
             gs->s_dhcp_sm_enable = 0;   //suspend state machine
+            gs->s_dhcp_result = 0;      //dhcp failed
+            wake_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice, NULL);
         } else {
             gs->s_dhcp_sm_retries++;
             gs->s_dhcp_state = INIT;    //try again
@@ -3367,6 +3383,8 @@ static int dhcp_statemachine(struct getap_state *gs){
             break;
 
         case BOUND:
+            gs->s_dhcp_result = 1;
+            wake_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice, NULL);
             gs->s_dhcp_sm_enable = 0;
 
             break;
@@ -3525,4 +3543,14 @@ static int dhcp_set_kernel_route(char *dest, char *gateway, char *genmask){
     return 0;
 
 }
+
+static int dhcp_resume_callback(struct katcp_dispatch *d, struct katcp_notice *n, void *data){
+    
+    prepend_reply_katcp(d);
+    append_string_katcp(d, KATCP_FLAG_LAST, (* ((int *) data) == 1) ? KATCP_OK : KATCP_FAIL);
+
+    resume_katcp(d);
+    return 0;
+}
+
 #undef DEBUG

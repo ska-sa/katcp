@@ -168,6 +168,9 @@ struct getap_state{
   unsigned char s_dhcp_submask[4];
   unsigned char s_dhcp_route[4];
 
+  int s_dhcp_result;
+  struct katcp_notice *s_dhcp_notice;
+
 };
 
 #define TBS_FPGA_DOWN        0
