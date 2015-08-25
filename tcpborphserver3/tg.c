@@ -1572,6 +1572,8 @@ void destroy_getap(struct katcp_dispatch *d, struct getap_state *gs)
   gs->s_rx_error = (-1);
   gs->s_tx_error = (-1);
 
+  gs->s_dhcp_notice = NULL;
+
   free(gs);
 }
 
@@ -1890,6 +1892,8 @@ struct getap_state *create_getap(struct katcp_dispatch *d, unsigned int instance
   }
 
   gs->s_timer = period; /* a nonzero value here means the timer is running ... */
+
+  gs->s_dhcp_notice = NULL;
 
   return gs;
 }
@@ -2758,7 +2762,7 @@ int tap_route_add_cmd(struct katcp_dispatch *d, int argc)
 }
 
 /**************************DHCP functions**************************/
-#define DEBUG 2
+//#define DEBUG 2
 static uint16_t dhcp_checksum(uint8_t *data, uint16_t index_start, uint16_t index_end){
     int i, len;
     uint16_t tmp=0;
@@ -3221,17 +3225,20 @@ int tap_dhcp_cmd(struct katcp_dispatch *d, int argc){
         return KATCP_RESULT_FAIL;
     }
     
-    gs->s_dhcp_notice = find_notice_katcp(d, "dhcp-notice");
+//    gs->s_dhcp_notice = find_notice_katcp(d, "dhcp-notice");
     if (gs->s_dhcp_notice != NULL){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "another instance already active");
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "another instance associated with %s already active", name);
         return KATCP_RESULT_FAIL;
     }
 
-    gs->s_dhcp_notice = register_notice_katcp(d, "dhcp-notice", 0, &dhcp_resume_callback, &gs->s_dhcp_result);
+    //register an anonymous notice
+    gs->s_dhcp_notice = register_notice_katcp(d, NULL, 0, &dhcp_resume_callback, &gs->s_dhcp_result);
     if(gs->s_dhcp_notice == NULL){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to create notice object");
         return KATCP_RESULT_FAIL;
     }
+    
+    hold_notice_katcp(d, gs->s_dhcp_notice);
 
     gs->s_dhcp_state = INIT;
     gs->s_dhcp_sm_enable = 1;
@@ -3259,6 +3266,8 @@ static int dhcp_statemachine(struct getap_state *gs){
             gs->s_dhcp_sm_enable = 0;   //suspend state machine
             gs->s_dhcp_result = 0;      //dhcp failed
             wake_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice, NULL);
+            release_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice);
+            gs->s_dhcp_notice = NULL;
         } else {
             gs->s_dhcp_sm_retries++;
             gs->s_dhcp_state = INIT;    //try again
@@ -3385,6 +3394,8 @@ static int dhcp_statemachine(struct getap_state *gs){
         case BOUND:
             gs->s_dhcp_result = 1;
             wake_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice, NULL);
+            release_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice);
+            gs->s_dhcp_notice = NULL;
             gs->s_dhcp_sm_enable = 0;
 
             break;
@@ -3553,4 +3564,4 @@ static int dhcp_resume_callback(struct katcp_dispatch *d, struct katcp_notice *n
     return 0;
 }
 
-#undef DEBUG
+//#undef DEBUG
