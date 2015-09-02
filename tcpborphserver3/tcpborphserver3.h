@@ -66,7 +66,7 @@ unsigned int infer_fpga_range(struct katcp_dispatch *d);
 
 #define GETAP_VECTOR_PERIOD      4
 
-#define GETAP_DHCP_BUFFER_SIZE 400
+#define GETAP_DHCP_BUFFER_SIZE 416
 
 typedef enum {INIT, SELECT, REQUEST, BOUND} DHCP_STATE_TYPE;
 
