@@ -256,7 +256,6 @@
 #define MASK16 0xFFFF
 /*********************dhcp macro definitions end here*********************/
 
-
 static const uint8_t arp_const[] = { 0, 1, 8, 0, 6, 4, 0 }; /* disgusting */
 static const uint8_t broadcast_const[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
@@ -270,15 +269,40 @@ typedef enum {DHCPDISCOVER=1, DHCPOFFER, DHCPREQUEST,
             DHCPDECLINE, DHCPACK, DHCPNAK, DHCPRELEASE, DHCPINFORM} DHCP_MSG_TYPE;
 
 static uint16_t dhcp_checksum(uint8_t *data, uint16_t index_start, uint16_t index_end);
+static uint32_t dhcp_rand();
 static int dhcp_msg(struct getap_state *gs, DHCP_MSG_TYPE mt);
 static int validate_dhcp_reply(struct getap_state *gs);
 static DHCP_MSG_TYPE process_dhcp(struct getap_state *gs);
+
 static int dhcp_statemachine(struct getap_state *gs);
-static int dhcp_configure_if(struct getap_state *gs);
-static int dhcp_convert_netmask(struct getap_state *gs);
+
+/*define a function pointer type which returns next state and accepts ptr to getap_state as argument*/
+typedef DHCP_STATE_TYPE (*dhcp_state_func_ptr)(struct getap_state *gs);
+
+/*define function prototypes for each state function callback*/
+static DHCP_STATE_TYPE init_dhcp_state (struct getap_state *gs);
+static DHCP_STATE_TYPE select_dhcp_state (struct getap_state *gs);
+static DHCP_STATE_TYPE request_dhcp_state (struct getap_state *gs);
+static DHCP_STATE_TYPE bound_dhcp_state (struct getap_state *gs);
+
+static int dhcp_convert_netmask(uint32_t mask);
+static int dhcp_configure_fpga(struct getap_state *gs);
+static int dhcp_configure_kernel(struct getap_state *gs);
 static int dhcp_set_kernel_if_addr(char *if_name, char *ip, char *netmask);
 static int dhcp_set_kernel_route(char *dest, char *gateway, char *genmask);
+
 static int dhcp_resume_callback(struct katcp_dispatch *d, struct katcp_notice *n, void *data);
+
+/*declare a lookup/array of function pointers for each state*/
+static dhcp_state_func_ptr dhcp_state_table[] = { [INIT]    = init_dhcp_state,
+                                                  [SELECT]  = select_dhcp_state,
+                                                  [REQUEST] = request_dhcp_state,
+                                                  [BOUND]   = bound_dhcp_state };
+
+static char *dhcp_state_name[] = {  [INIT]    = "INIT",
+                                    [SELECT]  = "SELECT",
+                                    [REQUEST] = "REQUEST",
+                                    [BOUND]   = "BOUND" };
 
 /************************************************************************/
 
@@ -1255,8 +1279,8 @@ int run_timer_tap(struct katcp_dispatch *d, void *data)
           case 0x00 : /* IP packet */
 
             if (validate_dhcp_reply(gs) == 1){
-                if (gs->s_dhcp_valid_dhcp == 0){
-                    gs->s_dhcp_valid_dhcp = 1;
+                if (gs->s_dhcp_valid_msg == 0){
+                    gs->s_dhcp_valid_msg = 1;
                     memcpy(gs->s_dhcp_rx_buffer, gs->s_rxb, gs->s_rx_len);
                 }
                 forget_receive(gs);
@@ -1516,6 +1540,7 @@ static int configure_tap(struct getap_state *gs)
 void destroy_getap(struct katcp_dispatch *d, struct getap_state *gs)
 {
   /* WARNING: destroy_getap, does not remove itself from the global structure */
+  int i;
 
   sane_gs(gs);
 
@@ -1578,6 +1603,28 @@ void destroy_getap(struct katcp_dispatch *d, struct getap_state *gs)
 
   gs->s_rx_error = (-1);
   gs->s_tx_error = (-1);
+
+  gs->s_dhcp_tx_buffer[0] = '\0';
+  gs->s_dhcp_rx_buffer[0] = '\0';
+
+  gs->s_dhcp_xid = 0;
+  gs->s_dhcp_sec_start = 0;
+
+  gs->s_dhcp_state = INIT;
+  gs->s_dhcp_sm_enable = 0;
+  gs->s_dhcp_valid_msg = 0;
+  gs->s_dhcp_sm_count = 0;
+  gs->s_dhcp_sm_retries = 0;
+
+  for (i=0; i<4; i++){
+    gs->s_dhcp_yip_addr[i] = 0;
+    gs->s_dhcp_sip_addr[i] = 0;
+
+    gs->s_dhcp_submask[i] = 0;
+    gs->s_dhcp_route[i] = 0;
+  }
+
+  gs->s_dhcp_errors = 0;
 
   gs->s_dhcp_notice = NULL;
 
@@ -1695,7 +1742,7 @@ void stop_all_getap(struct katcp_dispatch *d, int final)
   }
 
   for(i = 0; i < tr->r_instances; i++){
-    if (tr->r_taps[i]->s_dhcp_result == 1){
+    if (tr->r_taps[i]->s_dhcp_obtained == 1){
         log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "releasing dhcp lease on tap instance %s", tr->r_taps[i]->s_tap_name);
         dhcp_msg(tr->r_taps[i], DHCPRELEASE);
     }
@@ -1907,6 +1954,28 @@ struct getap_state *create_getap(struct katcp_dispatch *d, unsigned int instance
 
   gs->s_timer = period; /* a nonzero value here means the timer is running ... */
 
+  gs->s_dhcp_tx_buffer[0] = '\0';
+  gs->s_dhcp_rx_buffer[0] = '\0';
+
+  gs->s_dhcp_xid = 0;
+  gs->s_dhcp_sec_start = 0;
+
+  gs->s_dhcp_state = INIT;
+  gs->s_dhcp_sm_enable = 0;
+  gs->s_dhcp_valid_msg = 0;
+  gs->s_dhcp_sm_count = 0;
+  gs->s_dhcp_sm_retries = 0;
+
+  for (i=0; i<4; i++){
+    gs->s_dhcp_yip_addr[i] = 0;
+    gs->s_dhcp_sip_addr[i] = 0;
+
+    gs->s_dhcp_submask[i] = 0;
+    gs->s_dhcp_route[i] = 0;
+  }
+
+  gs->s_dhcp_errors = 0;
+
   gs->s_dhcp_notice = NULL;
 
   return gs;
@@ -2046,7 +2115,7 @@ int tap_stop_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
-  if (gs->s_dhcp_result == 1){
+  if (gs->s_dhcp_obtained == 1){
     dhcp_msg(gs, DHCPRELEASE);
   }
 
@@ -2777,8 +2846,11 @@ int tap_route_add_cmd(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 }
 
-/**************************DHCP functions**************************/
-//#define DEBUG 2
+
+/*DHCP LOGIC*************************************************************************************************/
+
+/*dhcp message functions*****************************************************************/
+
 static uint16_t dhcp_checksum(uint8_t *data, uint16_t index_start, uint16_t index_end){
     int i, len;
     uint16_t tmp=0;
@@ -2835,16 +2907,19 @@ static uint32_t dhcp_rand(){
   uint32_t rndm = 0;
   int n;
   FILE *rfp;
+  struct timeval tv;
+
+  gettimeofday(&tv, NULL);
 
   rfp = fopen("/dev/urandom", "r");
   if (rfp == NULL){
-    srand(time(NULL));
+    srand((int)tv.tv_usec);
     return (uint32_t)rand();
   }
   
   n = fread(&rndm, sizeof(rndm), 1, rfp);
   if (n != 1){
-    srand(time(NULL));
+    srand((int)tv.tv_usec);
     return (uint32_t)rand();
   }
 
@@ -3207,33 +3282,10 @@ static DHCP_MSG_TYPE process_dhcp(struct getap_state *gs){
 
   }
 
-
-#if 0
-
-  switch(gs->s_dhcp_rx_buffer[DHCP_FRAME_START_INDEX + DHCP_MTYPE_OFFSET + 2]){
-    case DHCPOFFER:
-#ifdef DEBUG
-      fprintf(stderr, "dhcp: received offer message\n");
-#endif
-      break;
-
-    case DHCPACK:
-#ifdef DEBUG
-      fprintf(stderr, "dhcp: received ack message\n");
-#endif
-      break;             
-
-    default:
-#ifdef DEBUG
-      fprintf(stderr, "dhcp: invalid message\n");
-#endif
-      break;
-  }
-
-#endif
-
   return mt;
 }
+
+/*dhcp command functions*****************************************************************/
 
 /*this command enables the dhcp statemachine which then starts to run on the next run_timer_tap function call*/
 int tap_dhcp_cmd(struct katcp_dispatch *d, int argc){
@@ -3272,7 +3324,7 @@ int tap_dhcp_cmd(struct katcp_dispatch *d, int argc){
   }
 
   //register an anonymous notice
-  gs->s_dhcp_notice = register_notice_katcp(d, NULL, 0, &dhcp_resume_callback, &gs->s_dhcp_result);
+  gs->s_dhcp_notice = register_notice_katcp(d, NULL, 0, &dhcp_resume_callback, &gs->s_dhcp_errors);
   if(gs->s_dhcp_notice == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to create notice object");
     return KATCP_RESULT_FAIL;
@@ -3286,192 +3338,155 @@ int tap_dhcp_cmd(struct katcp_dispatch *d, int argc){
   return KATCP_RESULT_PAUSE;
 }
 
-#define DHCP_RETRIES    5
+
+static int dhcp_resume_callback(struct katcp_dispatch *d, struct katcp_notice *n, void *data){
+
+  prepend_reply_katcp(d);
+  append_string_katcp(d, KATCP_FLAG_LAST, (* ((int *) data) == 0) ? KATCP_OK : KATCP_FAIL);
+
+  resume_katcp(d);
+  return 0;
+}
+
+/*dhcp state machine functions**********************************************************************/
+
+#define DHCP_SM_RETRIES   5
+#define DHCP_SM_INTERVAL  500   /* time = 10ms * DHCP_SM_INTERVAL */
+#define DHCP_SM_LOG_RATE  50   /* time = 10ms * DHCP_SM_LOG_RATE */
 
 static int dhcp_statemachine(struct getap_state *gs){
-  int retval = 0;
-  DHCP_MSG_TYPE mt;
-  int subnet;
-  char ip_buff[16];
-  char dest_buff[16];
-  char subnet_buff[16];
-  uint8_t dest[4];
 
   gs->s_dhcp_sm_count++;
 
-  if (gs->s_dhcp_sm_count >= 500){              //after $(count) iterations, something probably went wrong, so take action
+  /*this logic resets state machine*/
+  if (gs->s_dhcp_sm_count >= DHCP_SM_INTERVAL){
     gs->s_dhcp_sm_count = 0;
-    if (gs->s_dhcp_sm_retries >= DHCP_RETRIES){
+    gs->s_dhcp_state = INIT;
+    if (gs->s_dhcp_sm_retries >= DHCP_SM_RETRIES){
       gs->s_dhcp_sm_retries = 0;
       gs->s_dhcp_sm_enable = 0;   //suspend state machine
-      gs->s_dhcp_result = 0;      //dhcp failed
-      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "could not obtain dhcp lease");
+      gs->s_dhcp_errors++;      //dhcp failed
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: state machine timed out - failed to obtain lease on %s", gs->s_tap_name);
       wake_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice, NULL);
       release_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice);
       gs->s_dhcp_notice = NULL;
-    } else {
-      gs->s_dhcp_sm_retries++;
-      gs->s_dhcp_state = INIT;    //try again
+      return -1;
     }
   }
 
-  switch(gs->s_dhcp_state){
-
-    case INIT:
-      gs->s_dhcp_valid_dhcp= 0;
-#ifdef DEBUG
-      if ((gs->s_dhcp_sm_count % 100) == 0){      //reduce spam rate
-        fprintf(stderr, "dhcp INIT state\n");
-      }
-#endif
-      retval = dhcp_msg(gs, DHCPDISCOVER);
-
-      if (retval){
-        log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "unable to generate dhcp message");
-        gs->s_dhcp_state = INIT;
-      } else {
-        gs->s_dhcp_state = SELECT;
-      }
-      break;
-
-    case SELECT:
-#ifdef DEBUG
-      if ((gs->s_dhcp_sm_count % 100) == 0){
-        fprintf(stderr, "dhcp SELECT state\n");
-      }
-#endif
-
-      if (gs->s_dhcp_valid_dhcp == 1){
-        gs->s_dhcp_valid_dhcp = 0; 
-        mt = process_dhcp(gs);
-        if (mt == DHCPOFFER){
-          retval = dhcp_msg(gs, DHCPREQUEST);
-          if (retval){
-            log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "unable to generate dhcp message");
-            gs->s_dhcp_state = SELECT;
-
-          } else {
-            gs->s_dhcp_state = REQUEST;
-          }
-        }
-      }
-
-      break;
-
-    case REQUEST:
-#ifdef DEBUG
-      if ((gs->s_dhcp_sm_count % 100) == 0){
-        fprintf(stderr, "dhcp REQUEST state\n");
-      }
-#endif
-      if (gs->s_dhcp_valid_dhcp == 1){
-        gs->s_dhcp_valid_dhcp = 0;
-        mt = process_dhcp(gs);
-        if (mt == DHCPACK){
-
-          subnet = dhcp_convert_netmask(gs);
-
-          dest[0] = gs->s_dhcp_yip_addr[0] & gs->s_dhcp_submask[0];
-          dest[1] = gs->s_dhcp_yip_addr[1] & gs->s_dhcp_submask[1];
-          dest[2] = gs->s_dhcp_yip_addr[2] & gs->s_dhcp_submask[2];
-          dest[3] = gs->s_dhcp_yip_addr[3] & gs->s_dhcp_submask[3];
-
-          snprintf(ip_buff, sizeof(ip_buff), "%d.%d.%d.%d", gs->s_dhcp_yip_addr[0], gs->s_dhcp_yip_addr[1], gs->s_dhcp_yip_addr[2], gs->s_dhcp_yip_addr[3]);
-          ip_buff[15] = '\0';
-          snprintf(subnet_buff, sizeof(subnet_buff), "%d.%d.%d.%d", gs->s_dhcp_submask[0], gs->s_dhcp_submask[1], gs->s_dhcp_submask[2], gs->s_dhcp_submask[3]);
-          subnet_buff[15] = '\0';
-
-          //                    snprintf(gs->s_address_name, GETAP_IP_BUFFER, "%d.%d.%d.%d/%d", gs->s_dhcp_yip_addr[0], gs->s_dhcp_yip_addr[1], gs->s_dhcp_yip_addr[2], gs->s_dhcp_yip_addr[3], subnet);
-          snprintf(gs->s_address_name, GETAP_IP_BUFFER, "%s/%d", ip_buff, subnet);
-
-          snprintf(gs->s_gateway_name, GETAP_IP_BUFFER, "%d.%d.%d.%d", gs->s_dhcp_route[0], gs->s_dhcp_route[1], gs->s_dhcp_route[2], gs->s_dhcp_route[3]);
-
-          snprintf(dest_buff, sizeof(dest_buff), "%d.%d.%d.%d", dest[0], dest[1], dest[2], dest[3]);
-          dest_buff[15] = '\0';
-#ifdef DEBUG
-          fprintf(stderr, "dhcp: ip/mask is %s\n", gs->s_address_name);
-          fprintf(stderr, "dhcp: route is %s\n", gs->s_gateway_name);
-#endif
-
 #if 0
-          for (i=0; i<4; i++){
-            gs->s_address_binary = gs->s_dhcp_yip_addr[i];
-            gs->s_address_binary = gs->s_adress_binary << ((3-i)*8);
-          }
-          for (i=0; i<4; i++){
-            gs->s_mask_binary = gs->s_dhcp_submask[i];
-            gs->s_mask_binary = gs->s_mask_binary << ((3-i)*8);
-          }
-#endif
-
-          if(configure_ip_fpga(gs) < 0){
-            log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "unable to make requested changes for %s", gs->s_tap_name);
-            gs->s_dhcp_state = REQUEST;
-          } else {
-            tap_reload_arp(gs->s_dispatch, gs);
-            announce_arp(gs);
-            gs->s_dhcp_state = BOUND;
-          }
-
-          dhcp_set_kernel_if_addr(gs->s_tap_name, ip_buff, subnet_buff);
-          dhcp_set_kernel_route(dest_buff, gs->s_gateway_name, subnet_buff);
-
-#if 0
-          retval = dhcp_configure_if(gs);
-          if (retval){
-            log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "unable to configure interface");
-            gs->s_dhcp_state = REQUEST;
-
-          } else {
-            gs->s_dhcp_state = BOUND;
-          }
-#endif
-
-        }
-      }
-
-      break;
-
-    case BOUND:
-      gs->s_dhcp_result = 1;
-      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp lease obtained");
-      wake_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice, NULL);
-      release_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice);
-      gs->s_dhcp_notice = NULL;
-      gs->s_dhcp_sm_enable = 0;
-
-      break;
-
-    default:
-      gs->s_dhcp_sm_enable = 0;
-      gs->s_dhcp_state = INIT;
-      break;
-
+  /*display state name in katcp log */
+  if ((gs->s_dhcp_sm_count % DHCP_SM_LOG_RATE) == 0){
+    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_DEBUG, NULL, "dhcp: %s state on device %s", dhcp_state_name[gs->s_dhcp_state], gs->s_tap_name);
   }
+#endif
 
-  return retval;
-}
-
-static int dhcp_configure_if(struct getap_state *gs){
-
-  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "configuring interface %s",gs->s_tap_name );
+  gs->s_dhcp_state = dhcp_state_table[gs->s_dhcp_state](gs);
   return 0;
 }
 
 
-static int dhcp_convert_netmask(struct getap_state *gs){
-  unsigned int count=0;
-  unsigned char temp;
-  int i,j;
+static DHCP_STATE_TYPE init_dhcp_state(struct getap_state *gs){
+  int retval;
+  
+  /*initialize all statemachine parameters*/
+  gs->s_dhcp_valid_msg = 0;
+  gs->s_dhcp_errors = 0;
 
-  for (i=0; i<4; i++){
-    temp = gs->s_dhcp_submask[i];
-    for (j=0; j<8; j++){
-      if ((temp & 1) == 1){
-        count++;
+//  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_DEBUG, NULL, "dhcp: entering discover state on %s", gs->s_tap_name);
+
+  retval = dhcp_msg(gs, DHCPDISCOVER);
+  gs->s_dhcp_sm_retries++;
+  if (retval){
+    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: unable to send DHCP_DISCOVER message on %s", gs->s_tap_name);
+    return INIT;
+  } else {
+    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: DHCP_DISCOVER message sent on %s", gs->s_tap_name);
+  }
+
+  return SELECT; 
+}
+
+
+static DHCP_STATE_TYPE select_dhcp_state(struct getap_state *gs){
+  int retval;
+  DHCP_MSG_TYPE mt;
+
+//  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_DEBUG, NULL, "dhcp: entering selecting state on %s", gs->s_tap_name);
+
+  if (gs->s_dhcp_valid_msg == 1){
+    gs->s_dhcp_valid_msg = 0;
+    mt = process_dhcp(gs);
+    if (mt == DHCPOFFER){
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: received a valid DHCP_OFFER message on %s", gs->s_tap_name);
+      retval = dhcp_msg(gs, DHCPREQUEST);
+      if (retval){
+        log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: unable to send DHCP_REQUEST message on %s", gs->s_tap_name);
+        return INIT;
+      } else {
+        log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: DHCP_REQUEST message sent on %s", gs->s_tap_name);
+        return REQUEST;
       }
-      temp = temp >> 1;
     }
+  }
+
+  return SELECT;
+}
+
+
+static DHCP_STATE_TYPE request_dhcp_state(struct getap_state *gs){
+  int retval;
+  DHCP_MSG_TYPE mt;
+
+//  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_DEBUG, NULL, "dhcp: entering requesting state on %s", gs->s_tap_name);
+
+  if (gs->s_dhcp_valid_msg == 1){
+    gs->s_dhcp_valid_msg = 0;
+    mt = process_dhcp(gs);
+    if (mt == DHCPACK){
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: received a valid DHCP_ACK message on %s", gs->s_tap_name);
+      retval = dhcp_configure_fpga(gs);
+      if (retval){
+        log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: unable to configure fpga for %s", gs->s_tap_name);
+        gs->s_dhcp_errors++;
+      }
+      retval = dhcp_configure_kernel(gs);
+      if (retval){
+        log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: unable to configure kernel parameters for %s", gs->s_tap_name);
+        gs->s_dhcp_errors++;
+      }
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: lease obtained on %s", gs->s_tap_name);
+      wake_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice, NULL);
+      release_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice);
+      gs->s_dhcp_notice = NULL;
+      /*TODO: upon success, display log message for all parameters - kernel and fpga - here*/
+      return BOUND;
+    }
+  }
+
+  return REQUEST;
+}
+
+
+static DHCP_STATE_TYPE bound_dhcp_state(struct getap_state *gs){
+
+  gs->s_dhcp_obtained = 1;
+  gs->s_dhcp_sm_enable = 0;
+  return BOUND;
+}
+
+
+/*dhcp configuration and auxiliary functions*****************************************************************/
+
+static int dhcp_convert_netmask(uint32_t mask){
+  unsigned int count=0;
+  int i;
+
+  for (i=0; i<32; i++){
+    if ((mask & 1) == 1){
+      count++;
+    }
+    mask = mask >> 1;
   }
 
   return count;
@@ -3533,6 +3548,20 @@ static int dhcp_set_kernel_if_addr(char *if_name, char *ip, char *netmask){
     return -1;
   }
 
+  /*TODO: set the interface's broadcast address*/
+
+  sin = (struct sockaddr_in *) &ifr.ifr_netmask;
+  sin->sin_family = AF_INET;
+  ifr.ifr_flags = IFF_UP | IFF_BROADCAST | IFF_RUNNING | IFF_MULTICAST;
+  if (ioctl(sfd, SIOCSIFFLAGS, &ifr) != 0){
+#ifdef DEBUG
+    fprintf(stderr, "could not set i/f flags\n");
+#endif
+    close(sfd);
+    return -1;
+  }
+
+
   close(sfd);
   return 0;
 }
@@ -3584,6 +3613,9 @@ static int dhcp_set_kernel_route(char *dest, char *gateway, char *genmask){
 
   rt.rt_flags = RTF_UP | RTF_GATEWAY;
 
+  /*slight "quick-fix": delete any existing entry from the routing table - preventing ioctl failure due to route already existing*/
+  ioctl(sfd, SIOCDELRT, &rt);
+
   if (ioctl(sfd, SIOCADDRT, &rt) != 0){
 #ifdef DEBUG
     fprintf(stderr, "could not add route\n");
@@ -3597,13 +3629,71 @@ static int dhcp_set_kernel_route(char *dest, char *gateway, char *genmask){
 
 }
 
-static int dhcp_resume_callback(struct katcp_dispatch *d, struct katcp_notice *n, void *data){
 
-  prepend_reply_katcp(d);
-  append_string_katcp(d, KATCP_FLAG_LAST, (* ((int *) data) == 1) ? KATCP_OK : KATCP_FAIL);
+static int dhcp_configure_fpga(struct getap_state *gs){
+  int subnet;
+  int i;
+  uint32_t temp_mask = 0;
+  char ip_buff[16];
 
-  resume_katcp(d);
+  for (i=0; i<4; i++){
+    temp_mask = ( temp_mask << 8 ) + (uint32_t) gs->s_dhcp_submask[i];
+  }
+
+  subnet = dhcp_convert_netmask(temp_mask);
+
+  snprintf(ip_buff, sizeof(ip_buff), "%d.%d.%d.%d", gs->s_dhcp_yip_addr[0], gs->s_dhcp_yip_addr[1], gs->s_dhcp_yip_addr[2], gs->s_dhcp_yip_addr[3]);
+  ip_buff[15] = '\0';
+
+  snprintf(gs->s_address_name, GETAP_IP_BUFFER, "%s/%d", ip_buff, subnet);
+  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_DEBUG, NULL, "dhcp: attempting to set fpga with ip %s on %s", gs->s_address_name, gs->s_tap_name);
+
+  snprintf(gs->s_gateway_name, GETAP_IP_BUFFER, "%d.%d.%d.%d", gs->s_dhcp_route[0], gs->s_dhcp_route[1], gs->s_dhcp_route[2], gs->s_dhcp_route[3]);
+  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_DEBUG, NULL, "dhcp: attempting to set fpga with gateway %s on %s", gs->s_gateway_name, gs->s_tap_name);
+
+  if(configure_ip_fpga(gs) < 0){
+    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: error setting ip parameters in fpga for %s", gs->s_tap_name);
+    return -1;
+  }
+
+  tap_reload_arp(gs->s_dispatch, gs);
+  announce_arp(gs);
   return 0;
 }
 
-//#undef DEBUG
+
+static int dhcp_configure_kernel(struct getap_state *gs){
+  uint8_t dest[4];
+  char subnet_buff[16];
+  char dest_buff[16];
+  char ip_buff[16];
+  int retval;
+  int i;
+
+  for (i=0; i<4; i++){
+    dest[i] = gs->s_dhcp_yip_addr[i] & gs->s_dhcp_submask[i];
+  }
+
+  snprintf(ip_buff, sizeof(ip_buff), "%d.%d.%d.%d", gs->s_dhcp_yip_addr[0], gs->s_dhcp_yip_addr[1], gs->s_dhcp_yip_addr[2], gs->s_dhcp_yip_addr[3]);
+  ip_buff[15] = '\0';
+
+  snprintf(subnet_buff, sizeof(subnet_buff), "%d.%d.%d.%d", gs->s_dhcp_submask[0], gs->s_dhcp_submask[1], gs->s_dhcp_submask[2], gs->s_dhcp_submask[3]);
+  subnet_buff[15] = '\0';
+
+  snprintf(dest_buff, sizeof(dest_buff), "%d.%d.%d.%d", dest[0], dest[1], dest[2], dest[3]);
+  dest_buff[15] = '\0';
+
+  retval = dhcp_set_kernel_if_addr(gs->s_tap_name, ip_buff, subnet_buff);
+  if (retval){
+    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: error setting kernel interface parameters for %s", gs->s_tap_name);
+    return -1;
+  }
+
+  retval = dhcp_set_kernel_route(dest_buff, gs->s_gateway_name, subnet_buff);
+  if (retval){
+    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: error setting kernel route for %s", gs->s_tap_name);
+    return -1;
+  }
+
+  return 0;
+}

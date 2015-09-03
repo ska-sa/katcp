@@ -158,7 +158,7 @@ struct getap_state{
   
   DHCP_STATE_TYPE s_dhcp_state;
   int s_dhcp_sm_enable;
-  int s_dhcp_valid_dhcp;
+  int s_dhcp_valid_msg;
   int s_dhcp_sm_count;
   int s_dhcp_sm_retries;
 
@@ -168,7 +168,8 @@ struct getap_state{
   unsigned char s_dhcp_submask[4];
   unsigned char s_dhcp_route[4];
 
-  int s_dhcp_result;
+  int s_dhcp_errors;
+  int s_dhcp_obtained;
   struct katcp_notice *s_dhcp_notice;
 
 };
