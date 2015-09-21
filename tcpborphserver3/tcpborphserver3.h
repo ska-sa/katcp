@@ -125,10 +125,13 @@ struct getap_state{
   unsigned long s_tx_arp;
   unsigned long s_tx_user;
   unsigned long s_tx_error;
+  unsigned long s_tx_dhcp;
 
   unsigned long s_rx_arp;
   unsigned long s_rx_user;
   unsigned long s_rx_error;
+  unsigned long s_rx_dhcp_valid;
+  unsigned long s_rx_dhcp_invalid;
 
   unsigned char s_rxb[GETAP_MAX_FRAME];
   unsigned char s_txb[GETAP_MAX_FRAME];
@@ -154,7 +157,7 @@ struct getap_state{
   unsigned char s_dhcp_rx_buffer[GETAP_MAX_FRAME];
   
   uint32_t s_dhcp_xid;
-  uint16_t s_dhcp_sec_start;
+  time_t s_dhcp_sec_start;
   
   DHCP_STATE_TYPE s_dhcp_state;
   int s_dhcp_sm_enable;
@@ -167,6 +170,10 @@ struct getap_state{
 
   unsigned char s_dhcp_submask[4];
   unsigned char s_dhcp_route[4];
+
+  uint32_t s_dhcp_lease_t;
+  uint32_t s_dhcp_t1;
+  uint32_t s_dhcp_t2;
 
   int s_dhcp_errors;
   int s_dhcp_obtained;
