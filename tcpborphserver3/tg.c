@@ -282,6 +282,7 @@ typedef DHCP_STATE_TYPE (*dhcp_state_func_ptr)(struct getap_state *gs);
 /*define function prototypes for each state function callback*/
 static DHCP_STATE_TYPE init_dhcp_state (struct getap_state *gs);
 static DHCP_STATE_TYPE select_dhcp_state (struct getap_state *gs);
+static DHCP_STATE_TYPE wait_dhcp_state(struct getap_state *gs);
 static DHCP_STATE_TYPE request_dhcp_state (struct getap_state *gs);
 static DHCP_STATE_TYPE bound_dhcp_state (struct getap_state *gs);
 
@@ -296,11 +297,13 @@ static int dhcp_resume_callback(struct katcp_dispatch *d, struct katcp_notice *n
 /*declare a lookup/array of function pointers for each state*/
 static dhcp_state_func_ptr dhcp_state_table[] = { [INIT]    = init_dhcp_state,
                                                   [SELECT]  = select_dhcp_state,
+                                                  [WAIT]    = wait_dhcp_state,
                                                   [REQUEST] = request_dhcp_state,
                                                   [BOUND]   = bound_dhcp_state };
 
 static char *dhcp_state_name[] = {  [INIT]    = "INIT",
                                     [SELECT]  = "SELECT",
+                                    [WAIT]    = "WAIT",
                                     [REQUEST] = "REQUEST",
                                     [BOUND]   = "BOUND" };
 
@@ -1616,6 +1619,8 @@ void destroy_getap(struct katcp_dispatch *d, struct getap_state *gs)
   gs->s_dhcp_sm_count = 0;
   gs->s_dhcp_sm_retries = 0;
 
+  gs->s_dhcp_wait = 1;
+
   for (i=0; i<4; i++){
     gs->s_dhcp_yip_addr[i] = 0;
     gs->s_dhcp_sip_addr[i] = 0;
@@ -1973,6 +1978,8 @@ struct getap_state *create_getap(struct katcp_dispatch *d, unsigned int instance
   gs->s_dhcp_valid_msg = 0;
   gs->s_dhcp_sm_count = 0;
   gs->s_dhcp_sm_retries = 0;
+
+  gs->s_dhcp_wait = 1;
 
   for (i=0; i<4; i++){
     gs->s_dhcp_yip_addr[i] = 0;
@@ -3454,7 +3461,6 @@ static DHCP_STATE_TYPE init_dhcp_state(struct getap_state *gs){
 
 
 static DHCP_STATE_TYPE select_dhcp_state(struct getap_state *gs){
-  int retval;
   DHCP_MSG_TYPE mt;
 
 //  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_DEBUG, NULL, "dhcp: entering selecting state on %s", gs->s_tap_name);
@@ -3464,18 +3470,30 @@ static DHCP_STATE_TYPE select_dhcp_state(struct getap_state *gs){
     mt = process_dhcp(gs);
     if (mt == DHCPOFFER){
       log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: received a valid DHCP_OFFER message on %s", gs->s_tap_name);
-      retval = dhcp_msg(gs, DHCPREQUEST);
-      if (retval){
-        log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: unable to send DHCP_REQUEST message on %s", gs->s_tap_name);
-        return INIT;
-      } else {
-        log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: DHCP_REQUEST message sent on %s", gs->s_tap_name);
-        return REQUEST;
-      }
+      gs->s_dhcp_wait = (int) (dhcp_rand() % 15 + 5);
+      return WAIT;
     }
   }
 
   return SELECT;
+}
+
+
+static DHCP_STATE_TYPE wait_dhcp_state(struct getap_state *gs){
+  int retval;
+
+  if (gs->s_dhcp_wait <= 0){
+    retval = dhcp_msg(gs, DHCPREQUEST);
+    if (retval){
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: unable to send DHCP_REQUEST message on %s", gs->s_tap_name);
+      return INIT;
+    } else {
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: DHCP_REQUEST message sent on %s", gs->s_tap_name);
+      return REQUEST;
+    }
+  }
+  gs->s_dhcp_wait--;
+  return WAIT;
 }
 
 

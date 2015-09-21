@@ -68,7 +68,7 @@ unsigned int infer_fpga_range(struct katcp_dispatch *d);
 
 #define GETAP_DHCP_BUFFER_SIZE 416
 
-typedef enum {INIT, SELECT, REQUEST, BOUND} DHCP_STATE_TYPE;
+typedef enum {INIT, SELECT, WAIT, REQUEST, BOUND} DHCP_STATE_TYPE;
 
 struct getap_state{
   uint32_t s_magic;
@@ -164,6 +164,8 @@ struct getap_state{
   int s_dhcp_valid_msg;
   int s_dhcp_sm_count;
   int s_dhcp_sm_retries;
+
+  int s_dhcp_wait;
 
   unsigned char s_dhcp_yip_addr[4];
   unsigned char s_dhcp_sip_addr[4];
