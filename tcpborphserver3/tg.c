@@ -119,11 +119,9 @@
 #define MCAST_DRAIN_PERIOD 3  /* drain interval, seconds */
 
 /*********************dhcp macro definitions*********************/
-/*indices of start of specific parameters in frame, contains suffix "_I" */
 /*zero indexed*/
 
-
-#define ETH_FRAME_START_INDEX       0
+#define ETH_FRAME_BASE              0
 #define ETH_DST_OFFSET              0
 #define ETH_DST_LEN                 6
 #define ETH_SRC_OFFSET              (ETH_DST_OFFSET + ETH_DST_LEN)  //6
@@ -133,7 +131,7 @@
 
 #define ETH_FRAME_TOTAL_LEN         (ETH_FRAME_TYPE_OFFSET + ETH_FRAME_TYPE_LEN)
 
-#define IP_FRAME_START_INDEX        (ETH_FRAME_START_INDEX + ETH_FRAME_TOTAL_LEN)
+#define IP_FRAME_BASE               (ETH_FRAME_BASE + ETH_FRAME_TOTAL_LEN)
 #define IP_V_HIL_OFFSET             0
 #define IP_V_HIL_LEN                1
 #define IP_TOS_OFFSET               (IP_V_HIL_OFFSET + IP_V_HIL_LEN)  //1
@@ -157,7 +155,7 @@
 
 #define IP_FRAME_TOTAL_LEN          (IP_DST_OFFSET + IP_DST_LEN)
 
-#define UDP_FRAME_START_INDEX       (IP_FRAME_START_INDEX + IP_FRAME_TOTAL_LEN) //34 
+#define UDP_FRAME_BASE              (IP_FRAME_BASE + IP_FRAME_TOTAL_LEN) //34 
 #define UDP_SRC_PORT_OFFSET         0
 #define UDP_SRC_PORT_LEN            2
 #define UDP_DST_PORT_OFFSET         (UDP_SRC_PORT_OFFSET + UDP_SRC_PORT_LEN) //2
@@ -169,7 +167,7 @@
 
 #define UDP_FRAME_TOTAL_LEN         (UDP_CHKSM_OFFSET + UDP_CHKSM_LEN)
 
-#define BOOTP_FRAME_START_INDEX     (UDP_FRAME_START_INDEX + UDP_FRAME_TOTAL_LEN) //42
+#define BOOTP_FRAME_BASE            (UDP_FRAME_BASE + UDP_FRAME_TOTAL_LEN) //42
 #define BOOTP_OPTYPE_OFFSET         0
 #define BOOTP_OPTYPE_LEN            1
 #define BOOTP_HWTYPE_OFFSET         (BOOTP_OPTYPE_OFFSET + BOOTP_OPTYPE_LEN) //1
@@ -198,22 +196,29 @@
 #define BOOTP_SNAME_LEN             64
 #define BOOTP_FILE_OFFSET           (BOOTP_SNAME_OFFSET + BOOTP_SNAME_LEN)//108
 #define BOOTP_FILE_LEN              128
-#define BOOTP_MAGIC_COOKIE_OFFSET   (BOOTP_FILE_OFFSET + BOOTP_FILE_LEN)//236
-#define BOOTP_MAGIC_COOKIE_LEN      4
-#define BOOTP_OPTIONS_OFFSET        (BOOTP_MAGIC_COOKIE_OFFSET + BOOTP_MAGIC_COOKIE_LEN) //240   //start of the dhcp options
+#define BOOTP_OPTIONS_OFFSET        (BOOTP_FILE_OFFSET + BOOTP_FILE_LEN) //236   //start of the dhcp options
 
 #define BOOTP_FRAME_TOTAL_LEN       BOOTP_OPTIONS_OFFSET
 
+#define DHCP_OPTIONS_BASE           (BOOTP_FRAME_BASE + BOOTP_OPTIONS_OFFSET)
+
+#define VENDOR_ID                   "tcpborphserver"
+#define VENDOR_ID_LEN               14
+
+#if 0
 /*FIXME implemented the minimum required options, this may be sufficient*/
 /*LEN => includes the option code field, option length field and the data*/
-#define DHCP_FRAME_START_INDEX      (BOOTP_FRAME_START_INDEX + BOOTP_OPTIONS_OFFSET)
+//#define DHCP_FRAME_START_INDEX      (BOOTP_FRAME_START_INDEX + BOOTP_OPTIONS_OFFSET)
+
+//#define BOOTP_MAGIC_COOKIE_OFFSET   (BOOTP_FILE_OFFSET + BOOTP_FILE_LEN)//236
+//#define BOOTP_MAGIC_COOKIE_LEN      4
+//#define BOOTP_OPTIONS_OFFSET        (BOOTP_MAGIC_COOKIE_OFFSET + BOOTP_MAGIC_COOKIE_LEN) //240   //start of the dhcp options
+
 #define DHCP_MTYPE_OFFSET           0
 #define DHCP_MTYPE_LEN              3
 #define DHCP_CID_OFFSET             (DHCP_MTYPE_OFFSET + DHCP_MTYPE_LEN)
 #define DHCP_CID_LEN                9
 
-#define VENDOR_ID                   "tcpborphserver"
-#define VENDOR_ID_LEN               14
 
 #define DHCP_VENDID_OFFSET          (DHCP_CID_OFFSET + DHCP_CID_LEN)
 #define DHCP_VENDID_LEN             (VENDOR_ID_LEN + 2)
@@ -248,10 +253,8 @@
 #define DHCP_END_RELEASE_OFFSET     (DHCP_SVRID_OFFSET + DHCP_SVRID_LEN)
 #define DHCP_END_RELEASE_LEN        1
 #define DHCP_RELEASE_VAR_TOTAL_LEN  (DHCP_END_RELEASE_OFFSET + DHCP_END_RELEASE_LEN)
+#endif
 
-/*FRAME HEADER LENGTHS*/
-#define ETH_FRAME_HDR_LEN           (IP_FRAME_START_INDEX - ETH_FRAME_START_INDEX)
-#define IP_FRAME_HDR_LEN            (UDP_FRAME_START_INDEX - IP_FRAME_START_INDEX)
 
 #define MASK16 0xFFFF
 /*********************dhcp macro definitions end here*********************/
@@ -270,7 +273,17 @@ typedef enum {DHCPDISCOVER=1, DHCPOFFER, DHCPREQUEST,
 
 static uint16_t dhcp_checksum(uint8_t *data, uint16_t index_start, uint16_t index_end);
 static uint32_t dhcp_rand();
-static int dhcp_msg(struct getap_state *gs, DHCP_MSG_TYPE mt);
+
+/*DHCP MESSAGE FLAGS*/
+#define NONE            0x00
+#define IP_UNICAST      0x01
+#define BOOTP_CIPADDR   0x02
+#define DHCP_REQIP      0x04
+#define DHCP_SVRID      0x08
+#define DHCP_REQPARAM   0x10
+#define DHCP_VENDID     0x20
+static int dhcp_msg(struct getap_state *gs, DHCP_MSG_TYPE mtype, unsigned int mflags);
+
 static int validate_dhcp_reply(struct getap_state *gs);
 static DHCP_MSG_TYPE process_dhcp(struct getap_state *gs);
 
@@ -285,12 +298,20 @@ static DHCP_STATE_TYPE select_dhcp_state (struct getap_state *gs);
 static DHCP_STATE_TYPE wait_dhcp_state(struct getap_state *gs);
 static DHCP_STATE_TYPE request_dhcp_state (struct getap_state *gs);
 static DHCP_STATE_TYPE bound_dhcp_state (struct getap_state *gs);
+static DHCP_STATE_TYPE renew_dhcp_state(struct getap_state *gs);
+static DHCP_STATE_TYPE rebind_dhcp_state(struct getap_state *gs);
 
 static int dhcp_convert_netmask(uint32_t mask);
 static int dhcp_configure_fpga(struct getap_state *gs);
 static int dhcp_configure_kernel(struct getap_state *gs);
 static int dhcp_set_kernel_if_addr(char *if_name, char *ip, char *netmask);
 static int dhcp_set_kernel_route(char *dest, char *gateway, char *genmask);
+
+/*FLAGS for printing debug info*/
+#define DHCP_RX_BUFFER      0x01
+#define DHCP_TX_BUFFER      0x02
+#define DHCP_PROCESS_INFO   0x04
+static void dhcp_print_debug_info(struct getap_state *gs, unsigned int dflags);
 
 static int dhcp_resume_callback(struct katcp_dispatch *d, struct katcp_notice *n, void *data);
 
@@ -299,13 +320,17 @@ static dhcp_state_func_ptr dhcp_state_table[] = { [INIT]    = init_dhcp_state,
                                                   [SELECT]  = select_dhcp_state,
                                                   [WAIT]    = wait_dhcp_state,
                                                   [REQUEST] = request_dhcp_state,
-                                                  [BOUND]   = bound_dhcp_state };
+                                                  [BOUND]   = bound_dhcp_state,
+                                                  [RENEW]   = renew_dhcp_state,
+                                                  [REBIND]   = rebind_dhcp_state };
 
 static char *dhcp_state_name[] = {  [INIT]    = "INIT",
                                     [SELECT]  = "SELECT",
                                     [WAIT]    = "WAIT",
                                     [REQUEST] = "REQUEST",
-                                    [BOUND]   = "BOUND" };
+                                    [BOUND]   = "BOUND",
+                                    [RENEW]   = "RENEW",
+                                    [REBIND]  = "REBIND" };
 
 /************************************************************************/
 
@@ -1632,6 +1657,7 @@ void destroy_getap(struct katcp_dispatch *d, struct getap_state *gs)
   gs->s_dhcp_lease_t = 0;
   gs->s_dhcp_t1 = 0;
   gs->s_dhcp_t2 = 0;
+  gs->s_dhcp_timer = 0;
 
   gs->s_dhcp_errors = 0;
   gs->s_dhcp_obtained = 0;
@@ -1754,7 +1780,7 @@ void stop_all_getap(struct katcp_dispatch *d, int final)
   for(i = 0; i < tr->r_instances; i++){
     if (tr->r_taps[i]->s_dhcp_obtained == 1){
         log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "releasing dhcp lease on tap instance %s", tr->r_taps[i]->s_tap_name);
-        dhcp_msg(tr->r_taps[i], DHCPRELEASE);
+        dhcp_msg(tr->r_taps[i], DHCPRELEASE, IP_UNICAST | BOOTP_CIPADDR | DHCP_SVRID);
     }
   }
 
@@ -1992,6 +2018,7 @@ struct getap_state *create_getap(struct katcp_dispatch *d, unsigned int instance
   gs->s_dhcp_lease_t = 0;
   gs->s_dhcp_t1 = 0;
   gs->s_dhcp_t2 = 0;
+  gs->s_dhcp_timer = 0;
 
   gs->s_dhcp_errors = 0;
   gs->s_dhcp_obtained = 0;
@@ -2136,7 +2163,7 @@ int tap_stop_cmd(struct katcp_dispatch *d, int argc)
   }
 
   if (gs->s_dhcp_obtained == 1){
-    dhcp_msg(gs, DHCPRELEASE);
+    dhcp_msg(gs, DHCPRELEASE, IP_UNICAST | BOOTP_CIPADDR | DHCP_SVRID);
   }
 
   unlink_getap(d, gs);
@@ -2871,11 +2898,10 @@ int tap_route_add_cmd(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 }
 
-
 /*DHCP LOGIC*************************************************************************************************/
-
+/*RFC 2131 & 2132*/
 /*dhcp message functions*****************************************************************/
-
+#define DEBUG 0
 static uint16_t dhcp_checksum(uint8_t *data, uint16_t index_start, uint16_t index_end){
     int i, len;
     uint16_t tmp=0;
@@ -2941,7 +2967,7 @@ static uint32_t dhcp_rand(){
     srand((int)tv.tv_usec);
     return (uint32_t)rand();
   }
-  
+
   n = fread(&rndm, sizeof(rndm), 1, rfp);
   if (n != 1){
     srand((int)tv.tv_usec);
@@ -2952,224 +2978,179 @@ static uint32_t dhcp_rand(){
   return rndm; 
 }
 
-static int dhcp_msg(struct getap_state *gs, DHCP_MSG_TYPE mt){
-  uint16_t len=0, chksm=0, sec=0;
-  unsigned char tmp_src_ip[4] = {0};
-  unsigned char tmp_dst_ip[4] = {0xFF, 0xFF, 0xFF, 0xFF};
-  const uint8_t broadcast_const[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-  int ret=0;
+
+/*generally tried to work on byte level buffer access/packing to avoid endianness issues*/
+/*all zero value fields are redundant and therefore commented out - buffer already zeroed at start*/
+static int dhcp_msg(struct getap_state *gs, DHCP_MSG_TYPE mtype, unsigned int mflags){
+  unsigned int index;
+  unsigned int len;
+  unsigned int chksm;
+  time_t sec;
+  int ret;
 
   /*zero the buffer*/
   memset(gs->s_dhcp_tx_buffer, 0, GETAP_DHCP_BUFFER_SIZE);
 
-  /*build up the dhcp packet*/
-
   /*ethernet frame stuff*/
-  memcpy(gs->s_dhcp_tx_buffer + ETH_DST_OFFSET, broadcast_const, 6);
+  memset(gs->s_dhcp_tx_buffer + ETH_DST_OFFSET, 0xff, 6);   //broadcast
   memcpy(gs->s_dhcp_tx_buffer + ETH_SRC_OFFSET, gs->s_mac_binary, 6);
 
-  /*frame type is IP*/
   gs->s_dhcp_tx_buffer[ETH_FRAME_TYPE_OFFSET] = 0x08;
-  gs->s_dhcp_tx_buffer[ETH_FRAME_TYPE_OFFSET + 1] = 0x00;
+  //gs->s_dhcp_tx_buffer[ETH_FRAME_TYPE_OFFSET + 1] = 0x00;
 
-  /*ip frame stuff*/
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_V_HIL_OFFSET] = 0x45;
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_TOS_OFFSET] = 0x00;
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_ID_OFFSET] = 0x00;
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_ID_OFFSET + 1] = 0x00;
+  gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_V_HIL_OFFSET] = 0x45;
+  //gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_TOS_OFFSET] = 0x00;
+  //gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_ID_OFFSET] = 0x00;
+  //gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_ID_OFFSET + 1] = 0x00;
 
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_FLAG_FRAG_OFFSET] = 0x00;
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_FLAG_FRAG_OFFSET + 1] = 0x00;
+  //gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_FLAG_FRAG_OFFSET] = 0x00;
+  //gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_FLAG_FRAG_OFFSET + 1] = 0x00;
 
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_TTL_OFFSET] = 0x40;
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_PROT_OFFSET] = 0x11;
+  gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_TTL_OFFSET] = 0x40;
+  gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_PROT_OFFSET] = 0x11;
 
-  //enter zeros for checksum calculation
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_CHKSM_OFFSET] = 0x00;
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_CHKSM_OFFSET + 1] = 0x00;
+  //gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_CHKSM_OFFSET] = 0x00;
+  //gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_CHKSM_OFFSET + 1] = 0x00;
 
-  memcpy(gs->s_dhcp_tx_buffer + IP_FRAME_START_INDEX + IP_DST_OFFSET, tmp_dst_ip, 4);
-  memcpy(gs->s_dhcp_tx_buffer + IP_FRAME_START_INDEX + IP_SRC_OFFSET, tmp_src_ip, 4);
-
-  /*TODO ip length and checksum to be calculated later*/
-
-  /*udp frame stuff*/
-
-  gs->s_dhcp_tx_buffer[UDP_FRAME_START_INDEX + UDP_SRC_PORT_OFFSET] = 0x00;
-  gs->s_dhcp_tx_buffer[UDP_FRAME_START_INDEX + UDP_SRC_PORT_OFFSET + 1] = 0x44;
-  gs->s_dhcp_tx_buffer[UDP_FRAME_START_INDEX + UDP_DST_PORT_OFFSET] = 0x00;
-  gs->s_dhcp_tx_buffer[UDP_FRAME_START_INDEX + UDP_DST_PORT_OFFSET + 1] = 0x43;
-
-  gs->s_dhcp_tx_buffer[UDP_FRAME_START_INDEX + UDP_CHKSM_OFFSET] = 0x00;
-  gs->s_dhcp_tx_buffer[UDP_FRAME_START_INDEX + UDP_CHKSM_OFFSET + 1] = 0x00;
-
-  /*TODO length to be calculated later, udp cahecksum not strictly required (make zero)*/
-
-
-  /*bootp stuff*/
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_OPTYPE_OFFSET] = 0x01;
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_HWTYPE_OFFSET] = 0x01;
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_HWLEN_OFFSET] = 0x06;
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_HOPS_OFFSET] = 0x00;
-
-  if (mt == DHCPDISCOVER){
-    //srand(time(NULL));
-    //gs->s_dhcp_xid = (uint32_t)rand();
-    gs->s_dhcp_xid = dhcp_rand();
-    gs->s_dhcp_sec_start = time(NULL);
+  if ((mflags & IP_UNICAST) && (gs->s_dhcp_sip_addr[0] != 0) && (gs->s_dhcp_yip_addr[0] != 0)){
+    memcpy(gs->s_dhcp_tx_buffer + IP_FRAME_BASE + IP_DST_OFFSET, gs->s_dhcp_sip_addr, 4);
+    memcpy(gs->s_dhcp_tx_buffer + IP_FRAME_BASE + IP_SRC_OFFSET, gs->s_dhcp_yip_addr, 4);
+  } else {
+    memset(gs->s_dhcp_tx_buffer + IP_FRAME_BASE + IP_DST_OFFSET, 0xff, 4);     //broadcast
+    //memset(gs->s_dhcp_tx_buffer + IP_FRAME_BASE + IP_SRC_OFFSET, 0x00, 4);
   }
 
-  /*generally tried to work on byte level to avoid endianness issues*/
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_XID_OFFSET    ] = (uint8_t) ((gs->s_dhcp_xid >> 24) & 0xFF);
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_XID_OFFSET + 1] = (uint8_t) ((gs->s_dhcp_xid >> 16) & 0xFF);
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_XID_OFFSET + 2] = (uint8_t) ((gs->s_dhcp_xid >>  8) & 0xFF);
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_XID_OFFSET + 3] = (uint8_t) ((gs->s_dhcp_xid      ) & 0xFF);
+  //gs->s_dhcp_tx_buffer[UDP_FRAME_BASE + UDP_SRC_PORT_OFFSET] = 0x00;
+  gs->s_dhcp_tx_buffer[UDP_FRAME_BASE + UDP_SRC_PORT_OFFSET + 1] = 0x44;
+  //gs->s_dhcp_tx_buffer[UDP_FRAME_BASE + UDP_DST_PORT_OFFSET] = 0x00;
+  gs->s_dhcp_tx_buffer[UDP_FRAME_BASE + UDP_DST_PORT_OFFSET + 1] = 0x43;
 
-  sec = (uint16_t) (time(NULL) - gs->s_dhcp_sec_start);
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_SEC_OFFSET    ] = (uint8_t) (sec >> 8);
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_SEC_OFFSET + 1] = (uint8_t) (sec & 0xFF);
+  //gs->s_dhcp_tx_buffer[UDP_FRAME_BASE + UDP_CHKSM_OFFSET] = 0x00;
+  //gs->s_dhcp_tx_buffer[UDP_FRAME_BASE + UDP_CHKSM_OFFSET + 1] = 0x00;
 
-  memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_FLAGS_OFFSET, 0x00, 2);
+  gs->s_dhcp_tx_buffer[BOOTP_FRAME_BASE + BOOTP_OPTYPE_OFFSET] = 0x01;
+  gs->s_dhcp_tx_buffer[BOOTP_FRAME_BASE + BOOTP_HWTYPE_OFFSET] = 0x01;
+  gs->s_dhcp_tx_buffer[BOOTP_FRAME_BASE + BOOTP_HWLEN_OFFSET] = 0x06;
+  //gs->s_dhcp_tx_buffer[BOOTP_FRAME_BASE + BOOTP_HOPS_OFFSET] = 0x00;
 
-  memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_CIPADDR_OFFSET, 0x00, 4);
-  memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_YIPADDR_OFFSET, 0x00, 4);
-  memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_SIPADDR_OFFSET, 0x00, 4);
-  memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_GIPADDR_OFFSET, 0x00, 4);
+  gs->s_dhcp_tx_buffer[BOOTP_FRAME_BASE + BOOTP_XID_OFFSET    ] = (uint8_t) ((gs->s_dhcp_xid >> 24) & 0xFF);
+  gs->s_dhcp_tx_buffer[BOOTP_FRAME_BASE + BOOTP_XID_OFFSET + 1] = (uint8_t) ((gs->s_dhcp_xid >> 16) & 0xFF);
+  gs->s_dhcp_tx_buffer[BOOTP_FRAME_BASE + BOOTP_XID_OFFSET + 2] = (uint8_t) ((gs->s_dhcp_xid >>  8) & 0xFF);
+  gs->s_dhcp_tx_buffer[BOOTP_FRAME_BASE + BOOTP_XID_OFFSET + 3] = (uint8_t) ((gs->s_dhcp_xid      ) & 0xFF);
 
-  memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_CHWADDR_OFFSET, 0x00, 16);
-  memcpy(gs->s_dhcp_tx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_CHWADDR_OFFSET, gs->s_mac_binary, 6);
+  sec = (time(NULL) - (time_t) gs->s_dhcp_sec_start);
+  gs->s_dhcp_tx_buffer[BOOTP_FRAME_BASE + BOOTP_SEC_OFFSET    ] = (uint8_t) ((sec & 0xFF00) >> 8);
+  gs->s_dhcp_tx_buffer[BOOTP_FRAME_BASE + BOOTP_SEC_OFFSET + 1] = (uint8_t) (sec & 0xFF);
 
-  memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_SNAME_OFFSET, '\0', 64);
-  memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_FILE_OFFSET, '\0', 128);
+  //memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_BASE + BOOTP_FLAGS_OFFSET, 0x00, 2);
 
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_MAGIC_COOKIE_OFFSET] = 0x63;
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_MAGIC_COOKIE_OFFSET + 1] = 0x82;
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_MAGIC_COOKIE_OFFSET + 2] = 0x53;
-  gs->s_dhcp_tx_buffer[BOOTP_FRAME_START_INDEX + BOOTP_MAGIC_COOKIE_OFFSET + 3] = 0x63;
+  if (mflags & BOOTP_CIPADDR){
+    memcpy(gs->s_dhcp_tx_buffer + BOOTP_FRAME_BASE + BOOTP_CIPADDR_OFFSET, gs->s_dhcp_yip_addr, 4);
+  }
+  //memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_BASE + BOOTP_YIPADDR_OFFSET, 0x00, 4);
+  //memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_BASE + BOOTP_SIPADDR_OFFSET, 0x00, 4);
+  //memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_BASE + BOOTP_GIPADDR_OFFSET, 0x00, 4);
 
-  /*dhcp stuff -> dhcp is implemeted as an extension to bootp through bootp options*/
-  gs->s_dhcp_tx_buffer[DHCP_FRAME_START_INDEX + DHCP_MTYPE_OFFSET] = 53;
-  gs->s_dhcp_tx_buffer[DHCP_FRAME_START_INDEX + DHCP_MTYPE_OFFSET + 1] = 1;
-  gs->s_dhcp_tx_buffer[DHCP_FRAME_START_INDEX + DHCP_MTYPE_OFFSET + 2] = (uint8_t) mt;
+  //memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_BASE + BOOTP_CHWADDR_OFFSET, 0x00, 16);
+  memcpy(gs->s_dhcp_tx_buffer + BOOTP_FRAME_BASE + BOOTP_CHWADDR_OFFSET, gs->s_mac_binary, 6);
 
-  gs->s_dhcp_tx_buffer[DHCP_FRAME_START_INDEX + DHCP_CID_OFFSET] = 61;
-  gs->s_dhcp_tx_buffer[DHCP_FRAME_START_INDEX + DHCP_CID_OFFSET + 1] = 7;
-  gs->s_dhcp_tx_buffer[DHCP_FRAME_START_INDEX + DHCP_CID_OFFSET + 2] = 1;
-  memcpy(gs->s_dhcp_tx_buffer + DHCP_FRAME_START_INDEX + DHCP_CID_OFFSET + 3 , gs->s_mac_binary, 6);
+  //memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_BASE + BOOTP_SNAME_OFFSET, '\0', 64);
+  //memset(gs->s_dhcp_tx_buffer + BOOTP_FRAME_BASE + BOOTP_FILE_OFFSET, '\0', 128);
 
-  gs->s_dhcp_tx_buffer[DHCP_FRAME_START_INDEX + DHCP_VENDID_OFFSET] = 60;
-  gs->s_dhcp_tx_buffer[DHCP_FRAME_START_INDEX + DHCP_VENDID_OFFSET + 1] = VENDOR_ID_LEN;
-  memcpy(gs->s_dhcp_tx_buffer + DHCP_FRAME_START_INDEX + DHCP_VENDID_OFFSET + 2 , VENDOR_ID, VENDOR_ID_LEN);
+  /*end of the fixed part of the message*/
 
-  switch(mt){
-    case DHCPDISCOVER:
+  /*start of variable part of DHCP message -> BOOTP options*/
+  /*obfuscation alert: 'index' gets incremented after data gets stored at array index*/
+  index = 0;
 
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET] = 55;
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 1] = 5;
-      /*request the following parameters*/
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 2] = 1;  //subnet mask
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 3] = 3;  //router
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 4] = 6;  //dname svr
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 5] = 12; //host name
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 6] = 15; //domain name
+  /*DHCP magic cookie - always enabled*/
+  gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 0x63;
+  gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 0x82;
+  gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 0x53;
+  gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 0x63;
 
-#ifdef DEBUG
-      fprintf(stderr, "dhcp: packing buffer with dhcp DISCOVER data\n");
-#endif
-      //            memcpy(gs->s_dhcp_tx_buffer + IP_FRAME_START_INDEX + IP_DST_OFFSET, tmp_dst_ip, 4);
-      //            memcpy(gs->s_dhcp_tx_buffer + IP_FRAME_START_INDEX + IP_SRC_OFFSET, tmp_src_ip, 4);
+  /*DHCP message type option - always enabled*/
+  gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 53;
+  gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 1;
+  gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = (uint8_t) mtype;
 
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_END_DISC_OFFSET] = 0xFF;
-      len = DHCP_DISC_VAR_TOTAL_LEN;
-      break;
+  /*DHCP client-identifier option - always enabled*/
+  gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 61;
+  gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 7;
+  gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 1;
+  memcpy(gs->s_dhcp_tx_buffer + DHCP_OPTIONS_BASE + index, gs->s_mac_binary, 6);
+  index += 6;
 
-    case DHCPREQUEST:
-#ifdef DEBUG
-      fprintf(stderr, "dhcp: packing buffer with dhcp REQUEST data\n");
-#endif
-      //            memcpy(gs->s_dhcp_tx_buffer + IP_FRAME_START_INDEX + IP_DST_OFFSET, gs->s_dhcp_sip_addr, 4);
-      //            memcpy(gs->s_dhcp_tx_buffer + IP_FRAME_START_INDEX + IP_SRC_OFFSET, tmp_src_ip, 4);
-
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_SVRID_OFFSET] = 54;
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_SVRID_OFFSET + 1] = 4;
-      memcpy(gs->s_dhcp_tx_buffer + DHCP_VAR_START_INDEX + DHCP_SVRID_OFFSET + 2, gs->s_dhcp_sip_addr, 4);
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET] = 55;
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 1] = 5;
-      /*request the following parameters*/
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 2] = 1;  //subnet mask
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 3] = 3;  //router
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 4] = 6;  //dname svr
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 5] = 12; //host name
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_PARAM_OFFSET + 6] = 15; //domain name
-
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_REQIP_OFFSET] = 50;
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_REQIP_OFFSET + 1] = 4;
-      memcpy(gs->s_dhcp_tx_buffer + DHCP_VAR_START_INDEX + DHCP_REQIP_OFFSET + 2, gs->s_dhcp_yip_addr, 4);
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_END_REQ_OFFSET] = 0xFF;
-      len = DHCP_REQ_VAR_TOTAL_LEN;
-      break;
-
-    case DHCPRELEASE:
-      memcpy(gs->s_dhcp_tx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_CIPADDR_OFFSET, gs->s_dhcp_yip_addr, 4);
-      memcpy(gs->s_dhcp_tx_buffer + IP_FRAME_START_INDEX + IP_DST_OFFSET, gs->s_dhcp_sip_addr, 4);
-      memcpy(gs->s_dhcp_tx_buffer + IP_FRAME_START_INDEX + IP_SRC_OFFSET, gs->s_dhcp_yip_addr, 4);
-
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_SVRID_OFFSET] = 54;
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_SVRID_OFFSET + 1] = 4;
-      memcpy(gs->s_dhcp_tx_buffer + DHCP_VAR_START_INDEX + DHCP_SVRID_OFFSET + 2, gs->s_dhcp_sip_addr, 4);
-
-      gs->s_dhcp_tx_buffer[DHCP_VAR_START_INDEX + DHCP_END_RELEASE_OFFSET] = 0xFF;
-      len = DHCP_RELEASE_VAR_TOTAL_LEN;
-      break;
-
-    default:
-#ifdef DEBUG
-      fprintf(stderr, "dhcp message type '%d' not implemented\n", mt);
-#endif
-      return -1;
+  /*DHCP requested IP address - enabled by flag*/
+  if (mflags & DHCP_REQIP){
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 50;
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 4;
+    memcpy(gs->s_dhcp_tx_buffer + DHCP_OPTIONS_BASE + index, gs->s_dhcp_yip_addr, 4);
+    index += 4;
   }
 
-  /*calculate packet lengths*/
-  //udp_frame_len 
-  len =  len + UDP_FRAME_TOTAL_LEN + BOOTP_FRAME_TOTAL_LEN + DHCP_FIXED_TOTAL_LEN;
-  gs->s_dhcp_tx_buffer[UDP_FRAME_START_INDEX + UDP_ULEN_OFFSET] = (uint8_t) (len >> 8);
-  gs->s_dhcp_tx_buffer[UDP_FRAME_START_INDEX + UDP_ULEN_OFFSET + 1] = (uint8_t) (len & 0xFF);
+  /*DHCP server identifier - enabled by flag*/
+  if (mflags & DHCP_SVRID){
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 54;
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 4;
+    memcpy(gs->s_dhcp_tx_buffer + DHCP_OPTIONS_BASE + index, gs->s_dhcp_sip_addr, 4);
+    index += 4;
+  }
 
-  //ip_frame_len
+  /*DHCP parameter request list - enabled by flag*/
+  if (mflags & DHCP_REQPARAM){
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 55;
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 5;
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 1;  //subnet mask
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 3;  //router
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 6;  //dname svr
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 12; //host name
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 15; //domain name
+  }
+
+  /*DHCP vendor class identifier - enabled by flag*/
+  if (mflags & DHCP_VENDID){
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = 60;
+    gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index++] = VENDOR_ID_LEN;
+    memcpy(gs->s_dhcp_tx_buffer + DHCP_OPTIONS_BASE + index, VENDOR_ID, VENDOR_ID_LEN);
+    index += VENDOR_ID_LEN;
+  }
+
+  /*DHCP end option - indicates end of DHCP message options*/
+  gs->s_dhcp_tx_buffer[DHCP_OPTIONS_BASE + index] = 0xff;
+
+  /*calculate and fill in udp frame packet lengths*/
+  len = UDP_FRAME_TOTAL_LEN + BOOTP_FRAME_TOTAL_LEN + (index + 1);
+  gs->s_dhcp_tx_buffer[UDP_FRAME_BASE + UDP_ULEN_OFFSET] = (uint8_t) ((len & 0xFF00) >> 8);
+  gs->s_dhcp_tx_buffer[UDP_FRAME_BASE + UDP_ULEN_OFFSET + 1] = (uint8_t) (len & 0xFF);
+
+  /*calculate and fill in ip frame packet lengths*/
   len = len + IP_FRAME_TOTAL_LEN;
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_TLEN_OFFSET] = (uint8_t) (len >> 8);
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_TLEN_OFFSET + 1] = (uint8_t) (len & 0xFF);
+  gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_TLEN_OFFSET] = (uint8_t) ((len & 0xFF00) >> 8);
+  gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_TLEN_OFFSET + 1] = (uint8_t) (len & 0xFF);
 
   /*calculate checksums - ip mandatory, udp optional*/
-  chksm = dhcp_checksum(gs->s_dhcp_tx_buffer, IP_FRAME_START_INDEX, UDP_FRAME_START_INDEX - 1);
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_CHKSM_OFFSET] = (uint8_t) (chksm >> 8);
-  gs->s_dhcp_tx_buffer[IP_FRAME_START_INDEX + IP_CHKSM_OFFSET + 1] = (uint8_t) (chksm & 0xFF);
+  chksm = dhcp_checksum(gs->s_dhcp_tx_buffer, IP_FRAME_BASE, UDP_FRAME_BASE - 1);
+  gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_CHKSM_OFFSET] = (uint8_t) ((chksm & 0xFF00) >> 8);
+  gs->s_dhcp_tx_buffer[IP_FRAME_BASE + IP_CHKSM_OFFSET + 1] = (uint8_t) (chksm & 0xFF);
 
-#ifdef DEBUG
-  fprintf(stderr, "dhcp: frame buffer:");
-  for (i=0; i<GETAP_DHCP_BUFFER_SIZE; i++){
-    if (i % 16 == 0){
-      fprintf(stderr, "\n0x%04x: ",i);
-    }
-    fprintf(stderr, "%02x ", gs->s_dhcp_tx_buffer[i]);
-  }
-  fprintf(stderr, "\n");
-#endif
-
+  dhcp_print_debug_info(gs, DHCP_TX_BUFFER);
 
   ret = write_frame_fpga(gs, gs->s_dhcp_tx_buffer, GETAP_DHCP_BUFFER_SIZE - 8);   /*leave some headroom for ethernet checksum to be appended by gateware, therefore minus 8*/
   if(ret != 0){
     if(ret > 0){
-      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp message sent (type %d) on %s with xid %#x", mt, gs->s_tap_name, gs->s_dhcp_xid);
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp message sent (type %d) on %s with xid %#x", mtype, gs->s_tap_name, gs->s_dhcp_xid);
       gs->s_tx_dhcp++;
     }
     else {
-      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "error sending dhcp message type %d on %s with xid %#x", mt, gs->s_tap_name, gs->s_dhcp_xid);
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "error sending dhcp message type %d on %s with xid %#x", mtype, gs->s_tap_name, gs->s_dhcp_xid);
       return -1;
     }
   }
+
   return 0;
 }
+
 
 /*this function validates that a received message is a dhcp reply destined for us*/
 static int validate_dhcp_reply(struct getap_state *gs){
@@ -3182,35 +3163,35 @@ static int validate_dhcp_reply(struct getap_state *gs){
   tmp_xid[2] = (gs->s_dhcp_xid & 0x0000FF00) >> 8;
   tmp_xid[3] = (gs->s_dhcp_xid & 0x000000FF);
 
-  if (gs->s_rxb[IP_FRAME_START_INDEX + IP_PROT_OFFSET] != 0x11){                          /*not udp*/
+  if (gs->s_rxb[IP_FRAME_BASE + IP_PROT_OFFSET] != 0x11){                          /*not udp*/
 #ifdef DEBUG
     fprintf(stderr, "dhcp: not a udp frame\n");
 #endif
     return -1;
   }
 
-  if (memcmp(gs->s_rxb + UDP_FRAME_START_INDEX + UDP_DST_PORT_OFFSET, bootpc, 2) != 0){   /*not port 68*/
+  if (memcmp(gs->s_rxb + UDP_FRAME_BASE + UDP_DST_PORT_OFFSET, bootpc, 2) != 0){   /*not port 68*/
 #ifdef DEBUG
     fprintf(stderr, "dhcp: not port 68\n");
 #endif
     return -1;
   }
 
-  if (gs->s_rxb[BOOTP_FRAME_START_INDEX + BOOTP_OPTYPE_OFFSET] != 0x02){                  /*not bootp reply*/
+  if (gs->s_rxb[BOOTP_FRAME_BASE + BOOTP_OPTYPE_OFFSET] != 0x02){                  /*not bootp reply*/
 #ifdef DEBUG
     fprintf(stderr, "dhcp: not bootp reply message\n");
 #endif
     return -1;
   }
 
-  if (memcmp(gs->s_rxb + BOOTP_FRAME_START_INDEX + BOOTP_MAGIC_COOKIE_OFFSET, dhcp_cookie, 4) != 0){
+  if (memcmp(gs->s_rxb + DHCP_OPTIONS_BASE, dhcp_cookie, 4) != 0){
 #ifdef DEBUG
     fprintf(stderr, "dhcp: magic cookie not dhcp\n");
 #endif
     return -1;
   }
 
-  if (memcmp(gs->s_rxb + BOOTP_FRAME_START_INDEX + BOOTP_XID_OFFSET, tmp_xid, 4) != 0){
+  if (memcmp(gs->s_rxb + BOOTP_FRAME_BASE + BOOTP_XID_OFFSET, tmp_xid, 4) != 0){
 #ifdef DEBUG
     fprintf(stderr, "dhcp: not a valid xid, 0x%x\n", gs->s_dhcp_xid);
 #endif
@@ -3233,61 +3214,28 @@ static DHCP_MSG_TYPE process_dhcp(struct getap_state *gs){
   int i;
 
   //get the offered ip addr
-  memcpy(gs->s_dhcp_yip_addr, gs->s_dhcp_rx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_YIPADDR_OFFSET, 4);
-
-#ifdef DEBUG
-  fprintf(stderr, "dhcp: received ip address offer of");
-  for (i=0; i<4; i++){
-    fprintf(stderr, " %d", gs->s_dhcp_yip_addr[i]);
-  }
-  fprintf(stderr, "\n");
-#endif
+  memcpy(gs->s_dhcp_yip_addr, gs->s_dhcp_rx_buffer + BOOTP_FRAME_BASE + BOOTP_YIPADDR_OFFSET, 4);
 
   //get the server addr
-  memcpy(gs->s_dhcp_sip_addr, gs->s_dhcp_rx_buffer + BOOTP_FRAME_START_INDEX + BOOTP_SIPADDR_OFFSET, 4);
+  memcpy(gs->s_dhcp_sip_addr, gs->s_dhcp_rx_buffer + BOOTP_FRAME_BASE + BOOTP_SIPADDR_OFFSET, 4);
 
-#ifdef DEBUG
-  fprintf(stderr, "dhcp: server ip address is");
-  for (i=0; i<4; i++){
-    fprintf(stderr, " %d", gs->s_dhcp_sip_addr[i]);
-  }
-  fprintf(stderr, "\n");
-#endif
-
-  opt_index = DHCP_FRAME_START_INDEX;
+  opt_index = DHCP_OPTIONS_BASE + 4;    //add 4 to jump past magic cookie in data buffer
 
   while(opt_end == 0){
     opt = gs->s_dhcp_rx_buffer[opt_index];
 
     switch(opt){
       case 53:        //message type
-        if(gs->s_dhcp_rx_buffer[opt_index + 2] == DHCPOFFER){
-          mt = DHCPOFFER;
-          log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp offer recieved on %s with xid %#x", gs->s_tap_name, gs->s_dhcp_xid);
-#ifdef DEBUG
-          fprintf(stderr, "dhcp: received offer message\n");
-#endif
-        }
-        else if(gs->s_dhcp_rx_buffer[opt_index + 2] == DHCPACK){
-          mt = DHCPACK;
-          log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp ack recieved on %s with xid %#x", gs->s_tap_name, gs->s_dhcp_xid);
-        }
+        mt = gs->s_dhcp_rx_buffer[opt_index + 2];
         opt_index = opt_index + 3; 
         break;
 
-
       case 1:         //subnet mask
-#ifdef DEBUG
-        fprintf(stderr, "dhcp: received subnet mask\n");
-#endif
         memcpy(gs->s_dhcp_submask, gs->s_dhcp_rx_buffer + opt_index + 2, 4);
         opt_index = opt_index + gs->s_dhcp_rx_buffer[opt_index + 1] + 2;
         break;
 
       case 3:         //router
-#ifdef DEBUG
-        fprintf(stderr, "dhcp: received route\n");
-#endif
         memcpy(gs->s_dhcp_route, gs->s_dhcp_rx_buffer + opt_index + 2, 4);
         opt_index = opt_index + gs->s_dhcp_rx_buffer[opt_index + 1] + 2;
         break;
@@ -3316,9 +3264,6 @@ static DHCP_MSG_TYPE process_dhcp(struct getap_state *gs){
         break;
 
       case 255:       //end option
-#ifdef DEBUG
-        fprintf(stderr, "dhcp: received end option\n");
-#endif
         opt_end = 1;
         break;
 
@@ -3327,13 +3272,9 @@ static DHCP_MSG_TYPE process_dhcp(struct getap_state *gs){
         break;
 
     }
-
-#ifdef DEBUG
-    fprintf(stderr, "opt_index = %d\n", opt_index);
-#endif
-
   }
 
+  dhcp_print_debug_info(gs, DHCP_PROCESS_INFO);
   return mt;
 }
 
@@ -3440,14 +3381,14 @@ static int dhcp_statemachine(struct getap_state *gs){
 
 static DHCP_STATE_TYPE init_dhcp_state(struct getap_state *gs){
   int retval;
-  
+
   /*initialize all statemachine parameters*/
   gs->s_dhcp_valid_msg = 0;
   gs->s_dhcp_errors = 0;
 
-//  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_DEBUG, NULL, "dhcp: entering discover state on %s", gs->s_tap_name);
-
-  retval = dhcp_msg(gs, DHCPDISCOVER);
+  gs->s_dhcp_xid = dhcp_rand();
+  gs->s_dhcp_sec_start = time(NULL);
+  retval = dhcp_msg(gs, DHCPDISCOVER, DHCP_VENDID);
   gs->s_dhcp_sm_retries++;
   if (retval){
     log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: unable to send DHCP_DISCOVER message on %s", gs->s_tap_name);
@@ -3462,8 +3403,6 @@ static DHCP_STATE_TYPE init_dhcp_state(struct getap_state *gs){
 
 static DHCP_STATE_TYPE select_dhcp_state(struct getap_state *gs){
   DHCP_MSG_TYPE mt;
-
-//  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_DEBUG, NULL, "dhcp: entering selecting state on %s", gs->s_tap_name);
 
   if (gs->s_dhcp_valid_msg == 1){
     gs->s_dhcp_valid_msg = 0;
@@ -3483,7 +3422,7 @@ static DHCP_STATE_TYPE wait_dhcp_state(struct getap_state *gs){
   int retval;
 
   if (gs->s_dhcp_wait <= 0){
-    retval = dhcp_msg(gs, DHCPREQUEST);
+    retval = dhcp_msg(gs, DHCPREQUEST, DHCP_REQIP | DHCP_SVRID | DHCP_REQPARAM | DHCP_VENDID);
     if (retval){
       log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: unable to send DHCP_REQUEST message on %s", gs->s_tap_name);
       return INIT;
@@ -3500,8 +3439,6 @@ static DHCP_STATE_TYPE wait_dhcp_state(struct getap_state *gs){
 static DHCP_STATE_TYPE request_dhcp_state(struct getap_state *gs){
   int retval;
   DHCP_MSG_TYPE mt;
-
-//  log_message_katcp(gs->s_dispatch, KATCP_LEVEL_DEBUG, NULL, "dhcp: entering requesting state on %s", gs->s_tap_name);
 
   if (gs->s_dhcp_valid_msg == 1){
     gs->s_dhcp_valid_msg = 0;
@@ -3525,11 +3462,11 @@ static DHCP_STATE_TYPE request_dhcp_state(struct getap_state *gs){
       if (gs->s_dhcp_t2 == 0){
         gs->s_dhcp_t2 = (gs->s_dhcp_lease_t * 7 / 8);
       }
+      gs->s_dhcp_obtained = 1;
       log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: %s, lease time=%ds, renewal time t1=%ds, rebinding time t2=%ds", gs->s_tap_name, gs->s_dhcp_lease_t, gs->s_dhcp_t1, gs->s_dhcp_t2);
       wake_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice, NULL);
       release_notice_katcp(gs->s_dispatch, gs->s_dhcp_notice);
       gs->s_dhcp_notice = NULL;
-      /*TODO: upon success, display log message for all parameters - kernel and fpga - here*/
       return BOUND;
     }
   }
@@ -3539,13 +3476,62 @@ static DHCP_STATE_TYPE request_dhcp_state(struct getap_state *gs){
 
 
 static DHCP_STATE_TYPE bound_dhcp_state(struct getap_state *gs){
+  int retval;
 
-  gs->s_dhcp_obtained = 1;
-  gs->s_dhcp_sm_enable = 0;
+  gs->s_dhcp_timer++;
+
+  if ((gs->s_dhcp_timer * POLL_INTERVAL) >= (gs->s_dhcp_t1 * 1000)){
+    gs->s_dhcp_xid = dhcp_rand();
+    retval = dhcp_msg(gs, DHCPREQUEST, IP_UNICAST | BOOTP_CIPADDR | DHCP_VENDID);
+    if (retval){
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: (renewing) unable to send DHCP_REQUEST message on %s", gs->s_tap_name);
+    } else {
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: (renewing) DHCP_REQUEST message sent on %s", gs->s_tap_name);
+    }
+    return RENEW;
+  }
+
   return BOUND;
 }
 
 
+static DHCP_STATE_TYPE renew_dhcp_state(struct getap_state *gs){
+  int retval;
+  DHCP_MSG_TYPE mt;
+
+  gs->s_dhcp_timer++;
+
+  if (gs->s_dhcp_valid_msg == 1){
+    gs->s_dhcp_valid_msg = 0;
+    mt = process_dhcp(gs);
+    if (mt == DHCPACK){
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: received a valid DHCP_ACK message on %s - lease renewed successfully", gs->s_tap_name);
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: %s, lease time=%ds, renewal time t1=%ds, rebinding time t2=%ds", gs->s_tap_name, gs->s_dhcp_lease_t, gs->s_dhcp_t1, gs->s_dhcp_t2);
+      gs->s_dhcp_timer = 0;
+      return BOUND;
+    }
+  }
+
+  if ((gs->s_dhcp_timer * POLL_INTERVAL) >= (gs->s_dhcp_t2 * 1000)){
+    gs->s_dhcp_xid = dhcp_rand();
+    retval = dhcp_msg(gs, DHCPREQUEST, BOOTP_CIPADDR | DHCP_VENDID);
+    if (retval){
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: (rebinding) unable to send DHCP_REQUEST message on %s", gs->s_tap_name);
+    } else {
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp: (rebinding) DHCP_REQUEST message sent on %s", gs->s_tap_name);
+    }
+    return REBIND;
+  }
+
+  return RENEW;
+}
+
+static DHCP_STATE_TYPE rebind_dhcp_state(struct getap_state *gs){
+
+  gs->s_dhcp_sm_enable = 0;
+  return REBIND;
+
+}
 /*dhcp configuration and auxiliary functions*****************************************************************/
 
 static int dhcp_convert_netmask(uint32_t mask){
@@ -3641,7 +3627,7 @@ static int dhcp_set_kernel_if_addr(char *if_name, char *ip, char *netmask){
     close(sfd);
     return -1;
   }
-  
+
   /*set interface flags*********************/
   sin = (struct sockaddr_in *) &(ifr.ifr_flags);
   sin->sin_family = AF_INET;
@@ -3792,3 +3778,50 @@ static int dhcp_configure_kernel(struct getap_state *gs){
 
   return 0;
 }
+
+
+static void dhcp_print_debug_info(struct getap_state *gs, unsigned int dflags){
+#ifdef DEBUG
+  int i;
+
+  if (dflags & DHCP_TX_BUFFER){
+    fprintf(stderr, "dhcp: tx buffer:");
+    for (i=0; i<GETAP_DHCP_BUFFER_SIZE; i++){
+      if (i % 16 == 0){
+        fprintf(stderr, "\n0x%04x: ",i);
+      }
+      fprintf(stderr, "%02x ", gs->s_dhcp_tx_buffer[i]);
+    }
+    fprintf(stderr, "\n\n");
+  }
+
+  if (dflags & DHCP_PROCESS_INFO){
+    fprintf(stderr, "dhcp: ip offer address: ");
+    for (i=0; i<4; i++){
+      fprintf(stderr, " %d", gs->s_dhcp_yip_addr[i]);
+    }
+    fprintf(stderr, "\n");
+
+    fprintf(stderr, "dhcp: server ip address: ");
+    for (i=0; i<4; i++){
+      fprintf(stderr, " %d", gs->s_dhcp_sip_addr[i]);
+    }
+    fprintf(stderr, "\n");
+
+    fprintf(stderr, "dhcp: router: ");
+    for (i=0; i<4; i++){
+      fprintf(stderr, " %d", gs->s_dhcp_route[i]);
+    }
+    fprintf(stderr, "\n");
+
+    fprintf(stderr, "dhcp: submask: ");
+    for (i=0; i<4; i++){
+      fprintf(stderr, " %d", gs->s_dhcp_submask[i]);
+    }
+    fprintf(stderr, "\n");
+
+    fprintf(stderr, "dhcp: lease time: %ds; renew time t1: %ds; rebind time t2: %ds\n\n", gs->s_dhcp_lease_t, gs->s_dhcp_t1, gs->s_dhcp_t2);
+  }
+#endif
+}
+#undef DEBUG
