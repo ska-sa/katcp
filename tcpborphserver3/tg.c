@@ -294,6 +294,7 @@ typedef DHCP_STATE_TYPE (*dhcp_state_func_ptr)(struct getap_state *gs);
 
 /*define function prototypes for each state function callback*/
 static DHCP_STATE_TYPE init_dhcp_state (struct getap_state *gs);
+static DHCP_STATE_TYPE randomize_dhcp_state(struct getap_state *gs);
 static DHCP_STATE_TYPE select_dhcp_state (struct getap_state *gs);
 static DHCP_STATE_TYPE wait_dhcp_state(struct getap_state *gs);
 static DHCP_STATE_TYPE request_dhcp_state (struct getap_state *gs);
@@ -301,11 +302,12 @@ static DHCP_STATE_TYPE bound_dhcp_state (struct getap_state *gs);
 static DHCP_STATE_TYPE renew_dhcp_state(struct getap_state *gs);
 static DHCP_STATE_TYPE rebind_dhcp_state(struct getap_state *gs);
 
-static int dhcp_convert_netmask(uint32_t mask);
 static int dhcp_configure_fpga(struct getap_state *gs);
 static int dhcp_configure_kernel(struct getap_state *gs);
-static int dhcp_set_kernel_if_addr(char *if_name, char *ip, char *netmask);
-static int dhcp_set_kernel_route(char *dest, char *gateway, char *genmask);
+
+static int convert_netmask(uint32_t mask);
+static int set_kernel_if_addr(char *if_name, char *ip, char *netmask);
+static int set_kernel_route(char *dest, char *gateway, char *genmask);
 
 /*FLAGS for printing debug info*/
 #define DHCP_RX_BUFFER      0x01
@@ -316,21 +318,23 @@ static void dhcp_print_debug_info(struct getap_state *gs, unsigned int dflags);
 static int dhcp_resume_callback(struct katcp_dispatch *d, struct katcp_notice *n, void *data);
 
 /*declare a lookup/array of function pointers for each state*/
-static dhcp_state_func_ptr dhcp_state_table[] = { [INIT]    = init_dhcp_state,
-                                                  [SELECT]  = select_dhcp_state,
-                                                  [WAIT]    = wait_dhcp_state,
-                                                  [REQUEST] = request_dhcp_state,
-                                                  [BOUND]   = bound_dhcp_state,
-                                                  [RENEW]   = renew_dhcp_state,
-                                                  [REBIND]   = rebind_dhcp_state };
+static dhcp_state_func_ptr dhcp_state_table[] = { [INIT]      = init_dhcp_state,
+                                                  [RANDOMIZE] = randomize_dhcp_state,
+                                                  [SELECT]    = select_dhcp_state,
+                                                  [WAIT]      = wait_dhcp_state,
+                                                  [REQUEST]   = request_dhcp_state,
+                                                  [BOUND]     = bound_dhcp_state,
+                                                  [RENEW]     = renew_dhcp_state,
+                                                  [REBIND]    = rebind_dhcp_state };
 
-static char *dhcp_state_name[] = {  [INIT]    = "INIT",
-                                    [SELECT]  = "SELECT",
-                                    [WAIT]    = "WAIT",
-                                    [REQUEST] = "REQUEST",
-                                    [BOUND]   = "BOUND",
-                                    [RENEW]   = "RENEW",
-                                    [REBIND]  = "REBIND" };
+static char *dhcp_state_name[] = {  [INIT]      = "INIT",
+                                    [RANDOMIZE] = "RANDOMIZE",
+                                    [SELECT]    = "SELECT",
+                                    [WAIT]      = "WAIT",
+                                    [REQUEST]   = "REQUEST",
+                                    [BOUND]     = "BOUND",
+                                    [RENEW]     = "RENEW",
+                                    [REBIND]    = "REBIND" };
 
 /************************************************************************/
 
@@ -1646,7 +1650,7 @@ void destroy_getap(struct katcp_dispatch *d, struct getap_state *gs)
 
   gs->s_dhcp_wait = 1;
 
-  for (i=0; i<4; i++){
+  for (i = 0; i < 4; i++){
     gs->s_dhcp_yip_addr[i] = 0;
     gs->s_dhcp_sip_addr[i] = 0;
 
@@ -1922,6 +1926,40 @@ struct getap_state *create_getap(struct katcp_dispatch *d, unsigned int instance
     gs->s_arp_fresh[i] = i;
   }
 
+  /* dhcp */
+
+  gs->s_dhcp_tx_buffer[0] = '\0';
+  gs->s_dhcp_rx_buffer[0] = '\0';
+
+  gs->s_dhcp_xid = 0;
+  gs->s_dhcp_sec_start = 0;
+
+  gs->s_dhcp_state = INIT;
+  gs->s_dhcp_sm_enable = 0;
+  gs->s_dhcp_valid_msg = 0;
+  gs->s_dhcp_sm_count = 0;
+  gs->s_dhcp_sm_retries = 0;
+
+  gs->s_dhcp_wait = 1;
+
+  for (i = 0; i < 4; i++){
+    gs->s_dhcp_yip_addr[i] = 0;
+    gs->s_dhcp_sip_addr[i] = 0;
+
+    gs->s_dhcp_submask[i] = 0;
+    gs->s_dhcp_route[i] = 0;
+  }
+
+  gs->s_dhcp_lease_t = 0;
+  gs->s_dhcp_t1 = 0;
+  gs->s_dhcp_t2 = 0;
+  gs->s_dhcp_timer = 0;
+
+  gs->s_dhcp_errors = 0;
+  gs->s_dhcp_obtained = 0;
+
+  gs->s_dhcp_notice = NULL;
+
   /* initialise the rest of the structure here */
   gs->s_raw_mode = tr;
 
@@ -1992,38 +2030,6 @@ struct getap_state *create_getap(struct katcp_dispatch *d, unsigned int instance
   }
 
   gs->s_timer = period; /* a nonzero value here means the timer is running ... */
-
-  gs->s_dhcp_tx_buffer[0] = '\0';
-  gs->s_dhcp_rx_buffer[0] = '\0';
-
-  gs->s_dhcp_xid = 0;
-  gs->s_dhcp_sec_start = 0;
-
-  gs->s_dhcp_state = INIT;
-  gs->s_dhcp_sm_enable = 0;
-  gs->s_dhcp_valid_msg = 0;
-  gs->s_dhcp_sm_count = 0;
-  gs->s_dhcp_sm_retries = 0;
-
-  gs->s_dhcp_wait = 1;
-
-  for (i=0; i<4; i++){
-    gs->s_dhcp_yip_addr[i] = 0;
-    gs->s_dhcp_sip_addr[i] = 0;
-
-    gs->s_dhcp_submask[i] = 0;
-    gs->s_dhcp_route[i] = 0;
-  }
-
-  gs->s_dhcp_lease_t = 0;
-  gs->s_dhcp_t1 = 0;
-  gs->s_dhcp_t2 = 0;
-  gs->s_dhcp_timer = 0;
-
-  gs->s_dhcp_errors = 0;
-  gs->s_dhcp_obtained = 0;
-
-  gs->s_dhcp_notice = NULL;
 
   return gs;
 }
@@ -2915,14 +2921,14 @@ static uint16_t dhcp_checksum(uint8_t *data, uint16_t index_start, uint16_t inde
 
     len = index_end - index_start + 1;
 
-    for (i=index_start; i<(index_start+len); i+=2){
+    for (i = index_start; i < (index_start + len); i += 2){
         tmp = (uint16_t) data[i];
         tmp = tmp << 8;
-        if (i == (len-1)){     //last iteration - only valid for (len%2 == 1)
+        if (i == (len - 1)){     //last iteration - only valid for (len%2 == 1)
             tmp = tmp + 0;
         }
         else{
-            tmp = tmp + (uint16_t) data[i+1];
+            tmp = tmp + (uint16_t) data[i + 1];
         }
 
 #if DEBUG > 1
@@ -3249,21 +3255,21 @@ static DHCP_MSG_TYPE process_dhcp(struct getap_state *gs){
         break;
 
       case 51:        //lease time
-        for (i=0; i<4; i++){
+        for (i = 0; i < 4; i++){
           gs->s_dhcp_lease_t = (gs->s_dhcp_lease_t << 8) + gs->s_dhcp_rx_buffer[opt_index + 2 + i];
         }
         opt_index = opt_index + gs->s_dhcp_rx_buffer[opt_index + 1] + 2;
         break;
 
       case 58:        //Renewal (T1) Time Value
-        for (i=0; i<4; i++){
+        for (i = 0; i < 4; i++){
           gs->s_dhcp_t1 = (gs->s_dhcp_t1 << 8) + gs->s_dhcp_rx_buffer[opt_index + 2 + i];
         }
         opt_index = opt_index + gs->s_dhcp_rx_buffer[opt_index + 1] + 2;
         break;
 
       case 59:        //Rebinding (T2) Time Value
-        for (i=0; i<4; i++){
+        for (i = 0; i < 4; i++){
           gs->s_dhcp_t2 = (gs->s_dhcp_t2 << 8) + gs->s_dhcp_rx_buffer[opt_index + 2 + i];
         }
         opt_index = opt_index + gs->s_dhcp_rx_buffer[opt_index + 1] + 2;
@@ -3389,25 +3395,35 @@ static int dhcp_statemachine(struct getap_state *gs){
 }
 
 static DHCP_STATE_TYPE init_dhcp_state(struct getap_state *gs){
-  int retval;
 
   /*initialize all statemachine parameters*/
   gs->s_dhcp_valid_msg = 0;
   gs->s_dhcp_errors = 0;
   gs->s_dhcp_timer = 0;
 
-  gs->s_dhcp_xid = dhcp_rand();
-  gs->s_dhcp_sec_start = time(NULL);
-  retval = dhcp_msg(gs, DHCPDISCOVER, DHCP_VENDID);
-  gs->s_dhcp_sm_retries++;
-  if (retval){
-    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp (%#x): unable to send DHCP_DISCOVER message on %s", gs->s_dhcp_xid, gs->s_tap_name);
-    //return INIT;
-  } else {
-    log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp (%#x): DHCP_DISCOVER message sent on %s", gs->s_dhcp_xid, gs->s_tap_name);
+  gs->s_dhcp_wait = (int) (dhcp_rand() % 40 + 10);
+
+  return RANDOMIZE;
+}
+
+static DHCP_STATE_TYPE randomize_dhcp_state(struct getap_state *gs){
+  int retval;
+
+  if (gs->s_dhcp_wait <= 0){
+    gs->s_dhcp_xid = dhcp_rand();
+    gs->s_dhcp_sec_start = time(NULL);
+    retval = dhcp_msg(gs, DHCPDISCOVER, DHCP_VENDID);
+    gs->s_dhcp_sm_retries++;
+    if (retval){
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp (%#x): unable to send DHCP_DISCOVER message on %s", gs->s_dhcp_xid, gs->s_tap_name);
+    } else {
+      log_message_katcp(gs->s_dispatch, KATCP_LEVEL_INFO, NULL, "dhcp (%#x): DHCP_DISCOVER message sent on %s", gs->s_dhcp_xid, gs->s_tap_name);
+    }
+    return SELECT;
   }
 
-  return SELECT; 
+  gs->s_dhcp_wait--;
+  return RANDOMIZE;
 }
 
 static DHCP_STATE_TYPE select_dhcp_state(struct getap_state *gs){
@@ -3551,11 +3567,11 @@ static DHCP_STATE_TYPE rebind_dhcp_state(struct getap_state *gs){
 }
 /*dhcp configuration and auxiliary functions*****************************************************************/
 
-static int dhcp_convert_netmask(uint32_t mask){
+static int convert_netmask(uint32_t mask){
   unsigned int count=0;
   int i;
 
-  for (i=0; i<32; i++){
+  for (i = 0; i < 32; i++){
     if ((mask & 1) == 1){
       count++;
     }
@@ -3565,7 +3581,7 @@ static int dhcp_convert_netmask(uint32_t mask){
   return count;
 }
 
-static int dhcp_set_kernel_if_addr(char *if_name, char *ip, char *netmask){
+static int set_kernel_if_addr(char *if_name, char *ip, char *netmask){
   int sfd;
   struct sockaddr_in *sin;
   struct ifreq ifr;
@@ -3661,7 +3677,7 @@ static int dhcp_set_kernel_if_addr(char *if_name, char *ip, char *netmask){
   return 0;
 }
 
-static int dhcp_set_kernel_route(char *dest, char *gateway, char *genmask){
+static int set_kernel_route(char *dest, char *gateway, char *genmask){
   int sfd;
   struct sockaddr_in *sin;
   struct rtentry rt;
@@ -3729,11 +3745,11 @@ static int dhcp_configure_fpga(struct getap_state *gs){
   uint32_t temp_mask = 0;
   char ip_buff[16];
 
-  for (i=0; i<4; i++){
-    temp_mask = ( temp_mask << 8 ) + (uint32_t) gs->s_dhcp_submask[i];
+  for (i = 0; i < 4; i++){
+    temp_mask = (temp_mask << 8) + (uint32_t) gs->s_dhcp_submask[i];
   }
 
-  subnet = dhcp_convert_netmask(temp_mask);
+  subnet = convert_netmask(temp_mask);
 
   snprintf(ip_buff, sizeof(ip_buff), "%d.%d.%d.%d", gs->s_dhcp_yip_addr[0], gs->s_dhcp_yip_addr[1], gs->s_dhcp_yip_addr[2], gs->s_dhcp_yip_addr[3]);
   ip_buff[15] = '\0';
@@ -3762,7 +3778,7 @@ static int dhcp_configure_kernel(struct getap_state *gs){
   int retval;
   int i;
 
-  for (i=0; i<4; i++){
+  for (i = 0; i < 4; i++){
     dest[i] = gs->s_dhcp_yip_addr[i] & gs->s_dhcp_submask[i];
   }
 
@@ -3775,14 +3791,14 @@ static int dhcp_configure_kernel(struct getap_state *gs){
   snprintf(dest_buff, sizeof(dest_buff), "%d.%d.%d.%d", dest[0], dest[1], dest[2], dest[3]);
   dest_buff[15] = '\0';
 
-  retval = dhcp_set_kernel_if_addr(gs->s_tap_name, ip_buff, subnet_buff);
+  retval = set_kernel_if_addr(gs->s_tap_name, ip_buff, subnet_buff);
   if (retval){
     log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: error setting kernel interface parameters for %s", gs->s_tap_name);
     return -1;
   }
 
 #if 0
-  retval = dhcp_set_kernel_route(dest_buff, gs->s_gateway_name, subnet_buff);
+  retval = set_kernel_route(dest_buff, gs->s_gateway_name, subnet_buff);
   if (retval){
     log_message_katcp(gs->s_dispatch, KATCP_LEVEL_ERROR, NULL, "dhcp: error setting kernel route for %s", gs->s_tap_name);
     return -1;
@@ -3798,7 +3814,7 @@ static void dhcp_print_debug_info(struct getap_state *gs, unsigned int dflags){
 
   if (dflags & DHCP_TX_BUFFER){
     fprintf(stderr, "dhcp: tx buffer:");
-    for (i=0; i<GETAP_DHCP_BUFFER_SIZE; i++){
+    for (i = 0; i < GETAP_DHCP_BUFFER_SIZE; i++){
       if (i % 16 == 0){
         fprintf(stderr, "\n0x%04x: ",i);
       }
@@ -3809,25 +3825,25 @@ static void dhcp_print_debug_info(struct getap_state *gs, unsigned int dflags){
 
   if (dflags & DHCP_PROCESS_INFO){
     fprintf(stderr, "dhcp: ip offer address: ");
-    for (i=0; i<4; i++){
+    for (i = 0; i < 4; i++){
       fprintf(stderr, " %d", gs->s_dhcp_yip_addr[i]);
     }
     fprintf(stderr, "\n");
 
     fprintf(stderr, "dhcp: server ip address: ");
-    for (i=0; i<4; i++){
+    for (i = 0; i < 4; i++){
       fprintf(stderr, " %d", gs->s_dhcp_sip_addr[i]);
     }
     fprintf(stderr, "\n");
 
     fprintf(stderr, "dhcp: router: ");
-    for (i=0; i<4; i++){
+    for (i = 0; i < 4; i++){
       fprintf(stderr, " %d", gs->s_dhcp_route[i]);
     }
     fprintf(stderr, "\n");
 
     fprintf(stderr, "dhcp: submask: ");
-    for (i=0; i<4; i++){
+    for (i = 0; i < 4; i++){
       fprintf(stderr, " %d", gs->s_dhcp_submask[i]);
     }
     fprintf(stderr, "\n");
