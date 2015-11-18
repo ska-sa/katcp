@@ -143,6 +143,7 @@ int mezz_phy_reset_op(int mezz_card, int phy_num){
     }
     retval += fpga_set_reg(INDEX_SFP_GPIO_DATA_OE,  val);
     retval += fpga_set_reg(INDEX_SFP_GPIO_DATA_OUT, val);
+    usleep(1);
     retval += fpga_set_reg(INDEX_SFP_GPIO_DATA_OUT, 0x0); 
     return retval;
 }
