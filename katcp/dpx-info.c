@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include <unistd.h>
 #include <errno.h>
@@ -108,7 +109,7 @@ int log_parse_katcp(struct katcp_dispatch *d, int level, struct katcl_parse *px)
   /* WARNING: ft and gt may be NULL if outside flat context */
   /* WARNING: won't echo a negative level back to its sender */
 
-  if(mask & KATCP_LEVEL_LOCAL){ /* message never visible to outside same connection */
+  if(mask & KATCP_LEVEL_LOCAL){ /* message never visible outside current connection */
     fx = ft;
     if(fx && (level >= 0)){
       count = each_log_parse_katcp(fx->f_line, count, fx->f_log_level, limit, px);
@@ -208,7 +209,126 @@ int log_group_info_katcp(struct katcp_dispatch *d, int argc)
   return 0;
 }
 
+int version_group_info_katcp(struct katcp_dispatch *d, int argc)
+{
+  struct katcp_flat *fx;
+  struct katcl_parse *px;
+  struct katcp_endpoint *self, *remote, *origin;
+  char *name, *version, *build;
+  unsigned int count;
+
+#ifdef DEBUG
+  fprintf(stderr, "version: encountered peer version message\n");
+#endif
+
+  fx = this_flat_katcp(d);
+  if(fx == NULL){
+    return -1;
+  }
+
+  px = arg_parse_katcp(d);
+  if(px == NULL){
+    return -1;
+  }
+
+  origin = sender_to_flat_katcp(d, fx);
+  remote = remote_of_flat_katcp(d, fx);
+  self = handler_of_flat_katcp(d, fx);
+
+  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "saw a version message (origin=%p, remote=%p, self=%p)", origin, remote, self);
+
+  if(origin != remote){ /* version information must have originated internally ... */
+    if(remote){ /* ... better relay it on, if somebody requested it */
+      send_message_endpoint_katcp(d, self, remote, px, 0);
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "internal problem, saw a version message but have nowhere to send it to");
+    }
+
+    return 0;
+  }
+
+  count = get_count_parse_katcl(px);
+  log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "saw a version field with %u args - attempting to process it", count);
+
+  if(count < 2){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "insufficient parameters for usable version report - only got %u", count);
+    return 0;
+  }
+
+  name = get_string_parse_katcl(px, 1);
+  version = get_string_parse_katcl(px, 2);
+
+  if(count > 2){
+    build = get_string_parse_katcl(px, 3);
+  } else {
+    build = NULL;
+  }
+
+  return 0;
+}
+
 /* TODO: sensor logic: sensor-list, sensor-status ? */
+
+#define FIXUP_TABLE 256 /* has to be size of char ... */
+
+static unsigned char fixup_remap_table[FIXUP_TABLE];
+static unsigned int fixup_remap_ready = 0;
+
+static void fixup_remap_init()
+{
+  unsigned int i;
+
+  for(i = 0; i < FIXUP_TABLE; i++){
+    fixup_remap_table[i] = i;
+    if(isupper(fixup_remap_table[i])){
+      fixup_remap_table[i] = tolower(fixup_remap_table[i]);
+    }
+    if(!isprint(fixup_remap_table[i])){
+      fixup_remap_table[i] = KATCP_VRBL_DELIM_SPACER;
+    }
+  }
+
+  /* strip out things that trigger variable substitution */
+  fixup_remap_table[KATCP_VRBL_DELIM_GROUP] = KATCP_VRBL_DELIM_LOGIC;
+  fixup_remap_table[KATCP_VRBL_DELIM_TREE ] = KATCP_VRBL_DELIM_LOGIC;
+  fixup_remap_table[KATCP_VRBL_DELIM_ARRAY] = KATCP_VRBL_DELIM_LOGIC;
+
+  /* and clean up things */
+  fixup_remap_table[KATCP_VRBL_DELIM_FORBID] = KATCP_VRBL_DELIM_SPACER;
+}
+
+#if 0
+static void fixup_remap_size(unsigned char *dst, unsigned char *src, unsigned int len)
+{
+  unsigned int i;
+
+  if(fixup_remap_ready == 0){
+    fixup_remap_init();
+    fixup_remap_ready = 1;
+  }
+
+  for(i = 0; i < len; i++){
+    dst[i] = fixup_remap_table[src[i]];
+  }
+}
+
+static void fixup_remap_string(unsigned char *dst, unsigned char *src)
+{
+  unsigned int i;
+
+  if(fixup_remap_ready == 0){
+    fixup_remap_init();
+    fixup_remap_ready = 1;
+  }
+
+  for(i = 0; i < len; i++){
+    dst[i] = fixup_remap_table[src[i]];
+    if(src[i] == '\0'){
+      return
+    }
+  }
+}
+#endif
 
 static char *make_child_sensor_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, char *name, int locator)
 {
@@ -216,8 +336,13 @@ static char *make_child_sensor_katcp(struct katcp_dispatch *d, struct katcp_flat
   char *copy, *strip;
   int suffix, prefix, size, i, j;
 
+  if(fixup_remap_ready == 0){
+    fixup_remap_init();
+    fixup_remap_ready = 1;
+  }
+
   if(strchr(name, KATCP_VRBL_DELIM_GROUP)){
-    /* WARNING: special case - if variable name includes * we assume the child knows about or internals */
+    /* WARNING: special case - if variable name includes * we assume the child knows about our internals */
     return strdup(name);
   }
 
@@ -262,22 +387,14 @@ static char *make_child_sensor_katcp(struct katcp_dispatch *d, struct katcp_flat
   }
   if(prefix){
     for(j = 0; fx->f_name[j] != '\0'; j++){
-      switch(fx->f_name[j]){
-        case KATCP_VRBL_DELIM_GROUP : /* should not happen ... */
-        case KATCP_VRBL_DELIM_TREE  :
-        case KATCP_VRBL_DELIM_ARRAY :
-          copy[i++] = KATCP_VRBL_DELIM_LOGIC;
-          break;
-        default :
-          copy[i++] = fx->f_name[j];
-          break;
-      }
+      copy[i++] = fixup_remap_table[((unsigned char *)fx->f_name)[j]];
     }
     copy[i++] = KATCP_VRBL_DELIM_LOGIC;
   }
 
-  memcpy(copy + i, strip, suffix);
-  i += suffix;
+  for(j = 0; j < suffix; j++){
+    copy[i++] = fixup_remap_table[((unsigned char *)strip)[j]];
+  }
 
   if(locator){
     copy[i++] = KATCP_VRBL_DELIM_GROUP;
@@ -287,6 +404,7 @@ static char *make_child_sensor_katcp(struct katcp_dispatch *d, struct katcp_flat
 
   return copy;
 }
+#undef FIXUP_TABLE
 
 int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
 {
@@ -297,7 +415,7 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
   char *name, *description, *units, *type, *ptr;
 
 #ifdef DEBUG
-  fprintf(stderr, "log: encountered a log message\n");
+  fprintf(stderr, "log: encountered a sensor-list message\n");
 #endif
 
   fx = this_flat_katcp(d);
@@ -314,99 +432,95 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
   remote = remote_of_flat_katcp(d, fx);
   self = handler_of_flat_katcp(d, fx);
 
-  if(origin == remote){ /* ... remote party is sending us a status update ... */
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "saw a sensor list from remote party, attempting to it");
+  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "saw a sensor list message (origin=%p, remote=%p, self=%p)", origin, remote, self);
 
-    name = get_string_parse_katcl(px, 1);
-    description = get_string_parse_katcl(px, 2);
-    units = get_string_parse_katcl(px, 3);
-    type = get_string_parse_katcl(px, 4);
-
-    if((name == NULL) || (description == NULL) || (type == NULL)){
-      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "deficient sensor declaration encountered");
-      return -1;
+  if(origin != remote){ /* request must have originated internally, so ... */
+    if(remote){ /* ... better relay it on, if somebody requested it */
+      send_message_endpoint_katcp(d, self, remote, px, 0);
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "internal problem, saw a sensor list but have nowhere to send it to");
     }
-
-    ptr = make_child_sensor_katcp(d, fx, name, 1);
-    if(ptr == NULL){
-      return -1;
-    }
-
-    vx = find_vrbl_katcp(d, ptr);
-    if(vx != NULL){
-      if(is_vrbl_sensor_katcp(d, vx)){
-#if 0
-      if(vx->v_flags & KATCP_VRF_SEN){ /* might be better choice: the extra checks in is_vrbl might be too fussy during set up ? */
-#endif
-        /* WARNING: unclear - maybe clobber the sensor entirely ... */
-        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "leaving old sensor definition unchanged");
-      } else {
-        /* unreasonable condition, up the severity */
-        log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unwilling to transform existing variable %s into a sensor", ptr);
-      }
-      free(ptr);
-      return 1; /* WARNING: is this a reasonable exit code ? */
-    }
-
-    /* here we can assume vx is a new variable */
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "defining new sensor %s as %s", name, ptr);
-
-    vx = scan_vrbl_katcp(d, NULL, NULL, KATCP_VRC_SENSOR_VALUE, 1, KATCP_VRT_STRING);
-    if(vx == NULL){
-      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unable to declare sensor variable %s for %s", ptr, fx->f_name);
-      free(ptr);
-      return -1;
-    }
-
-    /* TODO: notice errors */
-    scan_vrbl_katcp(d, vx, description, KATCP_VRC_SENSOR_HELP, 1, KATCP_VRT_STRING);
-    scan_vrbl_katcp(d, vx, type, KATCP_VRC_SENSOR_TYPE, 1, KATCP_VRT_STRING);
-
-    if(units){
-      scan_vrbl_katcp(d, vx, units, KATCP_VRC_SENSOR_UNITS, 1, KATCP_VRT_STRING);
-    }
-
-    if(configure_vrbl_katcp(d, vx, KATCP_VRF_SEN, NULL, NULL, NULL, NULL) < 0){
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to configure new variable %s as sensor", ptr);
-      destroy_vrbl_katcp(d, ptr, vx);
-      free(ptr);
-      return -1;
-    }
-
-    if(update_vrbl_katcp(d, fx, ptr, vx, 0) == NULL){
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to store new sensor variable %s for client %s", ptr, fx->f_name);
-      destroy_vrbl_katcp(d, name, vx);
-      free(ptr);
-      return KATCP_RESULT_FAIL;
-    }
-
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "declared variable %s as %s", name, ptr);
-
-    schedule_sensor_update_katcp(d, ptr);
-
-    free(ptr);
-
-    return 0;
-
-
-  } else { /* we must have asked a sensor to send this to us, better relay it on */
-
-    if(remote == NULL){
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "internal problem, saw a sensor status but have nowhere to send it to");
-      return -1;
-    }
-
-    send_message_endpoint_katcp(d, self, remote, px, 0);
-
-    return 0;
-
   }
+
+  log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "saw a sensor list - attempting to load it");
+
+  name = get_string_parse_katcl(px, 1);
+  description = get_string_parse_katcl(px, 2);
+  units = get_string_parse_katcl(px, 3);
+  type = get_string_parse_katcl(px, 4);
+
+  if((name == NULL) || (description == NULL) || (type == NULL)){
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "deficient sensor declaration encountered");
+    return KATCP_RESULT_FAIL;
+  }
+
+  ptr = make_child_sensor_katcp(d, fx, name, 1);
+  if(ptr == NULL){
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unable fixup sensor name %s", name);
+    return KATCP_RESULT_FAIL;
+  }
+
+  vx = find_vrbl_katcp(d, ptr);
+  if(vx != NULL){
+    if(is_vrbl_sensor_katcp(d, vx)){
+#if 0
+    if(vx->v_flags & KATCP_VRF_SEN){ /* might be better choice: the extra checks in is_vrbl might be too fussy during set up ? */
+#endif
+      /* WARNING: unclear - maybe clobber the sensor entirely ... */
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "leaving old sensor definition unchanged");
+    } else {
+      /* unreasonable condition, up the severity */
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unwilling to transform existing variable %s into a sensor", ptr);
+    }
+    free(ptr);
+    return KATCP_RESULT_OWN; /* WARNING: is this a reasonable exit code ? */
+  }
+
+  /* here we can assume vx is a new variable */
+  log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "defining new sensor %s as %s", name, ptr);
+
+  vx = scan_vrbl_katcp(d, NULL, NULL, KATCP_VRC_SENSOR_VALUE, 1, KATCP_VRT_STRING);
+  if(vx == NULL){
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unable to declare sensor variable %s for %s", ptr, fx->f_name);
+    free(ptr);
+    return KATCP_RESULT_FAIL;
+  }
+
+  /* TODO: notice errors */
+  scan_vrbl_katcp(d, vx, description, KATCP_VRC_SENSOR_HELP, 1, KATCP_VRT_STRING);
+  scan_vrbl_katcp(d, vx, type, KATCP_VRC_SENSOR_TYPE, 1, KATCP_VRT_STRING);
+
+  if(units){
+    scan_vrbl_katcp(d, vx, units, KATCP_VRC_SENSOR_UNITS, 1, KATCP_VRT_STRING);
+  }
+
+  if(configure_vrbl_katcp(d, vx, KATCP_VRF_SEN, NULL, NULL, NULL, NULL) < 0){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to configure new variable %s as sensor", ptr);
+    destroy_vrbl_katcp(d, ptr, vx);
+    free(ptr);
+    return KATCP_RESULT_FAIL;
+  }
+
+  if(update_vrbl_katcp(d, fx, ptr, vx, 0) == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to store new sensor variable %s for client %s", ptr, fx->f_name);
+    destroy_vrbl_katcp(d, name, vx);
+    free(ptr);
+    return KATCP_RESULT_FAIL;
+  }
+
+  log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "declared variable %s as %s", name, ptr);
+
+  schedule_sensor_update_katcp(d, ptr);
+
+  free(ptr);
+
+  return KATCP_RESULT_OK;
 
 }
 
 int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
 {
-#define TIMESTAMP_BUFFER 16
+#define TIMESTAMP_BUFFER 20
   struct katcp_flat *fx;
   struct katcl_parse *px;
   struct katcp_endpoint *self, *remote, *origin;
@@ -419,8 +533,6 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
   fprintf(stderr, "log: encountered a sensor-status message\n");
 #endif
 
-  log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "saw a sensor status message");
-
   fx = this_flat_katcp(d);
   if(fx == NULL){
     return -1;
@@ -434,6 +546,8 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
   origin = sender_to_flat_katcp(d, fx);
   remote = remote_of_flat_katcp(d, fx);
   self = handler_of_flat_katcp(d, fx);
+
+  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "saw a sensor status message (origin=%p, remote=%p, self=%p)", origin, remote, self);
 
   if(origin == remote){ /* ... remote party is sending us a status update ... */
 
@@ -448,12 +562,14 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
     }
 
     if(fixup_timestamp_katcp(stamp, buffer, TIMESTAMP_BUFFER) < 0){
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "timestamp %s not reasonable", stamp);
       return -1;
     }
     buffer[TIMESTAMP_BUFFER - 1] = '\0';
 
     ptr = make_child_sensor_katcp(d, fx, name, 0);
     if(ptr == NULL){
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unable fixup sensor name %s", name);
       return -1;
     }
 

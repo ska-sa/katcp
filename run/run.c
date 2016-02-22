@@ -131,6 +131,11 @@ int run_iostate(struct totalstate *ts, struct iostate *io, struct katcl_line *k)
           fprintf(stderr, "considering <%s> (infer=%d)\n", io->i_buffer + io->i_done, ts->t_infer);
 #endif
           if((ts->t_infer > 0) && (strncmp(io->i_buffer + io->i_done, KATCP_LOG_INFORM " ", 5) == 0)){
+
+            if(flushing_katcl(k)){
+              while(write_katcl(k) == 0);
+            }
+
             fd = fileno_katcl(k);
             io->i_buffer[i] = '\n';
             sw = i - io->i_done + 1;
@@ -174,6 +179,7 @@ void usage(char *app)
   printf("-e level           specify the level for messages from standard error\n");
   printf("-o level           specify the level for messages from standard output\n");
   printf("-s subsystem       specify the subsystem (overrides KATCP_LABEL)\n");
+  printf("-n label[=value]   modify the child process environment\n");
   printf("-i                 inhibit termination of subprocess on eof on standard input\n");
   printf("-r                 forward raw #log messages unchanged\n");
   printf("-x                 relay child exit codes\n");
@@ -272,7 +278,7 @@ int main(int argc, char **argv)
   int i, j, c, offset, result, rr;
   struct katcl_line *k;
   char *app;
-  char *tmp;
+  char *tmp, *value;
   pid_t pid;
   struct totalstate total, *ts;
   struct iostate *erp, *orp;
@@ -343,6 +349,7 @@ int main(int argc, char **argv)
           break;
 
         case 'e' :
+        case 'n' :
         case 'o' :
         case 's' :
 
@@ -379,6 +386,25 @@ int main(int argc, char **argv)
               break;
             case 's' :
               ts->t_system = argv[i] + j;
+              break;
+            case 'n' :
+              tmp = strdup(argv[i] + j);
+              if(tmp){
+                value = strchr(tmp, '=');
+                if(value){
+                  value[0] = '\0';
+                  value++;
+                  result = setenv(tmp, value, 1);
+                } else {
+                  result = unsetenv(tmp);
+                }
+                if(result){
+                  sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unable to to modify environment: %s\n", strerror(errno));
+                }
+                free(tmp);
+              } else {
+                sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unable to retrieve environment variable");
+              }
               break;
           }
 

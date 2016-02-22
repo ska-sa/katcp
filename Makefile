@@ -10,13 +10,14 @@ endif
 
 MISC = scripts misc 
 
-EVERYTHING = $(LIBRARY) $(APPS) $(MISC)
+SELECTED = kcs cmd tmon log msg par con fpg run mpx 
+EVERYTHING = $(LIBRARY) $(APPS)
 
 ###############################################################################
 
 all: $(patsubst %,%-all,$(EVERYTHING))
 clean: $(patsubst %,%-clean,$(EVERYTHING))
-install: $(patsubst %,%-install,$(EVERYTHING))
+install: $(patsubst %,%-install,$(SELECTED))
 
 $(patsubst %,%-all,$(APPS)): $(patsubst %,%-all,$(LIBRARY))
 

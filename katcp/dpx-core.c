@@ -143,6 +143,7 @@ void destroy_group_katcp(struct katcp_dispatch *d, struct katcp_group *g)
   fprintf(stderr, "group[%p]: destroying %s\n", g, g->g_name);
 #endif
 
+  /* WARNING: check needed, refcount might not have dropped */
   if(deallocate_group_katcp(d, g)){
     return;
   }
@@ -159,8 +160,10 @@ void destroy_group_katcp(struct katcp_dispatch *d, struct katcp_group *g)
       abort();
 #endif
       s->s_members++;
+      return;
     }
   }
+  s->s_groups[s->s_members] = NULL;
 }
 
 void destroy_groups_katcp(struct katcp_dispatch *d)
@@ -472,6 +475,8 @@ static int stop_listener_from_group_katcp(struct katcp_dispatch *d, struct katcp
 
   /* WARNING: close coupling, peers into listener internals from group logic, needs to be kept in sync with destroy_listen_flat_katcp */
 
+  /* group dereference happens in ARB STOP callback ... */
+
   if(kl->l_group == gx){
     unlink_arb_katcp(d, a);
   }
@@ -486,6 +491,7 @@ int terminate_group_katcp(struct katcp_dispatch *d, struct katcp_group *gx, int 
   int result;
 
   if(gx == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "group group specified, nothing to terminate");
     return -1;
   }
 
@@ -502,6 +508,8 @@ int terminate_group_katcp(struct katcp_dispatch *d, struct katcp_group *gx, int 
     foreach_arb_katcp(d, KATCP_ARB_TYPE_LISTENER, &stop_listener_from_group_katcp, gx);
     gx->g_autoremove = 1;
   }
+
+  mark_busy_katcp(d);
 
   return result;
 }
@@ -793,13 +801,20 @@ static void destroy_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *f)
 
     if(i < gx->g_count){
       gx->g_flats[i] = gx->g_flats[gx->g_count];
+      gx->g_flats[gx->g_count] = NULL;
 #if 0
       /* have a destroy_group_call here if we decide to increment hold count for group on flat creation */
 #endif
     } else {
-      if(i > gx->g_count){
+      if(i > gx->g_count){ 
+#ifdef KATCP_CONSISTENCY_CHECKS
+        fprintf(stderr, "dpx: logic problem: flat %p not found it group %p despite listing it as parent\n", f, gx);
+        abort();
+#endif
         /* undo, we are in not found case */
         gx->g_count++;
+      } else {
+        gx->g_flats[gx->g_count] = NULL;
       }
     }
   }
@@ -1577,7 +1592,7 @@ int reconfigure_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, unsi
     trigger_connect_flat(d, fx);
   }
 
-  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED);
+  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED | KATCP_FLAT_RETAINFO);
 
   return 0;
 }
@@ -1639,6 +1654,8 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
 #if 0
   f->f_backlog = NULL;
 #endif
+  f->f_orx = NULL;
+
   f->f_rx = NULL;
 
   f->f_tx = NULL;
@@ -2301,6 +2318,7 @@ int rename_flat_katcp(struct katcp_dispatch *d, char *group, char *was, char *sh
 int terminate_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx)
 {
   if(fx == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "null client can not be terminated");
     return -1;
   }
 
@@ -2317,10 +2335,11 @@ int terminate_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx)
       return 0;
     case FLAT_STATE_UP : 
       fx->f_state = FLAT_STATE_FINISHING;
+      mark_busy_katcp(d);
       return 0;
     default :
       /* already terminating */
-      return -1;
+      return 1;
   }
 }
 
@@ -3480,6 +3499,7 @@ int load_flat_katcp(struct katcp_dispatch *d)
             gx->g_flats[i] = gx->g_flats[gx->g_count];
           }
           deallocate_flat_katcp(d, fx);
+          gx->g_flats[gx->g_count] = NULL;
 
           inc = 0;
           break;
@@ -3511,10 +3531,17 @@ int load_flat_katcp(struct katcp_dispatch *d)
       fprintf(stderr, "group[%p]: %s about to be removed\n", gx, gx->g_name);
 #endif
 
+      /* WARNING: instead of calling destroy_group like good little api citizens, we reach in deeper, just to save us another traversal */
+
       deallocate_group_katcp(d, gx);
-      jnc  = 0;
 
       s->s_members--;
+      if(j < s->s_members){
+        s->s_groups[j] = s->s_groups[s->s_members];
+      }
+      s->s_groups[s->s_members] = NULL;
+
+      jnc = 0;
 
 #ifdef DEBUG 
       fprintf(stderr, "dpx[*]: reduced to %u groups\n", s->s_members);
@@ -3884,6 +3911,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "cmd-uncover", "reveal a hidden command (?cmd-uncover command)", 0, &uncover_cmd_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "cmd-delete", "remove a command (?cmd-delete command)", 0, &delete_cmd_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "cmd-help", "set the help message for a command (?cmd-help command message)", 0, &help_cmd_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "cmd-alias", "create new command from existing (?cmd-alias new existing)", 0, &alias_cmd_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "sensor-list", "lists available sensors (?sensor-list [sensor])", 0, &sensor_list_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "sensor-value", "query a sensor (?sensor-value sensor)", 0, &sensor_value_group_cmd_katcp, NULL, NULL);
@@ -3924,7 +3952,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
 
     add_full_cmd_map_katcp(m, "log", "collect log messages (#log priority timestamp module text)", 0, &log_group_info_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "sensor-status", "handle sensor updates (#sensor-status timestamp 1 name status value)", 0, &sensor_status_group_info_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "sensor-list", "handle sensor definitions (#sensor-list name description units type [range])", 0, &sensor_list_group_info_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "sensor-list", "handle sensor definitions (#sensor-list name description units type [range])", KATCP_MAP_FLAG_GREEDY, &sensor_list_group_info_katcp, NULL, NULL);
   }
 
   if(gx->g_maps[KATCP_MAP_INNER_INFORM] == NULL){

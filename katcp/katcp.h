@@ -261,7 +261,7 @@ int append_timestamp_katcp(struct katcp_dispatch *d, int flags, struct timeval *
 int append_parameter_katcp(struct katcp_dispatch *d, int flags, struct katcl_parse *p, unsigned int index);
 int append_trailing_katcp(struct katcp_dispatch *d, int flags, struct katcl_parse *p, unsigned int start);
 int append_parse_katcp(struct katcp_dispatch *d, struct katcl_parse *p);
-int append_end_flat_katcp(struct katcp_dispatch *d);
+int append_end_katcp(struct katcp_dispatch *d);
 
 /* sensor writes */
 #if 0
@@ -781,6 +781,8 @@ int hide_cmd_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int uncover_cmd_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int delete_cmd_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int help_cmd_group_cmd_katcp(struct katcp_dispatch *d, int argc);
+int alias_cmd_group_cmd_katcp(struct katcp_dispatch *d, int argc);
+
 
 int sensor_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc);
