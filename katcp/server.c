@@ -124,7 +124,7 @@ static int client_list_cmd_katcp(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OWN;
 }
 
-static int pipe_from_file_katcp(struct katcp_dispatch *dl, char *file)
+/*static*/ int pipe_from_file_katcp(struct katcp_dispatch *dl, char *file)
 {
 #define S_READ 1
 #define S_PARSE 2
@@ -580,6 +580,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     FD_ZERO(&(s->s_read));
     FD_ZERO(&(s->s_write));
 
+
 #if 0
     gettimeofday(&now, NULL);
     future.tv_sec = now.tv_sec + KATCP_INIT_WAIT;
@@ -589,20 +590,6 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     s->s_max = (-1);
 
     suspend = run_timers_katcp(dl, &delta);
-
-    if(run > 0){ /* only bother with new connections if not stopping */
-      if(s->s_lfd >= 0){
-        FD_SET(s->s_lfd, &(s->s_read));
-        if(s->s_lfd > s->s_max){
-          s->s_max = s->s_lfd;
-        }
-      } else {
-        if(s->s_used <= 0){ /* if we are not listening, and we have run out of clients, shut down too */
-          run = (-1);
-        }
-      }
-
-    }
 
 #ifdef KATCP_SUBPROCESS
     load_jobs_katcp(dl);
@@ -621,6 +608,28 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     load_endpoints_katcp(dl);
 #endif
 
+#if DEBUG
+    fprintf(stderr, "s_lcount = %d, s_epcount = %d\n", s->s_lcount, s->s_epcount);
+#endif
+
+    if(run > 0){ /* only bother with new connections if not stopping */
+      if(s->s_lfd >= 0){
+        FD_SET(s->s_lfd, &(s->s_read));
+        if(s->s_lfd > s->s_max){
+          s->s_max = s->s_lfd;
+        }
+      } else {
+#ifdef KATCP_EXPERIMENTAL
+        if((s->s_lcount <= 0) && (s->s_epcount <= 0)){ /* if we have no listeners, and we have run out of endpoints, shut down too */
+          run = (-1);
+        }
+#else
+        if(s->s_used <= 0){ /* if we are not listening, and we have run out of clients, shut down too */
+          run = (-1);
+        }
+#endif
+      }
+    }
 
     if(run < 0){
 

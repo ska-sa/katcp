@@ -221,6 +221,9 @@ int startup_shared_katcp(struct katcp_dispatch *d)
   s->s_count = 0;
   s->s_used = 0;
 
+  s->s_lcount = 0;
+  s->s_epcount = 0;
+
   s->s_lfd = (-1);
 
 #if 0

@@ -811,6 +811,13 @@ int send_message_endpoint_katcp(struct katcp_dispatch *d, struct katcp_endpoint 
 struct katcl_parse *parse_of_endpoint_katcp(struct katcp_dispatch *d, struct katcp_message *msg);
 struct katcp_endpoint *source_endpoint_katcp(struct katcp_dispatch *d, struct katcp_message *msg);
 
+/* duplex server api*/
+
+/* configure the server */
+int config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, unsigned int port);
+/* run the server */
+int run_server_flat_katcp(struct katcp_dispatch *dl);
+
 #ifdef __cplusplus
 }
 #endif

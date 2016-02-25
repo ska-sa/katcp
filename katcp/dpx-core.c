@@ -3868,6 +3868,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     hold_cmd_map_katcp(m);
 
     add_full_cmd_map_katcp(m, "help", "display help messages (?help [command])", 0, &help_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "arb", "arbitrary callback manipulation (?arb [list]", 0, &arb_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "watchdog", "pings the system (?watchdog)", 0, &watchdog_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "list-duplex", "display active connection detail (?list-duplex)", 0, &list_duplex_cmd_katcp, NULL, NULL);

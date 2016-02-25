@@ -1,0 +1,121 @@
+/* (c) 2015 SKA-SA */
+/* Released under the GNU GPLv3 */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <sysexits.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+#include <errno.h>
+#include <time.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+
+#include <katcp.h>
+#include <katpriv.h>
+#include <fork-parent.h>
+
+#include "kcsdplx.h"
+
+/* function prototypes */
+static void usage(char *app);
+
+int main(int argc, char *argv[])
+{
+  int foreground = 0;
+  char *initfile = NULL;
+  char *logfile = KCSDPX_LOG;
+  char *port = NULL;
+  struct katcp_dispatch *d;
+  int option;
+  int status;
+  int lfd;
+  time_t now;
+  unsigned int p = 0;
+
+  while ((option = getopt(argc, argv, "fhi:l:p:")) != -1) {
+    switch (option) {
+      case 'f':
+        foreground = 1;
+        break;
+      case 'h':
+        usage(argv[0]);
+        return EX_OK;
+        break;
+      case 'i':
+        initfile = optarg;
+        break;
+      case 'l':
+        logfile = optarg;
+        break;
+      case 'p':
+        port = optarg;
+        break;
+      default:
+        usage(argv[0]);
+        return EX_USAGE;
+    }
+  }
+
+  if (!foreground){
+    fprintf(stderr,"%s: about to go into background\n", argv[0]);
+    if(fork_parent() < 0){
+      fprintf(stderr, "%s: unable to fork_parent\n", argv[0]);
+      return 1;
+    }
+  }
+
+  /* create a state handle */
+  d = startup_katcp();
+  if (d == NULL){
+    fprintf(stderr, "%s: unable to allocate state\n", argv[0]);
+    return 1;
+  }
+
+  if (port){
+    errno = 0;
+    p = strtol(port, NULL, 10);   /* TODO: error checking on string to int convertion */
+  }
+
+  /* configure the duplex server */
+  config_server_flat_katcp(d, initfile, p);
+
+  signal(SIGPIPE, SIG_DFL);
+
+  if (!foreground){
+
+    lfd = open(logfile, O_WRONLY | O_APPEND | O_CREAT | O_NOCTTY, S_IWUSR | S_IRUSR | S_IRGRP | S_IWGRP);
+    if (lfd < 0){
+      fprintf(stderr,"%s: unable to open %s: %s\n",argv[0], KCSDPX_LOG, strerror(errno));
+      return 1;
+    } else {
+      fflush(stderr);
+      if (dup2(lfd,STDERR_FILENO) >= 0){
+        now = time(NULL);
+        fprintf(stderr,"Logging to file started at %s\n",ctime(&now));
+      }
+      close(lfd);
+    }
+  }
+
+  /* run the duplex server */
+  run_server_flat_katcp(d);
+
+  status = exited_katcp(d);
+
+  shutdown_katcp(d);
+
+  return status;
+}
+
+static void usage(char *app)
+{
+  fprintf(stdout, "Usage: %s [-hf] [-i init-file] [-p port]\n", app);
+  fprintf(stdout, "-h             this help\n");
+  fprintf(stdout, "-f             run in foreground (default is background/daemon)\n");
+  fprintf(stdout, "-i init-file   run init-file containing commands at startup\n");
+  fprintf(stdout, "-l log-file    log output to log-file\n");
+  fprintf(stdout, "-p port        create listener on a given port\n");
+}

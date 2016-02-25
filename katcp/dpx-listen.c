@@ -41,6 +41,7 @@ static void sane_listener_katcl(struct katcp_listener *kl)
 
 struct katcp_listener *allocate_listener_katcp(struct katcp_dispatch *d)
 {
+  struct katcp_shared *s;
   struct katcp_listener *kl;
 
   kl = malloc(sizeof(struct katcp_listener));
@@ -54,11 +55,16 @@ struct katcp_listener *allocate_listener_katcp(struct katcp_dispatch *d)
 
   kl->l_magic = LISTEN_MAGIC;
 
+  s = d->d_shared;
+  s->s_lcount++;
+
   return kl;
 }
 
 void release_listener_katcp(struct katcp_dispatch *d, struct katcp_listener *kl)
 {
+  struct katcp_shared *s;
+
   sane_listener_katcl(kl);
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "releasing listener on port %u for group %s", kl->l_port, kl->l_group ? (kl->l_group->g_name ? kl->l_group->g_name : "<unnamed>") : "<none>");
@@ -75,6 +81,9 @@ void release_listener_katcp(struct katcp_dispatch *d, struct katcp_listener *kl)
   }
 
   kl->l_port = 0;
+
+  s = d->d_shared;
+  s->s_lcount--;
 
   free(kl);
 }

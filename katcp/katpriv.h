@@ -724,6 +724,9 @@ struct katcp_shared{
   unsigned int s_count;
   unsigned int s_used;
 
+  unsigned int s_lcount;  /* flat listener count */
+  unsigned int s_epcount;  /* flat endpoint count */
+
   int s_lfd;
 
   struct katcp_job **s_tasks;
@@ -1287,6 +1290,8 @@ int version_generic_callback_katcp(struct katcp_dispatch *d, void *state, char *
 /******************************************/
 
 int prepend_generic_flat_katcp(struct katcp_dispatch *d, int reply);
+int pipe_from_file_katcp(struct katcp_dispatch *dl, char *file);
+int run_core_loop_katcp(struct katcp_dispatch *dl);
 
 /******************************************/
 
