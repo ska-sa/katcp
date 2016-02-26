@@ -162,6 +162,9 @@ static int client_list_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   fd = open(file, O_RDONLY);
   if(fd < 0){
+#ifdef DEBUG
+    fprintf(stderr, "init: can't open file %s (%s)\n", file, strerror(errno));
+#endif
     exit(EX_UNAVAILABLE);
   }
 
@@ -200,15 +203,18 @@ static int client_list_cmd_katcp(struct katcp_dispatch *d, int argc)
           switch (state){
             case S_READ:
                 rsvp = read_katcl(pl);
-                if (rsvp == 0)
+                if (rsvp == 0){
                   state = S_PARSE;
+                } else {
+                  exit((rsvp > 0) ? EX_OK : EX_IOERR);
+                }
               break;
             case S_PARSE:
                 
                 if (have_katcl(pl)){
                   if(arg_reply_katcl(pl)){
 #ifdef DEBUG
-                    fprintf(stderr,"Found REPLY: %s\n",arg_string_katcl(pl,0));
+                    fprintf(stderr,"Found REPLY: %s %s\n", arg_string_katcl(pl,0), arg_string_katcl(pl,1));
 #endif
                     state = S_DONE;
                   }
@@ -608,10 +614,6 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     load_endpoints_katcp(dl);
 #endif
 
-#if DEBUG
-    fprintf(stderr, "s_lcount = %d, s_epcount = %d\n", s->s_lcount, s->s_epcount);
-#endif
-
     if(run > 0){ /* only bother with new connections if not stopping */
       if(s->s_lfd >= 0){
         FD_SET(s->s_lfd, &(s->s_read));
@@ -670,6 +672,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     result = pselect(s->s_max + 1, &(s->s_read), &(s->s_write), NULL, suspend ? NULL : &delta, &(s->s_signal_mask));
 #ifdef DEBUG
     fprintf(stderr, "multi: select=%d, used=%d\n", result, s->s_used);
+    fprintf(stderr, "multi: listeners = %d, endpoints = %d\n", s->s_lcount, s->s_epcount);
 #endif
 
     s->s_busy = 0;

@@ -21,7 +21,7 @@ $(EXE): $(OBJ)
 	$(CC) $(CFLAGS) -c $< $(INC)
 
 clean:
-	$(RM) $(OBJ) $(EXE)
+	$(RM) $(OBJ) core $(EXE)
 
 install: all
 	$(INSTALL) $(EXE) $(PREFIX)/sbin

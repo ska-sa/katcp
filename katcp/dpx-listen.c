@@ -176,7 +176,7 @@ int destroy_listen_flat_katcp(struct katcp_dispatch *d, char *name)
 
 struct katcp_arb *create_listen_flat_katcp(struct katcp_dispatch *d, char *name, unsigned int port, char *address, struct katcp_group *g)
 {
-  int fd, p;
+  int fd, p, flags;
   struct katcp_arb *a;
   struct katcp_group *gx;
   struct katcp_listener *kl;
@@ -206,7 +206,12 @@ struct katcp_arb *create_listen_flat_katcp(struct katcp_dispatch *d, char *name,
   }
 
   /* TODO: net_listen needs a flag to allocate something random */
-  fd = net_listen(copy, port, NETC_AUTO_PORT);
+  flags = NETC_AUTO_PORT;
+#ifdef DEBUG
+  flags = flags | NETC_VERBOSE_ERRORS;
+#endif
+
+  fd = net_listen(copy, port, flags);
   if(fd < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to listen on %u at %s: %s", port, copy ? copy : "0.0.0.0", strerror(errno));
     if(copy){

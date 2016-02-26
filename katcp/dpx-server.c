@@ -4,8 +4,8 @@
 #include <katpriv.h>
 #include <katcp.h>
 
-int config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, unsigned int port){
-  /*host_port in format host:port*/
+int config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, char *host_port){
+  /*host_port in format 'host:port' or simply 'port' alone*/
   int fd;
   struct katcp_flat *f;
   struct katcp_arb *l;
@@ -28,11 +28,11 @@ int config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, unsign
     }
   }
 
-  if(port){
-    l = create_listen_flat_katcp(dl, "arb_listen", port, NULL, NULL);
+  if(host_port){
+    l = create_listen_flat_katcp(dl, "arb_listen", 0, host_port, NULL);
     if(l == NULL){
 #ifdef DEBUG
-      fprintf(stderr, "unable to create listener on %u\n", port);
+      fprintf(stderr, "unable to create listener on %s\n", host_port);
 #endif
       return terminate_katcp(dl, KATCP_EXIT_ABORT);
     }
