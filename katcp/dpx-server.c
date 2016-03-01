@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <katpriv.h>
 #include <katcp.h>
@@ -43,5 +44,11 @@ int config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, char *
 
 
 int run_server_flat_katcp(struct katcp_dispatch *dl){
+  struct katcp_shared *s;
+
+  s = dl->d_shared;
+
+  time(&(s->s_start));
+
   return run_core_loop_katcp(dl);
 }

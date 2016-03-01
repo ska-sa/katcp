@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sysexits.h>
+#include <time.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -3715,6 +3716,52 @@ int run_flat_katcp(struct katcp_dispatch *d)
 
 /* commands, both old and new ***************************************/
 
+#ifndef KATCP_DEPRECATED
+int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
+{
+#define BUFFER 64
+  char buffer[BUFFER];
+  struct tm *when;
+  time_t now, delta;
+  struct katcp_shared *s;
+  unsigned long hours;
+  unsigned int minutes, seconds;
+
+  s = d->d_shared;
+
+  when = localtime(&(s->s_start));
+  if(when == NULL){
+    return KATCP_RESULT_FAIL;
+  }
+
+  time(&now);
+
+  delta = now - s->s_start;
+
+  hours   = (delta / 3600);
+  minutes = (delta / 60)     - (hours * 60);
+  seconds = (delta)          - (((hours * 60) + minutes) * 60);
+
+  strftime(buffer, BUFFER - 1, "%Y-%m-%dT%H:%M:%S", when);
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "server started at %s localtime which is T%lu:%02u:%02u ago", buffer, hours, minutes, seconds);
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_lcount, (s->s_lcount == 1) ? "listener" : "listeners");
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_epcount, (s->s_epcount == 1) ? "endpoint" : "endpoints");
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s", s->s_tally, (s->s_tally == 1) ? "sensor" : "sensors");
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s", s->s_size, (s->s_size == 1) ? "mode" : "modes");
+  if(s->s_size > 1){
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d (%s) is current %s mode", s->s_mode,  s->s_vector[s->s_mode].e_name ? s->s_vector[s->s_mode].e_name : "UNKNOWN", s->s_flaky ? "failed" : "ok");
+  }
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", s->s_length, (s->s_length == 1) ? "timer" : "timers");
+
+  return KATCP_RESULT_OK;
+#undef BUFFER
+}
+#endif
 
 /* connection management commands ***********************************/
 
@@ -3927,6 +3974,10 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
 
     add_full_cmd_map_katcp(m, "scope", "change scoping level (?scope scope [(group | client) name])", 0, &scope_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "broadcast", "send messages to everybody (?broadcast group inform [arguments])", 0, &broadcast_group_cmd_katcp, NULL, NULL);
+
+#ifndef KATCP_DEPRECATED
+    add_full_cmd_map_katcp(m, "system-info", "report server information (?system-info)", 0, &system_info_cmd_katcp, NULL, NULL);
+#endif
 
   } else {
     m = gx->g_maps[KATCP_MAP_REMOTE_REQUEST];

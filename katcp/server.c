@@ -420,6 +420,7 @@ int setenv_cmd_katcp(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 }
 
+#ifdef KATCP_DEPRECATED
 int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
 #define BUFFER 64
@@ -468,6 +469,7 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 #undef BUFFER
 }
+#endif
 
 #if 0
 int uptime_cmd_katcp(struct katcp_dispatch *d, int argc)
@@ -549,7 +551,9 @@ int prepare_core_loop_katcp(struct katcp_dispatch *dl)
 #endif
   register_flag_mode_katcp(dl, "?version", "version operations (?sensor [add module version [mode]|remove module])", &version_cmd_katcp, 0, 0);
 
+#ifdef KATCP_DEPRECATED
   register_flag_mode_katcp(dl, "?system-info",  "report server information (?system-info)", &system_info_cmd_katcp, 0, 0);
+#endif
 
 #ifdef KATCP_EXPERIMENTAL
   register_flag_mode_katcp(dl, "?listener-create", "accept new duplex connections on given interface (?listen-duplex [interface:]port)", &listener_create_group_cmd_katcp, 0, 0);
