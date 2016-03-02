@@ -36,8 +36,12 @@ int main(int argc, char *argv[])
   time_t now;
   /* unsigned int p = 0; */
 
-  while ((option = getopt(argc, argv, "fhi:s:l:p:")) != -1) {
+  while ((option = getopt(argc, argv, "vfhi:s:l:p:")) != -1) {
     switch (option) {
+      case 'v':
+        fprintf(stdout, "%s version %s\n", argv[0], V_GIT);
+        return EX_OK;
+        break;
       case 'f':
         foreground = 1;
         break;
@@ -131,6 +135,7 @@ static void usage(char *app)
 {
   fprintf(stdout, "Usage: %s [-hf] [-i init-file] [-p port]\n", app);
   fprintf(stdout, "-h               this help\n");
+  fprintf(stdout, "-v               print version information\n");
   fprintf(stdout, "-f               run in foreground (default is background/daemon)\n");
   fprintf(stdout, "-i init-file     load init-file which contains katcp commands at startup\n");
   fprintf(stdout, "-s script        execute script/binary which outputs katcp commands at startup (via stdout)\n");
