@@ -162,9 +162,7 @@ static int client_list_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   fd = open(file, O_RDONLY);
   if(fd < 0){
-#ifdef DEBUG
-    fprintf(stderr, "init: can't open file %s (%s)\n", file, strerror(errno));
-#endif
+    fprintf(stderr, "init: can't open file <%s> (%s)\n", file, strerror(errno));
     exit(EX_UNAVAILABLE);
   }
 

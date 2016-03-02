@@ -1555,6 +1555,8 @@ struct katcp_flat *create_exec_flat_katcp(struct katcp_dispatch *d, unsigned int
     execvp(vector[0], vector);
   }
 
+  fprintf(stderr, "dpx: unable to launch command <%s> (%s)\n", vector ? vector[0] : name, strerror(errno));
+
   sync_message_katcl(xl, KATCP_LEVEL_ERROR, NULL, "unable to launch command <%s>", vector ? vector[0] : name, strerror(errno)); 
 
   destroy_katcl(xl, 0);
