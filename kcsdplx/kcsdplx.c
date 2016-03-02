@@ -28,14 +28,15 @@ int main(int argc, char *argv[])
   char *initfile = NULL;
   char *logfile = KCSDPX_LOG;
   char *port = NULL;
+  char *script = NULL;
   struct katcp_dispatch *d;
   int option;
   int status;
   int lfd;
   time_t now;
-  unsigned int p = 0;
+  /* unsigned int p = 0; */
 
-  while ((option = getopt(argc, argv, "fhi:l:p:")) != -1) {
+  while ((option = getopt(argc, argv, "fhi:s:l:p:")) != -1) {
     switch (option) {
       case 'f':
         foreground = 1;
@@ -46,6 +47,9 @@ int main(int argc, char *argv[])
         break;
       case 'i':
         initfile = optarg;
+        break;
+      case 's':
+        script = optarg;
         break;
       case 'l':
         logfile = optarg;
@@ -82,7 +86,7 @@ int main(int argc, char *argv[])
 #endif
 
   /* configure the duplex server */
-  if (config_server_flat_katcp(d, initfile, port) != 0){
+  if (config_server_flat_katcp(d, initfile, script, port) != 0){
     fprintf(stderr, "%s: unable to configure server\n", argv[0]);
     return EX_CONFIG; 
   }
@@ -128,7 +132,8 @@ static void usage(char *app)
   fprintf(stdout, "Usage: %s [-hf] [-i init-file] [-p port]\n", app);
   fprintf(stdout, "-h               this help\n");
   fprintf(stdout, "-f               run in foreground (default is background/daemon)\n");
-  fprintf(stdout, "-i init-file     run init-file containing commands at startup\n");
+  fprintf(stdout, "-i init-file     load init-file which contains katcp commands at startup\n");
+  fprintf(stdout, "-s script        execute script/binary which outputs katcp commands at startup (via stdout)\n");
   fprintf(stdout, "-l log-file      log output to log-file\n");
-  fprintf(stdout, "-p <host:>port   create listener on a given <host:>port - e.g. -p localhost:10000 OR -p 10000\n");
+  fprintf(stdout, "-p <host:>port   create listener on a given <host:>port e.g. -p localhost:10000 OR -p 10000\n");
 }
