@@ -293,6 +293,11 @@ int client_switch_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     }
   }
 
+  if(gx == fx->f_group){
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "client already in group %s", group);
+    return KATCP_RESULT_OK;
+  }
+
   if(switch_group_katcp(d, fx, gx) < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to transfer client to group %s", group);
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);

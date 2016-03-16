@@ -137,8 +137,10 @@ static void usage(char *app)
   fprintf(stdout, "-h               this help\n");
   fprintf(stdout, "-v               print version information\n");
   fprintf(stdout, "-f               run in foreground (default is background/daemon)\n");
-  fprintf(stdout, "-i init-file     load init-file which contains katcp commands at startup\n");
-  fprintf(stdout, "-s script        execute script/binary which outputs katcp commands at startup (via stdout)\n");
-  fprintf(stdout, "-l log-file      log output to log-file\n");
+  fprintf(stdout, "-i init-file     load <init-file> containing katcp commands at startup\n");
+  fprintf(stdout, "-s exe           execute script/binary <exe> at startup\n");
+  fprintf(stdout, "                 pipe connects stdout/stdin of <exe> to kcsdplxd)\n");
+  fprintf(stdout, "                 PATH variable searched if no absolute path given\n");
+  fprintf(stdout, "-l log-file      log output to <log-file>\n");
   fprintf(stdout, "-p <host:>port   create listener on a given <host:>port e.g. -p localhost:10000 OR -p 10000\n");
 }
