@@ -726,6 +726,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     run_notices_katcp(dl);
     run_arb_katcp(dl);
 
+#ifdef KATCP_DEPRECATED
     if(FD_ISSET(s->s_lfd, &(s->s_read))){
       if(s->s_used < s->s_count){
 
@@ -751,6 +752,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
         perforate_client_server_katcp(dl);
       }
     }
+#endif
 
   }
 

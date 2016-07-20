@@ -2,7 +2,7 @@ KATCP ?= ../katcp
 
 include ../Makefile.inc
 
-CFLAGS := $(filter-out -DDEBUG,$(CFLAGS))
+#CFLAGS := $(filter-out -DDEBUG,$(CFLAGS))
 
 GITVER := $(shell git describe --always --tags --dirty 2> /dev/null || echo unknown)
 CPPFLAGS+=-DV_GIT=\"$(GITVER)\"

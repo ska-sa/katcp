@@ -308,7 +308,7 @@ int client_switch_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
 int client_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
-  char *from, *to, *group;
+  char *from, *to, *group, *old;
   struct katcp_flat *fx;
 
   if(argc < 2){
@@ -346,12 +346,20 @@ int client_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     group = NULL;
   }
 
+  old = strndup(from, strlen(from));
+  if (old == NULL){
+  /* non-critical failure but need to handle error case for later usage*/
+  log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "allocation failure (non-critical)");
+  }
+
   if(rename_flat_katcp(d, group, from, to) < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to rename from %s to %s in within %s group", from, to, group ? group : "any");
     return KATCP_RESULT_FAIL;
   }
 
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "instance previously called %s now is %s", from, to);
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "instance previously called %s now is %s", old ? old : "<unknown>", to);
+
+  free(old);
 
   return KATCP_RESULT_OK;
 }

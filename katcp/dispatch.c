@@ -129,6 +129,7 @@ struct katcp_dispatch *setup_katcp(int fd)
     return NULL;
   }
 
+#ifdef KATCP_DEPRECATED
   register_katcp(d, "?halt",              "shuts the system down (?halt)", &halt_cmd_katcp);
   register_katcp(d, "?restart",           "restarts the system (?restart)", &restart_cmd_katcp);
   register_katcp(d, "?help",              "displays this help (?help [command])", &help_cmd_katcp);
@@ -145,6 +146,7 @@ struct katcp_dispatch *setup_katcp(int fd)
   register_katcp(d, "?sensor-limit",      "adjust sensor limits (?sensor-limit [sensor] [min|max] value)", &sensor_limit_cmd_katcp);
 
   register_katcp(d, "?version-list",      "list versions (?version-list)", &version_list_cmd_katcp);
+#endif
 
   return d;
 }

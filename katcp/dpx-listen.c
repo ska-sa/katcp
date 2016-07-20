@@ -220,29 +220,28 @@ struct katcp_arb *create_listen_flat_katcp(struct katcp_dispatch *d, char *name,
     return NULL;
   }
 
-  log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "started listener on %u at %s", port, copy ? copy : "0.0.0.0");
-
   opts = fcntl(fd, F_GETFL, NULL);
   if(opts >= 0){
     opts = fcntl(fd, F_SETFL, opts | O_NONBLOCK);
   }
 
-  if(port == 0){
+/*  if(port == 0){ */
     len = sizeof(struct sockaddr_in);
     if(getsockname(fd, (struct sockaddr *)&sa, &len) < 0){
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to retrieve system selected port: %s", strerror(errno));
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to retrieve socket address info: %s", strerror(errno));
       if(copy){
         free(copy);
       }
       close(fd);
       return NULL;
     }
+
     p = ntohs(sa.sin_port);
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "system selected port %d", p);
-  } else {
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "listening on port %d", p);
+/*  } else {
     p = port;
   }
-
+*/
   fcntl(fd, F_SETFD, FD_CLOEXEC);
 
   kl = allocate_listener_katcp(d);
@@ -255,11 +254,41 @@ struct katcp_arb *create_listen_flat_katcp(struct katcp_dispatch *d, char *name,
     return NULL;
   }
 
+  kl->l_address = (char *) realloc(copy, INET_ADDRSTRLEN);
+  if(kl->l_address == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "memory reallocation failure");
+    if(copy){
+      free(copy);
+    }
+    close(fd);
+    release_listener_katcp(d, kl);
+    return NULL;
+  }
+
+  if(NULL == inet_ntop(AF_INET, &(sa.sin_addr), kl->l_address, INET_ADDRSTRLEN)){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "address assignment failure");
+    if(copy){
+      free(copy);
+    }
+    close(fd);
+    release_listener_katcp(d, kl);
+    return NULL;
+    /*kl->l_address = NULL;*/
+  }
+
   kl->l_group = gx;
   kl->l_port = p;
+
+  log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "created listener <%s> on %s:%u", name, kl->l_address, kl->l_port);
+#ifdef DEBUG
+  fprintf(stderr, "dpx: <%s> listening on %s:%u\n", name, kl->l_address, kl->l_port);
+#endif
+
+#if 0
   if(copy){
     kl->l_address = copy;
   }
+#endif
 
   hold_group_katcp(kl->l_group);
 
