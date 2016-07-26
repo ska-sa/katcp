@@ -16,6 +16,7 @@
 
 #include <katcp.h>
 #include <katcl.h>
+#include <katpriv.h>
 
 #define DEFAULT_LEVEL "info"
 #define IO_INITIAL     1024
@@ -28,6 +29,7 @@ struct totalstate{
 
 struct iostate{
   int i_fd;
+  struct katcl_line *i_line;
   unsigned char *i_buffer;
   unsigned int i_size;
   unsigned int i_have;
@@ -44,6 +46,11 @@ void destroy_iostate(struct iostate *io)
   if(io->i_buffer){
     free(io->i_buffer);
     io->i_buffer = NULL;
+  }
+
+  if(io->i_line){
+    destroy_katcl(io->i_line, 0);
+    io->i_line = NULL;
   }
 
   if(io->i_fd >= 0){
@@ -65,16 +72,27 @@ struct iostate *create_iostate(int fd, int level)
 
   io->i_fd = (-1);
   io->i_buffer = NULL;
+  io->i_line = NULL;
 
-  io->i_buffer = malloc(sizeof(unsigned char) * IO_INITIAL);
-  if(io->i_buffer == NULL){
-    destroy_iostate(io);
-    return NULL;
+  if(level < 0){
+    io->i_line = create_katcl(fd);
+    if(io->i_line == NULL){
+      destroy_iostate(io);
+      return NULL;
+    }
+  } else {
+
+    io->i_buffer = malloc(sizeof(unsigned char) * IO_INITIAL);
+    if(io->i_buffer == NULL){
+      destroy_iostate(io);
+      return NULL;
+    }
+
+    io->i_size = IO_INITIAL;
   }
 
   io->i_fd = fd;
 
-  io->i_size = IO_INITIAL;
   io->i_have = 0;
   io->i_done = 0;
   io->i_level = level;
@@ -84,86 +102,107 @@ struct iostate *create_iostate(int fd, int level)
 
 int run_iostate(struct totalstate *ts, struct iostate *io, struct katcl_line *k)
 {
-  int rr, end, fd, sw;
+  int rr, end, fd, sw, pr;
   unsigned char *tmp;
+  char *request;
   unsigned int may, i;
+  struct katcl_parse *px;
 
-  if(io->i_have >= io->i_size){
-    tmp = realloc(io->i_buffer, sizeof(unsigned char) * io->i_size * 2);
-    if(tmp == NULL){
-      return -1;
-    }
+  if(io->i_line != NULL){
+    end = read_katcl(io->i_line);
 
-    io->i_buffer = tmp;
-    io->i_size *= 2;
-  }
-
-  may = io->i_size - io->i_have;
-  end = 0;
-
-  rr = read(io->i_fd, io->i_buffer, may);
-  if(rr <= 0){
-    if(rr < 0){
-      switch(errno){
-        case EAGAIN :
-        case EINTR  :
-          return 1;
-        default :
-          /* what about logging this ... */
-          return -1;
-      }
-    } else {
-      io->i_buffer[io->i_have] = '\n';
-      io->i_have++;
-      end = 1;
-    } 
-  }
-
-  io->i_have += rr;
-
-  for(i = io->i_done; i < io->i_have; i++){
-    switch(io->i_buffer[i]){
-      case '\r' :
-      case '\n' :
-        io->i_buffer[i] = '\0';
-        if(io->i_done < i){
-#ifdef DEBUG
-          fprintf(stderr, "considering <%s> (infer=%d)\n", io->i_buffer + io->i_done, ts->t_infer);
-#endif
-          if((ts->t_infer > 0) && (strncmp(io->i_buffer + io->i_done, KATCP_LOG_INFORM " ", 5) == 0)){
-
-            if(flushing_katcl(k)){
-              while(write_katcl(k) == 0);
-            }
-
-            fd = fileno_katcl(k);
-            io->i_buffer[i] = '\n';
-            sw = i - io->i_done + 1;
-            write(fd, io->i_buffer + io->i_done, sw);
-#ifdef DEBUG
-            fprintf(stderr, "attempting raw relay to fd=%d of %d bytes\n", fd, sw);
-#endif
-          } else {
-            log_message_katcl(k, io->i_level, ts->t_system, "%s", io->i_buffer + io->i_done);
+    while((pr = parse_katcl(io->i_line)) > 0){
+      px = ready_katcl(io->i_line);
+      if(px){
+        request = get_string_parse_katcl(px, 0);
+        if(request){
+          if(!strcmp(request, KATCP_LOG_INFORM)){
+            append_parse_katcl(k, px);
           }
         }
-        io->i_done = i + 1;
-        break;
-      default :
-        /* do nothing ... */
-        break;
-    }
-  }
-  
-  if(io->i_done < io->i_have){
-    if(io->i_done > 0){
-      memmove(io->i_buffer, io->i_buffer + io->i_done, io->i_have - io->i_done);
-      io->i_have -= io->i_done;
-      io->i_done = 0;
+      }
+
+      clear_katcl(io->i_line);
     }
   } else {
-    io->i_have = 0;
-    io->i_done = 0;
+
+    if(io->i_have >= io->i_size){
+      tmp = realloc(io->i_buffer, sizeof(unsigned char) * io->i_size * 2);
+      if(tmp == NULL){
+        return -1;
+      }
+
+      io->i_buffer = tmp;
+      io->i_size *= 2;
+    }
+
+    may = io->i_size - io->i_have;
+    end = 0;
+
+    rr = read(io->i_fd, io->i_buffer, may);
+    if(rr <= 0){
+      if(rr < 0){
+        switch(errno){
+          case EAGAIN :
+          case EINTR  :
+            return 1;
+          default :
+            /* what about logging this ... */
+            return -1;
+        }
+      } else {
+        io->i_buffer[io->i_have] = '\n';
+        io->i_have++;
+        end = 1;
+      } 
+    }
+
+    io->i_have += rr;
+
+    for(i = io->i_done; i < io->i_have; i++){
+      switch(io->i_buffer[i]){
+        case '\r' :
+        case '\n' :
+          io->i_buffer[i] = '\0';
+          if(io->i_done < i){
+#ifdef DEBUG
+            fprintf(stderr, "considering <%s> (infer=%d)\n", io->i_buffer + io->i_done, ts->t_infer);
+#endif
+            if((ts->t_infer > 0) && (strncmp(io->i_buffer + io->i_done, KATCP_LOG_INFORM " ", 5) == 0)){
+
+              if(flushing_katcl(k)){
+                while(write_katcl(k) == 0);
+              }
+
+              fd = fileno_katcl(k);
+              io->i_buffer[i] = '\n';
+              sw = i - io->i_done + 1;
+              write(fd, io->i_buffer + io->i_done, sw);
+#ifdef DEBUG
+              fprintf(stderr, "attempting raw relay to fd=%d of %d bytes\n", fd, sw);
+#endif
+            } else {
+              log_message_katcl(k, io->i_level, ts->t_system, "%s", io->i_buffer + io->i_done);
+            }
+          }
+          io->i_done = i + 1;
+          break;
+        default :
+          /* do nothing ... */
+          break;
+      }
+    }
+
+    if(io->i_done < io->i_have){
+      if(io->i_done > 0){
+        memmove(io->i_buffer, io->i_buffer + io->i_done, io->i_have - io->i_done);
+        io->i_have -= io->i_done;
+        io->i_done = 0;
+      }
+    } else {
+      io->i_have = 0;
+      io->i_done = 0;
+    }
   }
 
   return end ? 1 : 0;
@@ -378,10 +417,14 @@ int main(int argc, char **argv)
                 abort();
               }
 #endif
-              levels[index] = log_to_code_katcl(tmp);
-              if(levels[index] < 0){
-                sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unknown log level %s", tmp);
-                levels[index] = KATCP_LEVEL_FATAL;
+              if(!strcmp(tmp, "auto")){
+                levels[index] = (-1);
+              } else {
+                levels[index] = log_to_code_katcl(tmp);
+                if(levels[index] < 0){
+                  sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unknown log level %s", tmp);
+                  levels[index] = KATCP_LEVEL_FATAL;
+                }
               }
               break;
             case 's' :
