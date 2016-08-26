@@ -243,7 +243,7 @@ int client_halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     fx = require_flat_katcp(d);
   }
 
-  if(terminate_flat_katcp(d, fx) == 0){
+  if(terminate_flat_katcp(d, fx) < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to terminate client");
     return KATCP_RESULT_FAIL;
   }
@@ -346,22 +346,27 @@ int client_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     group = NULL;
   }
 
-  old = strndup(from, strlen(from));
-  if (old == NULL){
-  /* non-critical failure but need to handle error case for later usage*/
-  log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "allocation failure (non-critical)");
-  }
+  if (from){
+    old = strndup(from, strlen(from));
 
-  if(rename_flat_katcp(d, group, from, to) < 0){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to rename from %s to %s in within %s group", from, to, group ? group : "any");
+    if (old == NULL){
+      /* non-critical failure but need to handle error case for later usage*/
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "allocation failure (non-critical)");
+    }
+
+    if(rename_flat_katcp(d, group, from, to) < 0){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to rename from %s to %s within %s group", from, to, group ? group : "any");
+      return KATCP_RESULT_FAIL;
+    }
+
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "instance previously called %s now is %s", old ? old : "<unknown>", to);
+    free(old);
+    return KATCP_RESULT_OK;
+
+  } else {
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "this client does not have a valid current name and cannot proceed");
     return KATCP_RESULT_FAIL;
   }
-
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "instance previously called %s now is %s", old ? old : "<unknown>", to);
-
-  free(old);
-
-  return KATCP_RESULT_OK;
 }
 
 /* group related commands *********************************************************/

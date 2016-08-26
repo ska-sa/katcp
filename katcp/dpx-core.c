@@ -1845,6 +1845,10 @@ static struct katcp_flat *search_name_flat_katcp(struct katcp_dispatch *d, char 
     gr = gx;
   }
 
+#ifdef DEBUG
+  fprintf(stderr, "search: attempting to find flat %s in group %s [%p]\n", name, gr->g_name, gr);
+#endif
+
   if(gr){
     for(i = 0; i < gr->g_count; i++){
       fx = gr->g_flats[i];
@@ -2295,6 +2299,13 @@ int rename_flat_katcp(struct katcp_dispatch *d, char *group, char *was, char *sh
   if((was == NULL) || (should == NULL)){
     fprintf(stderr, "dpx: usage problem - rename needs valid parameters\n");
     abort();
+  }
+#endif
+
+#if KATCP_EXPERIMENTAL == 2
+  if(find_name_flat_katcp(d, group, should, 1)){  /*limit = 1 i.e. limit search to group scope*/
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "entry %s already exists", should);
+    return -1;
   }
 #endif
 
@@ -3980,6 +3991,8 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
 #ifndef KATCP_DEPRECATED
     add_full_cmd_map_katcp(m, "system-info", "report server information (?system-info)", 0, &system_info_cmd_katcp, NULL, NULL);
 #endif
+
+    add_full_cmd_map_katcp(m, "whoami", "get current connection name (?whoami)", 0, &whoami_group_cmd_katcp, NULL, NULL);
 
   } else {
     m = gx->g_maps[KATCP_MAP_REMOTE_REQUEST];

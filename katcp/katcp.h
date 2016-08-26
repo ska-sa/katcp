@@ -751,6 +751,7 @@ int log_override_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int help_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int client_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int watchdog_group_cmd_katcp(struct katcp_dispatch *d, int argc);
+int whoami_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 int listen_duplex_cmd_katcp(struct katcp_dispatch *d, int argc);
 int list_duplex_cmd_katcp(struct katcp_dispatch *d, int argc);

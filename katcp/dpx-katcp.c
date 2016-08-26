@@ -345,6 +345,41 @@ int watchdog_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 }
 
+/*whoami*/
+
+int whoami_group_cmd_katcp(struct katcp_dispatch *d, int argc)
+{
+  struct katcp_flat *fx;
+
+  fx = this_flat_katcp(d);
+  if (fx == NULL){
+#ifdef KATCP_CONSISTENCY_CHECKS
+    fprintf(stderr, "whoami: major logic problem: no handle to current connection\n");
+    abort();
+#endif
+    /* potentially serious error - why don't we have a valid handle on connection */
+    log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "no handle to current connection");
+#ifdef DEBUG
+    fprintf(stderr, "whoami: null pointer to connection - potentially dangerous\n");
+#endif
+    return KATCP_RESULT_FAIL;
+  }
+
+  /* is the flat named ?*/
+
+  if (fx->f_name == NULL){
+  /* flat was created with no name */
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "this client has no name and will not show up in client list");
+  }
+
+  extra_response_katcp(d, KATCP_RESULT_OK, fx->f_name ? fx->f_name : "<unnamed party>");
+#ifdef DEBUG
+  fprintf(stderr, "whoami: %s\n", fx->f_name ? fx->f_name : "<unnamed party>");
+#endif
+
+  return KATCP_RESULT_OWN;
+}
+
 /* client list */
 
 static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, char *name)

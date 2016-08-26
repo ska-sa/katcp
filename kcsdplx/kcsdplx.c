@@ -104,9 +104,9 @@ int main(int argc, char *argv[])
 
   /* all stderr ouput will be logged to file ; parent closed */
   if (!foreground){
-    lfd = open(logfile, O_WRONLY | O_APPEND | O_CREAT | O_NOCTTY, S_IWUSR | S_IRUSR | S_IRGRP | S_IWGRP);
+    lfd = open(logfile, O_WRONLY | O_APPEND | O_CREAT | O_TRUNC | O_NOCTTY, S_IWUSR | S_IRUSR | S_IRGRP | S_IWGRP);
     if (lfd < 0){
-      fprintf(stderr,"%s: unable to open %s: %s\n",argv[0], KCSDPX_LOG, strerror(errno));
+      fprintf(stderr,"%s: unable to open %s: %s\n",argv[0], logfile, strerror(errno));
       fflush(stderr);
       return EX_CANTCREAT;
     } else {
