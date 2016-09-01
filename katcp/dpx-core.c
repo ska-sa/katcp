@@ -4133,6 +4133,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "sensor-status", "handle sensor updates (#sensor-status timestamp 1 name status value)", 0, &sensor_status_group_info_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "sensor-list", "handle sensor definitions (#sensor-list name description units type [range])", KATCP_MAP_FLAG_GREEDY, &sensor_list_group_info_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "version-connect", "handle version definitions (#version-connect name version build)", KATCP_MAP_FLAG_GREEDY, &version_group_info_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "version-list", "handle version definitions (#version-lis name version build)", KATCP_MAP_FLAG_GREEDY, &version_group_info_katcp, NULL, NULL);
   }
 
   if(gx->g_maps[KATCP_MAP_INNER_INFORM] == NULL){

@@ -89,7 +89,7 @@ int client_exec_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
 int client_connect_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
-  char *client, *group;
+  char *client, *group, *name;
   struct katcp_group *gx;
   int fd;
 
@@ -119,6 +119,14 @@ int client_connect_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     gx = this_group_katcp(d);
   }
 
+  name = NULL;
+  if(argc > 3){
+    name = arg_string_katcp(d, 3);
+  }
+  if(name == NULL){
+    name = client;
+  }
+
   fd = net_connect(client, 0, NETC_ASYNC);
   if(fd < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to initiate connection to %s: %s", client, errno ? strerror(errno) : "unknown error");
@@ -127,7 +135,7 @@ int client_connect_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   fcntl(fd, F_SETFD, FD_CLOEXEC);
 
-  if(create_flat_katcp(d, fd, KATCP_FLAT_CONNECTING | KATCP_FLAT_TOSERVER | KATCP_FLAT_PREFIXED, client, gx) == NULL){
+  if(create_flat_katcp(d, fd, KATCP_FLAT_CONNECTING | KATCP_FLAT_TOSERVER | KATCP_FLAT_PREFIXED, name, gx) == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to allocate client connection");
     close(fd);
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);

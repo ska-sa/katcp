@@ -1526,7 +1526,7 @@ char *type_to_string_vrbl_katcp(struct katcp_dispatch *d, unsigned int type)
 
 /* WARNING: order important, needs to correspond to bit position */
 
-static char *flag_lookup_vrbl[] = { "environment",  "version", "sensor", "fluid", "hidden", "readonly", NULL };
+static char *flag_lookup_vrbl[] = { "environment",  "version", "sensor", "fluid", "hidden", "readonly", "special", NULL };
 
 unsigned int flag_from_string_vrbl_katcp(struct katcp_dispatch *d, char *string)
 {

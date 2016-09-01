@@ -450,6 +450,7 @@ struct katcp_arb{
 #define KATCP_VRF_FLX   0x08  /* type can change */
 #define KATCP_VRF_HID   0x10  /* hidden */
 #define KATCP_VRF_ROM   0x20  /* no overwrite */
+#define KATCP_VRF_SPE   0x40  /* special variable - still unused */
 
 #define KATCP_MASK_VRF  0x1f  /* mask of all flags */
 
