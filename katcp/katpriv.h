@@ -9,6 +9,10 @@
 
 #include <avltree.h>
 
+#if KATCP_EXPERIMENTAL == 2
+#include <heap.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -740,6 +744,10 @@ struct katcp_shared{
   struct katcp_time **s_queue;
   unsigned int s_length;
 
+#if KATCP_EXPERIMENTAL == 2
+  struct heap *s_tmr_heap;
+#endif
+
   struct katcp_arb **s_extras;
   unsigned int s_total;
 
@@ -952,6 +960,12 @@ char *default_message_type_katcm(char *string, int type);
 int empty_timers_katcp(struct katcp_dispatch *d);
 int run_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
 void dump_timers_katcp(struct katcp_dispatch *d);
+
+#if KATCP_EXPERIMENTAL == 2
+int load_heap_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
+int run_heap_timers_katcp(struct katcp_dispatch *d);
+int empty_heap_timers_katcp(struct katcp_dispatch *d);
+#endif
 
 /* nonsense support */
 void forget_nonsense_katcp(struct katcp_dispatch *d, unsigned int index);

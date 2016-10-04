@@ -569,13 +569,14 @@ int prepare_core_loop_katcp(struct katcp_dispatch *dl)
 int run_core_loop_katcp(struct katcp_dispatch *dl)
 {
 #define LABEL_BUFFER 32
-  int run, nfd, result, suspend;
-  unsigned int len;
-  struct sockaddr_in sa;
+  /* int nfd; */
+  int run, result, suspend;
+  /* unsigned int len; */
+  /* struct sockaddr_in sa; */
   struct timespec delta;
   struct katcp_shared *s;
-  char label[LABEL_BUFFER];
-  long opts;
+  /* char label[LABEL_BUFFER]; */
+  /* long opts; */
 
   s = dl->d_shared;
 
@@ -597,7 +598,11 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 
     s->s_max = (-1);
 
-    suspend = run_timers_katcp(dl, &delta);
+#if KATCP_EXPERIMENTAL == 2
+    suspend = load_heap_timers_katcp(dl, &delta);
+#else
+    //suspend = run_timers_katcp(dl, &delta);
+#endif
 
 #ifdef KATCP_SUBPROCESS
     load_jobs_katcp(dl);
@@ -666,7 +671,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     if(suspend){
       fprintf(stderr, "multi: selecting indefinitely\n");
     } else {
-      fprintf(stderr, "multi: selecting for %lu.%lu\n", delta.tv_sec, delta.tv_nsec);
+      fprintf(stderr, "multi: selecting for %lu.%09lu\n", delta.tv_sec, delta.tv_nsec);
     }
 #endif
 
@@ -712,6 +717,10 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
       log_message_katcp(dl, KATCP_LEVEL_INFO, NULL, "server terminated by signal");
       run = (-1);
     }
+
+#if KATCP_EXPERIMENTAL == 2
+    run_heap_timers_katcp(dl);
+#endif
 
 #ifdef KATCP_EXPERIMENTAL
     run_flat_katcp(dl);

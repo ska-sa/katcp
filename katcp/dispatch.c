@@ -1577,7 +1577,7 @@ int log_message_katcp(struct katcp_dispatch *d, unsigned int priority, char *nam
     prefix = name;
   } else {
     e = &(s->s_vector[s->s_mode]);
-    if(e->e_name){
+    if ((e) && (e->e_name)){
       prefix = e->e_name;
     } else {
       /* WARNING: not the most elegant option ... */

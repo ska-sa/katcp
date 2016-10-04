@@ -8,6 +8,10 @@
 #include "katcp.h"
 #include "katpriv.h"
 
+#if KATCP_EXPERIMENTAL == 2
+#include "heap.h"
+#endif
+
 #define TS_MAGIC 0x01020811
 
 /* attempt to do stuff within 5ms */
@@ -95,6 +99,18 @@ static struct katcp_time *find_ts_katcp(struct katcp_dispatch *d, void *data)
 
   return NULL;
 }
+
+
+#if 0
+#if KATCP_EXPERIMENTAL == 2
+static struct katcp_time *find_heaped_ts_by_name_katcp(struct katcp_dispatch *d, void *data){
+
+
+  return NULL;
+}
+#endif
+#endif
+
 
 static int append_ts_katcp(struct katcp_dispatch *d, struct katcp_time *ts)
 {
@@ -528,3 +544,402 @@ int run_timers_katcp(struct katcp_dispatch *d, struct timespec *interval)
 
   return 0;
 }
+
+
+#if KATCP_EXPERIMENTAL == 2
+
+/* heap timer infrastructure ***************************************************/
+
+int load_heap_timers_katcp(struct katcp_dispatch *d, struct timespec *interval){
+  struct heap *th;
+  struct katcp_shared *s;
+  struct katcp_time *ts;
+  struct timeval now, delta;
+
+  if (NULL == d){
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (load): no dispatch state\n");
+#endif
+    return (-1);
+  }
+
+  s = d->d_shared;
+  if(NULL == s){
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (load): no shared state\n");
+#endif
+    return (-1);
+  }
+
+  th = s->s_tmr_heap;
+  if (NULL == th){
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (load): no heap timer state\n");
+#endif
+    return 1; /* not necessarily an error (-1), might be that there's nothing scheduled, return 1*/
+  }
+
+  ts = get_top_of_heap(th);
+  if (NULL == ts){
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (load): unable to get timer node off heap\n");
+#endif
+    return (-1);
+  }
+
+  if (0 == ts->t_armed){
+    remove_top_of_heap(th);
+    return 1;
+  }
+
+  gettimeofday(&now, NULL);
+
+  sub_time_katcp(&delta, &(ts->t_when), &now);
+
+#ifdef DEBUG
+  fprintf(stderr, "heap timer (load): scheduled time is %lu.%06lus for %p\n", ts->t_when.tv_sec, ts->t_when.tv_usec, ts);
+  fprintf(stderr, "heap timer (load): delta is %lu.%06lus\n", delta.tv_sec, delta.tv_usec);
+#endif
+
+  interval->tv_sec = delta.tv_sec;
+  interval->tv_nsec = delta.tv_usec * 1000;
+
+  return 0;
+}
+
+
+int run_heap_timers_katcp(struct katcp_dispatch *d){
+  struct heap *th;
+  struct katcp_shared *s;
+  struct katcp_time *ts;
+  struct timeval now, delta, deadline;
+
+  if (NULL == d){
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (run): no dispatch state\n");
+#endif
+    return (-1);
+  }
+
+  s = d->d_shared;
+  if(NULL == s){
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (run): no shared state\n");
+#endif
+    return (-1);
+  }
+
+  th = s->s_tmr_heap;
+  if (NULL == th){
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (run): no heap timer state\n");
+#endif
+    return 1; /* not necessarily an error (-1), might be that there's nothing scheduled, return 1*/
+  }
+
+  ts = get_top_of_heap(th);
+  if (NULL == ts){
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (run): unable to get timer node off heap\n");
+#endif
+    return (-1);
+  }
+
+  if (0 == ts->t_armed){
+    remove_top_of_heap(th);
+    return 1;
+  }
+
+  /* TODO: Are we shutting down? - free heap and all related infrastructure - place in shutdown_katcp call path */
+
+  gettimeofday(&now, NULL);
+
+  delta.tv_sec = 0;
+  delta.tv_usec = KATCP_DEFAULT_DEADLINE;
+  sub_time_katcp(&deadline, &now, &delta);
+
+  /* if when > now, do nothing */
+  if (cmp_time_katcp(&(ts->t_when), &now) > 0){
+    return 1;
+  }
+
+  /* reaches here if "when <= now" i.e. deadline missed*/
+#ifdef DEBUG
+  if (cmp_time_katcp(&(ts->t_when), &deadline) <= 0){
+    fprintf(stderr, "heap timer (run): missed deadline: scheduled=%lu.%06lus actual=%lu.%06lus for %p\n", ts->t_when.tv_sec, ts->t_when.tv_usec, now.tv_sec, now.tv_usec, ts);
+  }
+#endif
+
+  (*(ts->t_call))(d, ts->t_data);
+
+  if ((0 == ts->t_interval.tv_sec) && (0 == ts->t_interval.tv_usec)){
+    ts->t_armed = 0;
+    remove_top_of_heap(th);
+  } else {
+    gettimeofday(&now, NULL);   /* call gettimeofday again because system calls could have happened since previous call e.g. in user callback ts->t_call*/
+    add_time_katcp(&(ts->t_when), &(ts->t_when), &(ts->t_interval));
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (run): next deadline is %lu.%06lus for %p\n", ts->t_when.tv_sec, ts->t_when.tv_usec, ts);
+#endif
+    update_top_of_heap(th, ts);
+  }
+
+  return 0;
+}
+
+
+static int cmp_heap_timers_katcp(void *xts, void *yts){
+  int i;
+
+  i = cmp_time_katcp(&(((struct katcp_time *)xts)->t_when), &(((struct katcp_time *)yts)->t_when));
+
+  return (i == (-1) ? 1 : 0);
+}
+
+
+int register_heap_timer_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data){
+  struct katcp_shared *s;
+  struct katcp_time *ts;
+  struct heap *th;
+
+  if (NULL == d){
+#if DEBUG
+    fprintf(stderr, "heap timer (register at tv): no dispatch state\n");
+#endif
+    return (-1);
+  }
+
+  s = d->d_shared;
+  if (NULL == s){
+#if DEBUG
+    fprintf(stderr, "heap timer (register at tv): no shared state\n");
+#endif
+    return (-1);
+  }
+
+  if (NULL == tv){
+#if DEBUG
+    fprintf(stderr, "heap timer (register at tv): no tv state\n");
+#endif
+    return (-1);
+  }
+
+  th = s->s_tmr_heap;
+  if (NULL == th){
+    th = init_heap(&cmp_heap_timers_katcp, NULL);
+    if (NULL == th){
+      return (-1);
+    }
+    s->s_tmr_heap = th;
+  }
+
+  ts = create_ts_katcp(call, data);
+  if(ts == NULL){
+    return (-1);
+  }
+
+  ts->t_interval.tv_sec = 0;
+  ts->t_interval.tv_usec = 0;
+
+  ts->t_when.tv_sec = tv->tv_sec;
+  ts->t_when.tv_usec = tv->tv_usec;
+
+  ts->t_armed = 1;
+
+  if (add_to_heap(th, 1, ts)){
+    destroy_ts_katcp(d, ts);
+    return (-1);
+  }
+
+  return 0;
+}
+
+
+int register_heap_timer_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data){
+  struct katcp_shared *s;
+  struct katcp_time *ts;
+  struct heap *th;
+  struct timeval now;
+
+  if (NULL == d){
+#if DEBUG
+    fprintf(stderr, "heap timer (register in tv): no dispatch state\n");
+#endif
+    return (-1);
+  }
+
+  s = d->d_shared;
+  if (NULL == s){
+#if DEBUG
+    fprintf(stderr, "heap timer (register in tv): no shared state\n");
+#endif
+    return (-1);
+  }
+
+  if (NULL == tv){
+#if DEBUG
+    fprintf(stderr, "heap timer (register in tv): no tv state\n");
+#endif
+    return (-1);
+  }
+
+  th = s->s_tmr_heap;
+  if (NULL == th){
+    th = init_heap(cmp_heap_timers_katcp, NULL);
+    if (NULL == th){
+      return (-1);
+    }
+    s->s_tmr_heap = th;
+  }
+
+  ts = create_ts_katcp(call, data);
+  if(ts == NULL){
+    return (-1);
+  }
+
+  ts->t_interval.tv_sec = 0;
+  ts->t_interval.tv_usec = 0;
+
+  gettimeofday(&now, NULL);
+
+  add_time_katcp(&(ts->t_when), &now, tv);
+
+  ts->t_armed = 1;
+
+  if (add_to_heap(th, 1, ts)){
+    destroy_ts_katcp(d, ts);
+    return (-1);
+  }
+
+  return 0;
+}
+
+
+int register_heap_timer_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data){
+  struct katcp_shared *s;
+  struct katcp_time *ts;
+  struct heap *th;
+  struct timeval now;
+
+  if (NULL == d){
+#if DEBUG
+    fprintf(stderr, "heap timer (register every tv): no dispatch state\n");
+#endif
+    return (-1);
+  }
+
+  s = d->d_shared;
+  if (NULL == s){
+#if DEBUG
+    fprintf(stderr, "heap timer (register every tv): no shared state\n");
+#endif
+    return (-1);
+  }
+
+  if (NULL == tv){
+#if DEBUG
+    fprintf(stderr, "heap timer (register every tv): no tv state\n");
+#endif
+    return (-1);
+  }
+
+  th = s->s_tmr_heap;
+  if (NULL == th){
+    th = init_heap(cmp_heap_timers_katcp, NULL);
+    if (NULL == th){
+      return (-1);
+    }
+    s->s_tmr_heap = th;
+  }
+
+  ts = create_ts_katcp(call, data);
+  if(ts == NULL){
+    return (-1);
+  }
+
+
+  ts->t_interval.tv_sec = tv->tv_sec;
+  ts->t_interval.tv_usec = tv->tv_usec;
+
+  gettimeofday(&now, NULL);
+
+  add_time_katcp(&(ts->t_when), &now, tv);
+
+  ts->t_armed = 1;
+
+  if (add_to_heap(th, 1, ts)){
+    destroy_ts_katcp(d, ts);
+    return (-1);
+  }
+
+  return 0;
+}
+
+
+int register_heap_timer_every_ms_katcp(struct katcp_dispatch *d, unsigned int milli, int (*call)(struct katcp_dispatch *d, void *data), void *data){
+  struct timeval tv;
+
+  tv.tv_sec = milli / 1000;
+  tv.tv_usec = (milli % 1000) * 1000;
+
+  return register_heap_timer_every_tv_katcp(d, &tv, call, data);
+}
+
+
+int empty_heap_timers_katcp(struct katcp_dispatch *d){
+  int i, size;
+  struct heap *th;
+  struct katcp_shared *s;
+  struct katcp_time *ts;
+
+  if (NULL == d){
+#if DEBUG
+    fprintf(stderr, "heap timer (empty): no dispatch state\n");
+#endif
+    return (-1);
+  }
+
+  s = d->d_shared;
+  if (NULL == s){
+#if DEBUG
+    fprintf(stderr, "heap timer (empty): no shared state\n");
+#endif
+    return (-1);
+  }
+
+  th = s->s_tmr_heap;
+  if (NULL == th){
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (empty): no heap timer state\n");
+#endif
+    return 0;
+  }
+
+  /* destroy ts objects */
+  size = get_size_of_heap(th);
+#ifdef DEBUG
+  fprintf(stderr, "heap timer (empty): attempting to empty %d %s\n", size, size == 1 ? "timer" : "timers");
+#endif
+  for (i = 0; i < size; i++){
+    ts = get_data_ref_by_index_heap(th, i);
+    if (NULL == ts){
+#ifdef DEBUG
+      fprintf(stderr, "heap timer (empty): no valid data state at heap index %d\n", i);
+#endif
+    } else {
+      //ts->t_armed = 0;
+      destroy_ts_katcp(d, ts);
+#ifdef DEBUG
+      fprintf(stderr, "heap timer (empty): destroyed timer <%p> linked to heap index %d\n", ts, i);
+#endif
+    }
+  }
+
+  /* destroy heap */
+  destroy_heap(th);
+  s->s_tmr_heap = NULL;
+
+  return 0;
+}
+
+#endif
