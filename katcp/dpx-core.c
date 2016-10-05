@@ -3769,7 +3769,11 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
     log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d (%s) is current %s mode", s->s_mode,  s->s_vector[s->s_mode].e_name ? s->s_vector[s->s_mode].e_name : "UNKNOWN", s->s_flaky ? "failed" : "ok");
   }
 
+#if KATCP_EXPERIMENTAL == 2
+  display_heap_timers_katcp(d);
+#else
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", s->s_length, (s->s_length == 1) ? "timer" : "timers");
+#endif
 
   return KATCP_RESULT_OK;
 #undef BUFFER

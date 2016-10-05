@@ -601,7 +601,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 #if KATCP_EXPERIMENTAL == 2
     suspend = load_heap_timers_katcp(dl, &delta);
 #else
-    //suspend = run_timers_katcp(dl, &delta);
+    suspend = run_timers_katcp(dl, &delta);
 #endif
 
 #ifdef KATCP_SUBPROCESS

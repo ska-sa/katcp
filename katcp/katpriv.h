@@ -965,6 +965,7 @@ void dump_timers_katcp(struct katcp_dispatch *d);
 int load_heap_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
 int run_heap_timers_katcp(struct katcp_dispatch *d);
 int empty_heap_timers_katcp(struct katcp_dispatch *d);
+int display_heap_timers_katcp(struct katcp_dispatch *d);
 #endif
 
 /* nonsense support */
