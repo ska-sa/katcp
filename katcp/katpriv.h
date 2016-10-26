@@ -35,7 +35,11 @@ extern "C" {
 
 /***************************************************************************/
 
-struct katcl_byte_bit;
+struct katcl_byte_bit{
+  unsigned long b_byte;
+  unsigned char b_bit;
+  unsigned char b_align;
+};
 
 struct katcl_larg{
   unsigned int a_begin;

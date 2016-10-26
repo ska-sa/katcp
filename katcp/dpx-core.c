@@ -2980,7 +2980,7 @@ int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer,
   if(slot >= KATCP_SIZE_REPLY){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "resource problem: no free reply handler slots (%u in use) in client %s for callback %s", slot, fx->f_name, ptr);
 #ifdef KATCP_CONSISTENCY_CHECKS
-    fprintf(stderr, "problem: no free callback slots\n");
+    fprintf(stderr, "problem: no free callback slots in task %s for callback %s\n", fx->f_name, ptr);
 #endif
     return -1;
   }
@@ -4067,7 +4067,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "client-list", "display currently connected clients (?client-list)", 0, &client_list_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-rename", "rename a client (?client-rename new-name [old-name [group]])", 0, &client_rename_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-halt", "stop a client (?client-halt [name [group]])", 0, &client_halt_group_cmd_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "client-connect", "create a client to a remote host (?client-connect host:port [group])", 0, &client_connect_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "client-connect", "create a client to a remote host (?client-connect host:port [group [name]])", 0, &client_connect_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "?client-exec", "create a client to a local process (?client-exec label [group [binary [args]*])", 0, &client_exec_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config option [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-switch", "set a client option (?client-switch group [client])", 0, &client_switch_group_cmd_katcp, NULL, NULL);
@@ -4133,7 +4133,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "sensor-status", "handle sensor updates (#sensor-status timestamp 1 name status value)", 0, &sensor_status_group_info_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "sensor-list", "handle sensor definitions (#sensor-list name description units type [range])", KATCP_MAP_FLAG_GREEDY, &sensor_list_group_info_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "version-connect", "handle version definitions (#version-connect name version build)", KATCP_MAP_FLAG_GREEDY, &version_group_info_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "version-list", "handle version definitions (#version-lis name version build)", KATCP_MAP_FLAG_GREEDY, &version_group_info_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "version-list", "handle version definitions (#version-list name version build)", KATCP_MAP_FLAG_GREEDY, &version_group_info_katcp, NULL, NULL);
   }
 
   if(gx->g_maps[KATCP_MAP_INNER_INFORM] == NULL){

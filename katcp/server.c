@@ -653,7 +653,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     if(suspend){
       fprintf(stderr, "multi: selecting indefinitely\n");
     } else {
-      fprintf(stderr, "multi: selecting for %lu.%lu\n", delta.tv_sec, delta.tv_nsec);
+      fprintf(stderr, "multi: selecting for %lu.%09lu\n", delta.tv_sec, delta.tv_nsec);
     }
 #endif
 
