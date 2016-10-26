@@ -620,6 +620,7 @@ struct katcp_response_handler{
   struct katcp_endpoint *r_issuer;
   struct katcp_endpoint *r_recipient;
   struct katcl_parse *r_initial;
+  struct timeval r_when;
 };
 
 #define KATCP_SIZE_REPLY         2

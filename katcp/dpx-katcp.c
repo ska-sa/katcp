@@ -355,16 +355,15 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   char *ptr;
   struct katcp_group *gx;
   struct katcp_shared *s;
-  time_t now;
   char buffer[BUFFER];
+  struct katcp_response_handler *rh;
+  unsigned int i;
+  struct timeval now, delta;
 
   s = d->d_shared;
   if(s == NULL){
     return KATCP_RESULT_FAIL;
   }
-
-  time(&now);
-  print_time_delta_katcm(buffer, BUFFER, now - s->s_start);
 
   if(fx->f_name == NULL){
     return 0;
@@ -396,6 +395,17 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   }
 
   result += r;
+
+  gettimeofday(&now, NULL);
+
+  print_time_delta_katcm(buffer, BUFFER, now.tv_sec - s->s_start);
+
+#if KATCP_PROTOCOL_MAJOR_VERSION >= 5
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu", fx->f_name, s->s_start); 
+#else
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu000", fx->f_name, s->s_start); 
+#endif  
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has been running for %s", fx->f_name, buffer);
 
   ptr = log_to_string_katcl(fx->f_log_level);
   if(ptr){
@@ -447,6 +457,14 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
 
   log_message_katcp(d, ((fx->f_max_defer > 0) ? KATCP_LEVEL_WARN : KATCP_LEVEL_INFO) | KATCP_LEVEL_LOCAL, NULL, "client %s has had a maximum of %d requests outstanding", fx->f_name, fx->f_max_defer);
 
+  for(i = 0; i < KATCP_SIZE_REPLY; i++){
+    rh = &(fx->f_replies[i]);
+    if(rh->r_reply != NULL){
+      sub_time_katcp(&delta, &now, &(rh->r_when));
+      log_message_katcp(d, (rh->r_message ? KATCP_LEVEL_INFO : KATCP_LEVEL_ERROR) | KATCP_LEVEL_LOCAL, NULL, "client %s has request %u queued for %s issued %lu.%06lus ago", fx->f_name, i, rh->r_message ? rh->r_message : "<UNKNOWN>", delta.tv_sec, delta.tv_usec);
+    }
+  }
+
   if(flushing_katcl(fx->f_line)){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has output pending", fx->f_name);
   }
@@ -464,16 +482,6 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   if(flushing_katcl(fx->f_line)){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has output pending", fx->f_name);
   }
-
-  time(&now);
-  print_time_delta_katcm(buffer, BUFFER, now - s->s_start);
-
-#if KATCP_PROTOCOL_MAJOR_VERSION >= 5
-  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu", fx->f_name, s->s_start); 
-#else
-  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu000", fx->f_name, s->s_start); 
-#endif  
-  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has been running for %s", fx->f_name, buffer);
 
 
   return result;

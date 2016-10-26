@@ -2912,6 +2912,7 @@ int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer,
   char *tmp, *ptr;
   unsigned int actual, len, i, slot;
   struct katcp_response_handler *rh;
+  struct timeval now, delta;
 
 #ifdef KATCP_CONSISTENCY_CHECKS
   if(string == NULL){
@@ -2977,8 +2978,15 @@ int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer,
     }
   }
 
+  gettimeofday(&now, NULL);
+
   if(slot >= KATCP_SIZE_REPLY){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "resource problem: no free reply handler slots (%u in use) in client %s for callback %s", slot, fx->f_name, ptr);
+    for(i = 0; i < KATCP_SIZE_REPLY; i++){
+      rh = &(fx->f_replies[i]);
+      sub_time_katcp(&delta, &now, &(rh->r_when));
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "resource problem: outstanding request [%u]=%s waiting %lu.%06lus", i, rh->r_message ? rh->r_message : "<UNKNOWN>", delta.tv_sec, delta.tv_usec);
+    }
 #ifdef KATCP_CONSISTENCY_CHECKS
     fprintf(stderr, "problem: no free callback slots in task %s for callback %s\n", fx->f_name, ptr);
 #endif
@@ -3018,17 +3026,20 @@ int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer,
   
   memcpy(rh->r_message, ptr, len + 1);
 
-  rh->r_flags     = actual;
-  rh->r_reply     = call;
+  rh->r_flags        = actual;
+  rh->r_reply        = call;
 
-  if(issuer){
-    rh->r_issuer    = issuer;
-    reference_endpoint_katcp(d, issuer);
+  rh->r_when.tv_sec  = now.tv_sec;
+  rh->r_when.tv_usec = now.tv_usec;
+
+  rh->r_issuer       = issuer;
+  if(rh->r_issuer){
+    reference_endpoint_katcp(d, rh->r_issuer);
   }
   
-  if(recipient){
-    rh->r_recipient = recipient;
-    reference_endpoint_katcp(d, recipient);
+  rh->r_recipient   = recipient;
+  if(rh->r_recipient){
+    reference_endpoint_katcp(d, rh->r_recipient);
   }
 
 #ifdef DEBUG
