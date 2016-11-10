@@ -794,6 +794,7 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int sensor_value_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 int var_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
+int var_show_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int var_declare_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int var_set_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int var_delete_group_cmd_katcp(struct katcp_dispatch *d, int argc);
