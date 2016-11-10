@@ -2916,7 +2916,7 @@ int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer,
 
 #ifdef KATCP_CONSISTENCY_CHECKS
   if(string == NULL){
-    fprintf(stderr, "major logic problem: need a valid string for callback");
+    fprintf(stderr, "major logic problem: need a valid string for callback\n");
     abort();
   }
 #endif
@@ -2981,7 +2981,7 @@ int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer,
   gettimeofday(&now, NULL);
 
   if(slot >= KATCP_SIZE_REPLY){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "resource problem: no free reply handler slots (%u in use) in client %s for callback %s", slot, fx->f_name, ptr);
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "resource problem: no free reply handler slots (%u in use) in client %s for callback %s\n", slot, fx->f_name, ptr);
     for(i = 0; i < KATCP_SIZE_REPLY; i++){
       rh = &(fx->f_replies[i]);
       sub_time_katcp(&delta, &now, &(rh->r_when));
@@ -4109,6 +4109,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
 
     add_full_cmd_map_katcp(m, "var-declare", "declare a variable (?var-declare name attribute[,attribute]* [path])", 0, &var_declare_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "var-list", "list variables (?var-list [variable])", 0, &var_list_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "var-show", "list variables (?var-show [variable])", 0, &var_show_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "var-set", "set a variable (?var-set variable value [type [path]])", 0, &var_set_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "var-delete", "remove a variable (?var-set variable)", 0, &var_delete_group_cmd_katcp, NULL, NULL);
 
