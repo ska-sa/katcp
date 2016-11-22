@@ -2823,9 +2823,8 @@ int make_string_vrbl_katcp(struct katcp_dispatch *d, struct katcp_group *gx, cha
   return 0;
 } 
 
-int display_vrbl_katcp(struct katcp_dispatch *d, void *state, char *key, int (*call)(struct katcp_dispatch *d, void *state, char *key, char *value))
+int display_vrbl_katcp(struct katcp_dispatch *d, void *state, char *key, struct katcp_vrbl *vx, int (*call)(struct katcp_dispatch *d, void *state, char *key, char *value))
 {
-  struct katcp_vrbl *vx;
   unsigned int type;
   struct katcp_vrbl_payload *py;
 
@@ -2833,9 +2832,13 @@ int display_vrbl_katcp(struct katcp_dispatch *d, void *state, char *key, int (*c
     return -1;
   }
 
-  vx = find_vrbl_katcp(d, key);
   if(vx == NULL){
     return -1;
+  }
+
+  /* WARNING: is this ok ? the same logic is in the var-list code */
+  if(vx->v_flags & KATCP_VRF_HID){
+    return 0;
   }
 
   py = find_payload_katcp(d, vx, key);
@@ -3168,7 +3171,11 @@ int print_var_display_katcp(struct katcp_dispatch *d, void *state, char *key, ch
 
 int var_display_void_callback_katcp(struct katcp_dispatch *d, void *state, char *key, void *data)
 {
-  return display_vrbl_katcp(d, state, key, &print_var_display_katcp);
+  struct katcp_vrbl *vx;
+
+  vx = data;
+
+  return display_vrbl_katcp(d, state, key, vx, &print_var_display_katcp);
 }
 
 int var_show_group_cmd_katcp(struct katcp_dispatch *d, int argc)
@@ -3176,6 +3183,7 @@ int var_show_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   char *key;
   unsigned int i;
   int result;
+  struct katcp_vrbl *vx;
 
   result = 0;
 
@@ -3186,7 +3194,12 @@ int var_show_group_cmd_katcp(struct katcp_dispatch *d, int argc)
         return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
       }
 
-      if(display_vrbl_katcp(d, NULL, key, &print_var_display_katcp) < 0){
+      vx = find_vrbl_katcp(d, key);
+      if(vx == NULL){
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+      }
+
+      if(display_vrbl_katcp(d, NULL, key, vx, &print_var_display_katcp) < 0){
         result = (-1);
       }
     }
