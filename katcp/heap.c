@@ -50,8 +50,8 @@ static struct heap_node *get_node_ref_by_index_heap(struct heap *h, int index);
 /* internal heap management */
 static int va_add_to_heap(struct heap *h, void *data);
 static int grow_by_one_heap(struct heap *h);
-static int cascade_up_heap(struct heap *h);
-static int cascade_down_heap(struct heap *h);
+static int cascade_up_heap(struct heap *h, int from);
+static int cascade_down_heap(struct heap *h, int from);
 
 
 /********************************************/
@@ -250,7 +250,7 @@ static int va_add_to_heap(struct heap *h, void *data){
 
   h->h_array[index] = n;
 
-  cascade_up_heap(h);
+  cascade_up_heap(h, h->h_size - 1);  /* bubble up from last node added to heap tree */
 
   dbg_fprintf(stderr, "heap<%p> (add): added node<%p> to heap at index %d with reference %p\n", h, n, n->n_index, n->n_data);
 
@@ -258,7 +258,7 @@ static int va_add_to_heap(struct heap *h, void *data){
 }
 
 
-static int cascade_up_heap(struct heap *h){
+static int cascade_up_heap(struct heap *h, int from){
   int child_index;
   int parent_index;
   struct heap_node *child_node;
@@ -276,7 +276,17 @@ static int cascade_up_heap(struct heap *h){
     return 0;
   }
 
-  child_index = h->h_size - 1;    /* child node equals last node added to heap tree*/
+  /* bounds checking... */
+
+  if (from < 1){  /* level 0 - can't cascade up from root position */
+    return 0;
+  }
+
+  if (from > (h->h_size - 1)){  /* out of bounds */
+    return -1;
+  }
+
+  child_index = from;    /* from which node index to start the cascading upwards */
   parent_index = HEAP_PARENT(child_index);
   child_node = h->h_array[child_index];
   parent_node = h->h_array[parent_index];
@@ -347,38 +357,19 @@ static struct heap_node *get_node_ref_by_index_heap(struct heap *h, int index){
 }
 
 
-static int cascade_down_heap(struct heap *h){
+static int cascade_down_heap(struct heap *h, int from){
   struct heap_node *child_node, *parent_node;
   int l_child_index, r_child_index, parent_index, child_index;
   int compare;
+  int run;
 
   if (NULL == h){
     dbg_fprintf(stderr, "heap (cascade down): need a valid heap state\n");
     return (-1);
   }
 
-  parent_index = HEAP_ROOT_INDEX;
-
-  switch (h->h_size){
-    case 0:
-    case 1:
-      return 0;
-
-    case 2:
-      child_index = HEAP_LEFT_CHILD(parent_index);
-      break;
-
-    default:
-      l_child_index = HEAP_LEFT_CHILD(parent_index);
-      r_child_index = HEAP_RIGHT_CHILD(parent_index);
-
-      //compare root's children and get smaller one
-      compare = (*(h->h_min_cmp))(h->h_array[l_child_index]->n_data, h->h_array[r_child_index]->n_data);
-
-      child_index = compare ? l_child_index : r_child_index;
-  }
-
-#if 0
+  /* short-circuit...*/
+  /* ...if zero or one element in heap - cascading not necessary */
   if (h->h_size < 2){
 #if 0
     dbg_fprintf(stderr, "heap (cascade down): heap contains %s\n", (h->h_size == 0) ? "no elements" : "one element");
@@ -386,45 +377,41 @@ static int cascade_down_heap(struct heap *h){
     return 0;
   }
 
-  parent_index = HEAP_ROOT_INDEX;
-
-  if (h->h_size > 2){
-    l_child_index = HEAP_LEFT_CHILD(parent_index);
-    r_child_index = HEAP_RIGHT_CHILD(parent_index);
-
-    //compare root's children and get smaller one
-    child_index = (h->h_array[l_child_index]->n_value <= h->h_array[r_child_index]->n_value) ? l_child_index : r_child_index;
-  } else {
-    child_index = HEAP_LEFT_CHILD(parent_index);
+  /* ...if 'from' index out of bounds */
+  if ((from >= h->h_size) || (from < HEAP_ROOT_INDEX)){
+    return (-1);
   }
-#endif
 
-  child_node = h->h_array[child_index];
-  parent_node = h->h_array[parent_index];
+  parent_index = from;  /* start from specified index */
+  run = 1;
 
-  //while child < parent : swap
-
-  while ((*(h->h_min_cmp))(child_node->n_data, parent_node->n_data)){
-    swap_nodes_heap(h, child_index, parent_index);
-
-    //child becomes parent to its child
-    parent_index = child_index;
+  do{
     l_child_index = HEAP_LEFT_CHILD(parent_index);
     r_child_index = HEAP_RIGHT_CHILD(parent_index);
 
-    //make sure index doesn't jump past the array bounds
-    if ((l_child_index >= h->h_size) || (r_child_index >= h->h_size)){
-      return 0;
+    /* array bounds checking */
+    if (l_child_index >= h->h_size){
+      return 0;   /* no children -> stop */
+    } else if (r_child_index >= h->h_size){
+      child_index = l_child_index;    /* there's only one child i.e. a left child */
+      run = 0;                        /* stop after this iteration since there's no more children */
+    } else {
+      /* compare data of children to get the index of the smallest */
+      compare = (*(h->h_min_cmp))(h->h_array[l_child_index]->n_data, h->h_array[r_child_index]->n_data);
+      child_index = compare ? l_child_index : r_child_index;
     }
 
-    compare = (*(h->h_min_cmp))(h->h_array[l_child_index]->n_data, h->h_array[r_child_index]->n_data);
-    child_index = (compare) ? l_child_index : r_child_index;
+    /* now compare child and parent data */
+    compare = (*(h->h_min_cmp))(h->h_array[child_index]->n_data, h->h_array[parent_index]->n_data);
+    if (compare){
+      swap_nodes_heap(h, child_index, parent_index);
+    } else {
+      run = 0;    /* stop since node in correct position */
+    }
 
-    child_node = h->h_array[child_index];
-    parent_node = h->h_array[parent_index];
+    parent_index = child_index;
 
-    //repeat? 
-  }
+  } while(run);
 
   return 0;
 }
@@ -447,7 +434,7 @@ int update_top_of_heap(struct heap *h, void *data){
 
   n->n_data = data;
 
-  cascade_down_heap(h);
+  cascade_down_heap(h, HEAP_ROOT_INDEX);
 
   dbg_fprintf(stderr, "heap<%p> (update): updated node<%p> to heap at index %d with reference %p\n", h, n, n->n_index, n->n_data);
 
@@ -500,24 +487,6 @@ void *remove_top_of_heap(struct heap *h){
       }
   }
 
-#if 0
-  if (0 == h->h_size){
-    dbg_fprintf(stderr, "heap<%p> (remove): heap is empty\n", h);
-    return (-1);
-  }
-
-  value = h->h_array[HEAP_ROOT_INDEX]->n_value;
-
-  dbg_fprintf(stderr, "heap<%p> (remove): pop the root element off the heap [value = %d]\n", h, value);
-
-  last_node_index = h->h_size - 1;    /* last node in heap tree*/
-
-  if (swap_nodes_heap(h, HEAP_ROOT_INDEX, last_node_index)){
-    dbg_fprintf(stderr, "heap<%p> (remove): internal node swap error\n", h);
-    return (-1);
-  }
-#endif
-
   n = get_node_ref_by_index_heap(h, last_node_index);
   if (NULL == n){
     dbg_fprintf(stderr, "heap<%p> (remove): internal node reference error\n", h);
@@ -531,7 +500,7 @@ void *remove_top_of_heap(struct heap *h){
 
   dbg_fprintf(stderr, "heap<%p> (remove): heap has %d %s\n", h, h->h_size, (h->h_size == 1) ? "node" : "nodes");
 
-  cascade_down_heap(h);
+  cascade_down_heap(h, HEAP_ROOT_INDEX);
 
   return data;
 }
