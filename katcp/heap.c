@@ -291,9 +291,12 @@ static int cascade_up_heap(struct heap *h, int from){
   child_node = h->h_array[child_index];
   parent_node = h->h_array[parent_index];
 
-  while (((*(h->h_min_cmp))(child_node->n_data, parent_node->n_data)) && (child_index > 0)){
+  while ((*(h->h_min_cmp))(child_node->n_data, parent_node->n_data)){
     swap_nodes_heap(h, parent_index, child_index);
     child_index = parent_index;
+    if (child_index < 1){
+      break;
+    }
     parent_index = HEAP_PARENT(child_index);
     child_node = h->h_array[child_index];
     parent_node = h->h_array[parent_index];
@@ -358,7 +361,7 @@ static struct heap_node *get_node_ref_by_index_heap(struct heap *h, int index){
 
 
 static int cascade_down_heap(struct heap *h, int from){
-  struct heap_node *child_node, *parent_node;
+  /* struct heap_node *child_node, *parent_node; */
   int l_child_index, r_child_index, parent_index, child_index;
   int compare;
   int run;
