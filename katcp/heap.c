@@ -11,6 +11,9 @@
 #define HEAP_RIGHT_CHILD(parent_index)  (2 * (parent_index) + 2)
 #define HEAP_PARENT(child_index)        (int) (((child_index) - 1) / 2)
 
+#define CASCADE_UP      1
+#define CASCADE_DOWN    2
+
 /* WARNING: following variadic macro only allowed in C99 and later*/
 #ifdef DEBUG
   #define dbg_fprintf(...) fprintf(__VA_ARGS__)
@@ -417,6 +420,51 @@ static int cascade_down_heap(struct heap *h, int from){
   } while(run);
 
   return 0;
+}
+
+
+int update_node_on_heap(struct heap *h, int index, void *data){
+  struct heap_node *n;
+  int direction;
+  int ret;
+
+  if ((NULL == h) || (HEAP_MAGIC != h->h_magic)){
+    dbg_fprintf(stderr, "heap (update node): need a valid heap state\n");
+    return (-1);
+  }
+
+  if (!data){
+    dbg_fprintf(stderr, "heap<%p> (update node): need a valid data pointer - node not updated\n", h);
+    return (-1);
+  }
+
+  /* check index bounds */
+  if ((index < HEAP_ROOT_INDEX) || (index >= h->h_size)){
+    dbg_fprintf(stderr, "heap<%p> (update node): index - out of bounds error\n", h);
+    return (-1);
+  }
+
+  n = h->h_array[index];
+
+  direction = ((*(h->h_min_cmp))(data, n->n_data) == 1) ? CASCADE_UP : CASCADE_DOWN;
+
+  n->n_data = data;
+
+  switch(direction){
+    case CASCADE_UP:
+      ret = cascade_up_heap(h, index);
+      break;
+
+    case CASCADE_DOWN:
+      ret = cascade_down_heap(h, index);
+      break;
+
+    default:
+      /* should never reach here */
+      break;
+  }
+
+  return ret;
 }
 
 
