@@ -378,6 +378,7 @@ static void clear_endpoint_katcp(struct katcp_dispatch *d, struct katcp_endpoint
     (*(ep->e_release))(d, ep->e_data);
     ep->e_release = NULL;
   }
+
   ep->e_data = NULL;
 
   ep->e_next = NULL;

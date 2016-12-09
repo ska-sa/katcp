@@ -446,10 +446,15 @@ int register_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*cal
 int register_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
 
 #if KATCP_EXPERIMENTAL == 2
-int register_heap_timer_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
-int register_heap_timer_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
-int register_heap_timer_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
-int register_heap_timer_every_ms_katcp(struct katcp_dispatch *d, unsigned int milli, int (*call)(struct katcp_dispatch *d, void *data), void *data);
+int register_heap_timer_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
+int register_heap_timer_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
+int register_heap_timer_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
+int register_heap_timer_every_ms_katcp(struct katcp_dispatch *d, unsigned int milli, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
+
+int adjust_interval_heap_timer_katcp(struct katcp_dispatch *d, struct timeval *adjust, char *name);
+int rename_heap_timer_katcp(struct katcp_dispatch *d, char *old_name, char *new_name);
+
+int disarm_by_ref_heap_timer(struct katcp_dispatch *d, void *data);
 #endif
 
 int wake_notice_at_tv_katcp(struct katcp_dispatch *d, struct katcp_notice *n, struct timeval *tv);
@@ -806,6 +811,7 @@ int version_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int scope_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int broadcast_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
+int timer_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 /* duplex related inform handlers */
 

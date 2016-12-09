@@ -805,7 +805,11 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   char *key, *strategy;
   struct katcp_vrbl *vx;
   struct katcp_flat *fx;
-  int stg;
+  int current_stg, new_stg;
+  struct timeval tv;
+  char *temp;
+  int ret;
+  int len;
 
   if(argc <= 1){
     return extra_response_katcp(d, KATCP_RESULT_INVALID, KATCP_FAIL_USAGE);
@@ -845,15 +849,16 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
   }
 
+  current_stg = current_strategy_sensor_katcp(d, vx, fx);
+
   if(argc <= 2){
-    stg = current_strategy_sensor_katcp(d, vx, fx);
     /* WARNING: will have to get more information for period sensors ... */
 
-    strategy = strategy_to_string_sensor_katcp(d, stg);
+    strategy = strategy_to_string_sensor_katcp(d, current_stg);
 
     if(strategy == NULL){
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
-    } 
+    }
 
   } else {
 
@@ -862,24 +867,79 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
     }
 
-    stg = strategy_from_string_sensor_katcp(d, strategy);
-    switch(stg){
+    new_stg = strategy_from_string_sensor_katcp(d, strategy);
+
+    switch(new_stg){
       case KATCP_STRATEGY_EVENT :
+        if (current_stg == KATCP_STRATEGY_PERIOD){
+          if (forget_period_variable_katcp(d, vx, fx) < 0){
+            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to unsubscribe period based sampling for sensor %s", key);
+            return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+          }
+        }
+
+        /* try to register event subscription */
         if(monitor_event_variable_katcp(d, vx, fx) < 0){
           log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to register event based sampling for sensor %s", key);
+          return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+        }
+
+        break;
+
+      case KATCP_STRATEGY_PERIOD :
+        if (string_to_tv_katcp(&tv, arg_string_katcp(d, 3))){
+          return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
+        }
+
+        if (current_stg == KATCP_STRATEGY_EVENT){
+          if (forget_event_variable_katcp(d, vx, fx) < 0){
+            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to unsubscribe event based sampling for sensor %s", key);
+            return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+          }
+        }
+
+        len = strlen(key) + strlen(fx->f_name) + strlen(fx->f_group->g_name) + 1 + 1 + 1;   /* group name + dot + connection name + dot + sensor name + '\0' */
+
+        temp = (char *) malloc(len);
+        if (NULL == temp){
+          log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to allocate memory for named timer instance");
+          return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
+        }
+
+        snprintf(temp, len, "%s.%s.%s\0", fx->f_group->g_name, fx->f_name, key);
+        /* FIXME: handle case where client is renamed or client moves to new group -> timer name needs to change */
+        /*        in order to maintain "lookup-ability" */
+//        temp[len] = '\0';
+
+        ret = monitor_period_variable_katcp(d, vx, fx, &tv, temp);
+//        ret = monitor_period_variable_katcp(d, vx, fx, &tv, NULL);
+        free(temp);
+
+        if(ret < 0){
+          log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to register period based sampling for sensor %s", key);
           return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
         }
         break;
 
       case KATCP_STRATEGY_OFF :
-        if(forget_event_variable_katcp(d, vx, fx) < 0){
-          log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to release event based sampling for sensor %s", key);
-          return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+
+        /* get current strategy and call corresponding forget function */
+        if (current_stg == KATCP_STRATEGY_EVENT){
+          if (forget_event_variable_katcp(d, vx, fx) < 0){
+            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to unsubscribe event based sampling for sensor %s", key);
+            return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+          }
+        }
+
+        if (current_stg == KATCP_STRATEGY_PERIOD){
+          if (forget_period_variable_katcp(d, vx, fx) < 0){
+            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to unsubscribe period based sampling for sensor %s", key);
+            return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+          }
         }
         break;
 
       /* TODO */
-      case KATCP_STRATEGY_PERIOD :
       case KATCP_STRATEGY_DIFF :
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "sampling strategy %s not implemented for sensor %s", strategy, key);
         return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);

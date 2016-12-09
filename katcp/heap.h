@@ -13,6 +13,7 @@ struct heap *init_heap(int (*min_cmp)(void *data_x, void *data_y), int (*print)(
 void destroy_heap(struct heap *h);
 
 int add_to_heap(struct heap *h, unsigned int count, ...);
+int update_node_on_heap(struct heap *h, int index, void *data);
 int update_top_of_heap(struct heap *h, void *data);
 
 void *get_top_of_heap(struct heap *h);

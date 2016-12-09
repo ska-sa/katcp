@@ -426,7 +426,7 @@ static int cascade_down_heap(struct heap *h, int from){
 int update_node_on_heap(struct heap *h, int index, void *data){
   struct heap_node *n;
   int direction;
-  int ret;
+  int ret = 0;
 
   if ((NULL == h) || (HEAP_MAGIC != h->h_magic)){
     dbg_fprintf(stderr, "heap (update node): need a valid heap state\n");
@@ -446,10 +446,13 @@ int update_node_on_heap(struct heap *h, int index, void *data){
 
   n = h->h_array[index];
 
-  direction = ((*(h->h_min_cmp))(data, n->n_data) == 1) ? CASCADE_UP : CASCADE_DOWN;
+  /* direction = ((*(h->h_min_cmp))(data, n->n_data) == 1) ? CASCADE_UP : CASCADE_DOWN; */
 
   n->n_data = data;
 
+  /* dbg_fprintf(stderr, "heap<%p> (update node): data <%p> - cascade direction <%s>\n", h, data, direction == CASCADE_UP ? "up" : "down"); */
+
+#if 0
   switch(direction){
     case CASCADE_UP:
       ret = cascade_up_heap(h, index);
@@ -463,6 +466,13 @@ int update_node_on_heap(struct heap *h, int index, void *data){
       /* should never reach here */
       break;
   }
+#endif
+
+  /* try to cascade up... */
+  ret += cascade_up_heap(h, index);
+  /* try to cascade down... */
+  ret += cascade_down_heap(h,index);
+  /* ...probably not the most elegant solution */
 
   return ret;
 }

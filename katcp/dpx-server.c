@@ -43,7 +43,7 @@ int config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, char *
   }
 
   if(host_port){
-    l = create_listen_flat_katcp(dl, "arb_listen", 0, host_port, NULL);
+    l = create_listen_flat_katcp(dl, "init_listen", 0, host_port, NULL);
     if(l == NULL){
 #ifdef DEBUG
       fprintf(stderr, "config: unable to create listener on %s\n", host_port);

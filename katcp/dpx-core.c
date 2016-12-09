@@ -3496,6 +3496,7 @@ int load_flat_katcp(struct katcp_dispatch *d)
             destroy_katcl(fx->f_line, 1);
             fx->f_line = NULL;
           }
+          s->s_up_count--;
 
           cancel_flat_katcp(d, fx);
 
@@ -3729,8 +3730,7 @@ int run_flat_katcp(struct katcp_dispatch *d)
 
 /* commands, both old and new ***************************************/
 
-#ifndef KATCP_DEPRECATED
-int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
+int system_info_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
 #define BUFFER 64
   char buffer[BUFFER];
@@ -3778,7 +3778,6 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 #undef BUFFER
 }
-#endif
 
 /* connection management commands ***********************************/
 
@@ -3957,8 +3956,8 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "client-halt", "stop a client (?client-halt [name [group]])", 0, &client_halt_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-connect", "create a client to a remote host (?client-connect host:port [group])", 0, &client_connect_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "?client-exec", "create a client to a local process (?client-exec label [group [binary [args]*])", 0, &client_exec_group_cmd_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config option [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "client-switch", "set a client option (?client-switch group [client])", 0, &client_switch_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config (duplex|server|client|hidden|visible|prefixed|fixed|translate|native) [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "client-switch", "switch a client's group (?client-switch group [client])", 0, &client_switch_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "group-create", "create a new group (?group-create name [group])", 0, &group_create_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "group-list", "list groups (?group-list)", 0, &group_list_group_cmd_katcp, NULL, NULL);
@@ -3992,11 +3991,11 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "scope", "change scoping level (?scope scope [(group | client) name])", 0, &scope_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "broadcast", "send messages to everybody (?broadcast group inform [arguments])", 0, &broadcast_group_cmd_katcp, NULL, NULL);
 
-#ifndef KATCP_DEPRECATED
-    add_full_cmd_map_katcp(m, "system-info", "report server information (?system-info)", 0, &system_info_cmd_katcp, NULL, NULL);
-#endif
+    add_full_cmd_map_katcp(m, "system-info", "report server information (?system-info)", 0, &system_info_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "whoami", "get current connection name (?whoami)", 0, &whoami_group_cmd_katcp, NULL, NULL);
+
+    add_full_cmd_map_katcp(m, "timer-rename", "rename a timer instance (?timer-rename old-name new-name)", 0, &timer_rename_group_cmd_katcp, NULL, NULL);
 
   } else {
     m = gx->g_maps[KATCP_MAP_REMOTE_REQUEST];

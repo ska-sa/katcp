@@ -20,6 +20,8 @@
 
 /* sorry, sensor was taken, now move onto wit ... */
 
+/* FIXME ?? code duplication ??*/
+
 #ifdef KATCP_CONSISTENCY_CHECKS
 static void sane_wit(struct katcp_wit *w)
 {
@@ -63,16 +65,31 @@ static void destroy_wit_katcp(struct katcp_dispatch *d, struct katcp_wit *w)
   /* WARNING: TODO - send out device changed messages ? */
   /* probably to everybody in group, not just subscribers ... */
 
-  for(i = 0; i < w->w_size; i++){
-    destroy_subscribe_katcp(d, w->w_vector[i]);
+  /* cleanup event subscriptions */
+  for(i = 0; i < w->w_size_event; i++){
+    destroy_subscribe_katcp(d, w->w_vector_event[i]);
 
-    w->w_vector[i] = NULL;
+    w->w_vector_event[i] = NULL;
   }
 
-  if(w->w_vector){
-    free(w->w_vector);
+  if(w->w_vector_event){
+    free(w->w_vector_event);
   }
-  w->w_size = 0;
+  w->w_size_event = 0;
+
+
+  /* cleanup period subscriptions */
+  for(i = 0; i < w->w_size_period; i++){
+    destroy_subscribe_katcp(d, w->w_vector_period[i]);
+
+    w->w_vector_period[i] = NULL;
+  }
+
+  if(w->w_vector_period){
+    free(w->w_vector_period);
+  }
+  w->w_size_period = 0;
+
 
   if(w->w_endpoint){
     release_endpoint_katcp(d, w->w_endpoint);
@@ -95,8 +112,10 @@ static struct katcp_wit *create_wit_katcp(struct katcp_dispatch *d)
 
   w->w_magic = WIT_MAGIC;
   w->w_endpoint = NULL;
-  w->w_vector = NULL;
-  w->w_size = 0;
+  w->w_vector_period = NULL;
+  w->w_vector_event = NULL;
+  w->w_size_period = 0;
+  w->w_size_event = 0;
 
   w->w_endpoint = create_endpoint_katcp(d, NULL, &release_endpoint_wit, w);
   if(w->w_endpoint == NULL){
@@ -109,7 +128,7 @@ static struct katcp_wit *create_wit_katcp(struct katcp_dispatch *d)
 
 /*************************************************************************/
 
-struct katcp_subscribe *create_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, struct katcp_flat *fx)
+struct katcp_subscribe *create_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, struct katcp_flat *fx, int strategy)
 {
   struct katcp_subscribe *sub, **re;
   struct katcp_flat *tx;
@@ -125,12 +144,7 @@ struct katcp_subscribe *create_subscribe_katcp(struct katcp_dispatch *d, struct 
     tx = fx;
   }
 
-  re = realloc(w->w_vector, sizeof(struct katcp_subscribe *) * (w->w_size + 1));
-  if(re == NULL){
-    return NULL;
-  }
-
-  w->w_vector = re;
+/*********************************************/
 
   sub = malloc(sizeof(struct katcp_subscribe));
   if(sub == NULL){
@@ -142,32 +156,108 @@ struct katcp_subscribe *create_subscribe_katcp(struct katcp_dispatch *d, struct 
 
   sub->s_strategy = KATCP_STRATEGY_OFF;
 
+  sub->s_timer_name = NULL;
+
   /*********************/
 
   reference_endpoint_katcp(d, tx->f_peer);
   sub->s_endpoint = tx->f_peer;
 
-  w->w_vector[w->w_size] = sub;
-  w->w_size++;
+
+  switch(strategy){
+    case KATCP_STRATEGY_EVENT:
+      re = realloc(w->w_vector_event, sizeof(struct katcp_subscribe *) * (w->w_size_event + 1));
+      if(re == NULL){
+        destroy_subscribe_katcp(d, sub);
+        return NULL;
+      }
+
+      w->w_vector_event = re;
+      w->w_vector_event[w->w_size_event] = sub;
+      sub->s_index = w->w_size_event;
+      w->w_size_event++;
+      break;
+
+    case KATCP_STRATEGY_PERIOD:
+      re = realloc(w->w_vector_period, sizeof(struct katcp_subscribe *) * (w->w_size_period + 1));
+      if(re == NULL){
+        destroy_subscribe_katcp(d, sub);
+        return NULL;
+      }
+
+      w->w_vector_period = re;
+      w->w_vector_period[w->w_size_period] = sub;
+      sub->s_index = w->w_size_period;
+      w->w_size_period++;
+      break;
+
+    default:
+#ifdef DEBUG
+      fprintf(stderr, "subscribe: unimplemented subscription strategy\n");
+#endif
+      destroy_subscribe_katcp(d, sub);
+      return NULL;
+  }
+
+/*********************************************/
+
+#ifdef DEBUG
+  fprintf(stderr, "subscribe: %u event %s in wit [%p]\n", w->w_size_event, (w->w_size_event == 1) ? "subscriber" : "subscribers", w);
+  fprintf(stderr, "subscribe: %u period %s in wit [%p]\n", w->w_size_period, (w->w_size_period == 1) ? "subscriber" : "subscribers", w);
+#endif
 
   return sub;
 }
 
-int find_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, struct katcp_flat *fx)
+static struct katcp_subscribe *find_event_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, struct katcp_flat *fx)
 {
   int i;
   struct katcp_subscribe *sub;
 
   sane_wit(w);
 
-  for(i = 0; i < w->w_size; i++){
-    sub = w->w_vector[i];
+  for(i = 0; i < w->w_size_event; i++){
+    sub = w->w_vector_event[i];
     if(sub->s_endpoint == fx->f_peer){
-      return i;
+      /* return i; */
+      return sub;
     }
   }
 
-  return -1;
+  return NULL;
+}
+
+static struct katcp_subscribe *find_period_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, struct katcp_flat *fx)
+{
+  int i;
+  struct katcp_subscribe *sub;
+
+  sane_wit(w);
+
+  for(i = 0; i < w->w_size_period; i++){
+    sub = w->w_vector_period[i];
+    if(sub->s_endpoint == fx->f_peer){
+      /* return i; */
+      return sub;
+    }
+  }
+
+  return NULL;
+}
+
+struct katcp_subscribe *find_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, struct katcp_flat *fx)
+{
+  struct katcp_subscribe *sub;
+
+  sane_wit(w);
+
+  if ((sub = find_event_subscribe_katcp(d, w, fx))){
+    return sub;
+  } else if ((sub = find_period_subscribe_katcp(d, w, fx))){
+    return sub;
+  } else {
+    return NULL;
+  }
 }
 
 void destroy_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subscribe *sub)
@@ -185,25 +275,53 @@ void destroy_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subscribe *s
     sub->s_endpoint = NULL;
   }
 
+  sub->s_variable = NULL;
+
+#if 0
   if(sub->s_variable){
-#if 1
     /* WARNING */
     fprintf(stderr, "incomplete code: variable shadow needs to be deallocated\n");
     abort();
+  }
 #endif
+
+  if (KATCP_STRATEGY_PERIOD == sub->s_strategy){
+    /* WARNING - have to disarm associated timer !! */
+    if (disarm_by_ref_heap_timer(d, sub)){
+#ifdef KATCP_CONSISTENCY_CHECKS
+      fprintf(stderr, "logic error: no timer associated with period subscription %p\n", sub);
+      abort();
+#endif
+    }
   }
 
   sub->s_strategy = KATCP_STRATEGY_OFF;
 
+  if (sub->s_timer_name){
+#ifdef DEBUG
+    fprintf(stderr, "subscribe: free'ing timer name allocation at %p\n", sub->s_timer_name);
+#endif
+    free(sub->s_timer_name);
+    sub->s_timer_name = NULL;
+  }
+
   free(sub);
 }
 
-int delete_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, unsigned int index)
+int delete_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, /*unsigned int index*/ struct katcp_subscribe *sub)
 {
-  struct katcp_subscribe *sub;
+  /*struct katcp_subscribe *sub;*/
 
   sane_wit(w);
 
+  if (NULL == sub){
+#ifdef DEBUG
+    fprintf(stderr, "delete subscribe: no subscribe state\n");
+#endif
+    return (-1);
+  }
+
+#if 0
   if(index >= w->w_size){
 #ifdef KATCP_CONSISTENCY_CHECKS
     fprintf(stderr, "delete subscribe: major logic problem, removed subscribe out of range\n");
@@ -213,12 +331,59 @@ int delete_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, unsign
   }
 
   sub = w->w_vector[index];
+#endif
 
+  switch(sub->s_strategy){
+    case KATCP_STRATEGY_EVENT:
+      w->w_size_event--;
+
+      /* make vector contiguous again */
+      if(sub->s_index < w->w_size_event){
+        w->w_vector_event[sub->s_index] = w->w_vector_event[w->w_size_event];
+      }
+
+#ifdef DEBUG
+      fprintf(stderr, "subscribe: %u event %s in wit [%p]\n", w->w_size_event, (w->w_size_event == 1) ? "subscriber" : "subscribers", w);
+#endif
+      break;
+
+    case KATCP_STRATEGY_PERIOD:
+      w->w_size_period--;
+
+      /* make vector contiguous again */
+      if(sub->s_index < w->w_size_period){
+        w->w_vector_period[sub->s_index] = w->w_vector_period[w->w_size_period];
+      }
+
+#if 0
+      /* WARNING - have to disarm associated timer !! */
+      disarm_heap_timer(d, sub);
+#endif
+
+#ifdef DEBUG
+      fprintf(stderr, "subscribe: %u period %s in wit [%p]\n", w->w_size_period, (w->w_size_period == 1) ? "subscriber" : "subscribers", w);
+#endif
+      break;
+
+    default:
+#ifdef KATCP_CONSISTENCY_CHECKS
+      fprintf(stderr, "major logic problem: unimplemented sensor strategy %u\n", sub->s_strategy);
+      abort();
+#endif
+      return -1;
+  }
+
+#if 0
   w->w_size--;
+
+#ifdef DEBUG
+  fprintf(stderr, "subscribe: %u %s in wit [%p]\n", w->w_size, (w->w_size == 1) ? "subscriber" : "subscribers", w);
+#endif
 
   if(index < w->w_size){
     w->w_vector[index] = w->w_vector[w->w_size];
   }
+#endif
 
   destroy_subscribe_katcp(d, sub);
 
@@ -229,7 +394,7 @@ int delete_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, unsign
 
 struct katcp_subscribe *locate_subscribe_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx)
 {
-  int index;
+  /* int index; */
   struct katcp_wit *w;
 
   if(vx->v_extra == NULL){
@@ -240,18 +405,58 @@ struct katcp_subscribe *locate_subscribe_katcp(struct katcp_dispatch *d, struct 
 
   sane_wit(w);
 
-  index = find_subscribe_katcp(d, w, fx);
+  return find_subscribe_katcp(d, w, fx);
+
+#if 0
   if(index < 0){
     return NULL;
   }
 
   return w->w_vector[index];
+#endif
 }
 
 /*************************************************************************/
 
-int broadcast_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, struct katcl_parse *px)
-{
+static int broadcast_event_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, struct katcl_parse *px){
+  unsigned int i;
+  struct katcp_subscribe *sub;
+
+  sane_wit(w);
+
+#ifdef DEBUG
+  fprintf(stderr, "sensor: broadcasting sensor update to %u interested parties on event\n", w->w_size_event);
+#endif
+
+  for(i = 0; i < w->w_size_event; i++){
+    sub = w->w_vector_event[i];
+
+#ifdef KATCP_CONSISTENCY_CHECKS
+    if(sub == NULL){
+      fprintf(stderr, "major logic problem: null entry at %u in vector of subscribers\n", i);
+      abort();
+    }
+#endif
+
+    /* WARNING: for events: should we check that something actually has changed ? */
+
+    if(sub->s_strategy == KATCP_STRATEGY_EVENT){
+      if(send_message_endpoint_katcp(d, w->w_endpoint, sub->s_endpoint, px, 0) < 0){
+        /* other end could have gone away, notice it ... */
+        delete_subscribe_katcp(d, w, sub);
+      }
+    } else {
+#ifdef KATCP_CONSISTENCY_CHECKS
+      fprintf(stderr, "major logic problem: inconsistent sensor strategy %u\n", sub->s_strategy);
+      abort();
+#endif
+      return (-1);
+    }
+  }
+
+  return w->w_size_event;
+
+#if 0
   unsigned int i;
   struct katcp_subscribe *sub;
 
@@ -281,14 +486,56 @@ int broadcast_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, str
 #ifdef KATCP_CONSISTENCY_CHECKS
     } else {
       fprintf(stderr, "major logic problem: unimplemented sensor strategy %u\n", sub->s_strategy);
-      abort();
+      //abort();
 #endif
     }
 
   }
 
   return w->w_size;
+#endif
 }
+
+
+static int send_period_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subscribe *sub, struct katcl_parse *px){
+  struct katcp_wit *w;
+  struct katcp_vrbl *vshadow;
+
+  if(sub == NULL){
+#ifdef DEBUG
+    fprintf(stderr, "sensor: need a subscriber endpoint to forward periodic updates to\n");
+#endif
+    return (-1);
+  }
+
+  vshadow = sub->s_variable;
+  if (NULL == vshadow){
+    return (-1);
+  }
+
+  w = vshadow->v_extra;    /* FIXME WARNING: is this safe ?? */
+  if ((NULL == w) || (WIT_MAGIC != w->w_magic)){
+    return (-1);
+  }
+
+  if(sub->s_strategy == KATCP_STRATEGY_PERIOD){
+    if(send_message_endpoint_katcp(d, w->w_endpoint, sub->s_endpoint, px, 0) < 0){
+      /* other end could have gone away, notice it ... */
+      delete_subscribe_katcp(d, w, sub);
+      return -1;
+    }
+  } else {
+#ifdef KATCP_CONSISTENCY_CHECKS
+    fprintf(stderr, "major logic problem: inconsistent sensor strategy %u\n", sub->s_strategy);
+    delete_subscribe_katcp(d, w, sub);
+    /* abort(); */
+#endif
+    return (-1);
+  }
+
+  return 0;
+}
+
 
 /*************************************************************************/
 
@@ -454,7 +701,8 @@ struct katcl_parse *make_sensor_katcp(struct katcp_dispatch *d, char *name, stru
   return px;
 }
 
-int change_sensor_katcp(struct katcp_dispatch *d, void *state, char *name, struct katcp_vrbl *vx)
+
+int on_event_change_sensor_katcp(struct katcp_dispatch *d, void *state, char *name, struct katcp_vrbl *vx)
 {
   struct katcp_wit *w;
   struct katcl_parse *px;
@@ -475,12 +723,58 @@ int change_sensor_katcp(struct katcp_dispatch *d, void *state, char *name, struc
     return -1;
   }
 
-  broadcast_subscribe_katcp(d, w, px);
+  broadcast_event_subscribe_katcp(d, w, px);
 
   destroy_parse_katcl(px);
 
   return 0;
 }
+
+
+int on_period_timeout_sensor_katcp(struct katcp_dispatch *d, void *data){
+  /* struct intermediate *i; */
+  struct katcp_subscribe *sub;
+  struct katcp_time *ts;
+  struct katcl_parse *px;
+  struct katcp_vrbl *vx;
+
+  sub = data;
+
+  if (NULL == sub){
+    return (-1);
+  }
+
+  vx = sub->s_variable;
+
+  if (NULL == vx){
+    return (-1);
+  }
+
+  px = make_sensor_katcp(d, NULL, vx, KATCP_SENSOR_STATUS_INFORM);
+  if(NULL == px){
+    return (-1);
+  }
+
+  send_period_subscribe_katcp(d, sub, px);
+
+  destroy_parse_katcl(px);
+
+  /* check if the interested party is still connected */
+
+/*
+  ts = find_heap_timer_katcp(d, sub);
+  if (NULL == ts){
+#ifdef KATCP_CONSISTENCY_CHECKS
+    fprintf(stderr, "logic inconsistency: period subcriber %p without registered timer\n", sub);
+    abort();
+#endif
+    return (-1);
+  }
+*/
+
+  return 0;
+}
+
 
 void release_sensor_katcp(struct katcp_dispatch *d, void *state, char *name, struct katcp_vrbl *vx)
 {
@@ -495,9 +789,10 @@ void release_sensor_katcp(struct katcp_dispatch *d, void *state, char *name, str
   sane_wit(w);
 
   destroy_wit_katcp(d, w);
+
 }
 
-struct katcp_subscribe *attach_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx)
+struct katcp_subscribe *attach_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx, int strategy)
 {
   struct katcp_wit *w;
   struct katcp_subscribe *sub;
@@ -515,7 +810,7 @@ struct katcp_subscribe *attach_variable_katcp(struct katcp_dispatch *d, struct k
       return NULL;
     }
 
-    if(configure_vrbl_katcp(d, vx, vx->v_flags, w, NULL, &change_sensor_katcp, &release_sensor_katcp) < 0){
+    if(configure_vrbl_katcp(d, vx, vx->v_flags, w, NULL, &on_event_change_sensor_katcp, &release_sensor_katcp) < 0){
       destroy_wit_katcp(d, w);
       return NULL;
     }
@@ -523,16 +818,57 @@ struct katcp_subscribe *attach_variable_katcp(struct katcp_dispatch *d, struct k
     w = vx->v_extra;
   }
 
-  sub = create_subscribe_katcp(d, w, fx);
+  sub = create_subscribe_katcp(d, w, fx, strategy);
   if(sub == NULL){
     return NULL;
   }
 
+  sub->s_variable = vx;   /* WARNING: TODO sanity checks required in case vx disappears - also ensure shadow pointer only valid for lifetime of vx */
+
   return sub;
 }
 
+
+static struct katcp_subscribe *monitor_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx, int strategy)
+{
+  struct katcp_subscribe *sub;
+  struct katcl_parse *px;
+
+  px = make_sensor_katcp(d, NULL, vx, KATCP_SENSOR_STATUS_INFORM);
+  if(px == NULL){
+    return NULL;
+  }
+
+  sub = locate_subscribe_katcp(d, vx, fx);
+  if(sub == NULL){
+    sub = attach_variable_katcp(d, vx, fx, strategy);
+    if(sub == NULL){
+      destroy_parse_katcl(px);
+      return NULL;
+    }
+  }
+
+  append_parse_katcp(d, px);
+  destroy_parse_katcl(px);
+
+  return sub;
+}
+
+
 int monitor_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx)
 {
+  struct katcp_subscribe *sub;
+
+  sub = monitor_variable_katcp(d, vx, fx, KATCP_STRATEGY_EVENT);
+  if (NULL == sub){
+    return -1;
+  }
+
+  sub->s_strategy = KATCP_STRATEGY_EVENT;
+
+  return 0;
+
+#if 0
   struct katcp_subscribe *sub;
   struct katcl_parse *px;
 
@@ -556,12 +892,52 @@ int monitor_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx
   destroy_parse_katcl(px);
 
   return 0;
+#endif
 }
+
+
+int monitor_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx, struct timeval *tv, char *name)
+{
+  int ret;
+  struct katcp_subscribe *sub;
+
+//  if (NULL == name){
+//    return (-1);
+//  }
+
+  sub = monitor_variable_katcp(d, vx, fx, KATCP_STRATEGY_PERIOD);
+  if (NULL == sub){
+    return -1;
+  }
+
+  sub->s_strategy = KATCP_STRATEGY_PERIOD;
+
+  ret = register_heap_timer_every_tv_katcp(d, tv, &on_period_timeout_sensor_katcp, sub, name);
+  if (1 == ret){
+    /* already exists, try to adjust */
+    ret = adjust_interval_heap_timer_katcp(d, tv, name);
+  }
+
+  if (-1 == ret){
+    destroy_subscribe_katcp(d, sub);
+  }
+
+  if (name){  /*FIXME: strdup after possible destroy */
+    sub->s_timer_name = strdup(name);
+    if (NULL == sub->s_timer_name) {
+      destroy_subscribe_katcp(d, sub);
+      return (-1);
+    }
+  }
+
+  return ret;
+}
+
 
 int forget_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx)
 {
-  int index;
   struct katcp_wit *w;
+  struct katcp_subscribe *sub;
 
   if(vx->v_extra == NULL){
     return 1;
@@ -571,12 +947,34 @@ int forget_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx,
 
   sane_wit(w);
 
-  index = find_subscribe_katcp(d, w, fx);
-  if(index < 0){
+  sub = find_event_subscribe_katcp(d, w, fx);
+  if(NULL == sub){
     return 1;
   }
 
-  return delete_subscribe_katcp(d, w, index);
+  return delete_subscribe_katcp(d, w, sub);
+}
+
+
+int forget_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx)
+{
+  struct katcp_wit *w;
+  struct katcp_subscribe *sub;
+
+  if(vx->v_extra == NULL){
+    return 1;
+  }
+
+  w = vx->v_extra;
+
+  sane_wit(w);
+
+  sub = find_period_subscribe_katcp(d, w, fx);
+  if(NULL == sub){
+    return 1;
+  }
+
+  return delete_subscribe_katcp(d, w, sub);
 }
 
 /***************************************************************************/

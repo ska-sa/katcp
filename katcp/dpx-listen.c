@@ -101,8 +101,11 @@ int accept_flat_katcp(struct katcp_dispatch *d, struct katcp_arb *a, unsigned in
   char label[LABEL_BUFFER];
   long opts;
   int result;
+  struct katcp_shared *s;
 
   result = 0;
+
+  s = d->d_shared;
 
   if(mode & KATCP_ARB_READ){
 
@@ -141,8 +144,9 @@ int accept_flat_katcp(struct katcp_dispatch *d, struct katcp_arb *a, unsigned in
     f = create_flat_katcp(d, nfd, KATCP_FLAT_TOCLIENT, label, kl->l_group);
     if(f == NULL){
       close(nfd);
+    } else {
+      s->s_up_count++;    /* FIXME: is this the best place to put counter - move to create_flat ? (but will have to account for incomplete creation case )*/
     }
-
   }
 
   if(mode & KATCP_ARB_STOP){

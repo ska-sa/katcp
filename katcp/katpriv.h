@@ -370,6 +370,7 @@ struct katcp_job{
 
 struct katcp_time{
   int t_magic;
+  char *t_name;       /* used in newer timer heap priority queue */
 
   struct timeval t_when;
   struct timeval t_interval;
@@ -378,6 +379,10 @@ struct katcp_time{
 
   void *t_data;
   int (*t_call)(struct katcp_dispatch *d, void *data);
+
+  int t_hits;
+  int t_misses;
+  int t_late;
 };
 
 struct katcp_invoke{
@@ -524,6 +529,9 @@ struct katcp_subscribe{
   struct katcp_vrbl *s_variable;
   struct katcp_endpoint *s_endpoint;
   unsigned int s_strategy;
+  unsigned int s_index;   /* subscriber knows it's own index in the respective vector */
+
+  char *s_timer_name;
 
   /* for time, last time updated, next time when ... */
 };
@@ -531,8 +539,15 @@ struct katcp_subscribe{
 struct katcp_wit{
   unsigned int w_magic;
   struct katcp_endpoint *w_endpoint;
-  struct katcp_subscribe **w_vector;
-  unsigned int w_size;
+  /* struct katcp_subscribe **w_vector; */
+
+  struct katcp_subscribe **w_vector_period;    /* list of period sampling subscribers */
+  struct katcp_subscribe **w_vector_event;    /* list of event sampling subscribers */
+
+  /* unsigned int w_size; */
+
+  unsigned int w_size_period;
+  unsigned int w_size_event;
 
   /* todo - timeval counter ... runs at rate */
 };
@@ -730,6 +745,7 @@ struct katcp_shared{
 
   unsigned int s_lcount;  /* flat listener count */
   unsigned int s_epcount;  /* flat endpoint count */
+  unsigned int s_up_count;  /* count of connections */
 
   int s_lfd;
 
@@ -1289,8 +1305,10 @@ int is_vrbl_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx);
 char *strategy_to_string_sensor_katcp(struct katcp_dispatch *d, unsigned int strategy);
 int strategy_from_string_sensor_katcp(struct katcp_dispatch *d, char *name);
 
+int monitor_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx, struct timeval *tv, char *name);
 int monitor_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx);
 int forget_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx);
+int forget_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx);
 
 struct katcl_parse *make_sensor_katcp(struct katcp_dispatch *d, char *name, struct katcp_vrbl *vx, char *prefix);
 

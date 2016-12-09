@@ -418,7 +418,6 @@ int setenv_cmd_katcp(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 }
 
-#ifdef KATCP_DEPRECATED
 int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
 #define BUFFER 64
@@ -467,7 +466,6 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 #undef BUFFER
 }
-#endif
 
 #if 0
 int uptime_cmd_katcp(struct katcp_dispatch *d, int argc)
@@ -549,9 +547,7 @@ int prepare_core_loop_katcp(struct katcp_dispatch *dl)
 #endif
   register_flag_mode_katcp(dl, "?version", "version operations (?sensor [add module version [mode]|remove module])", &version_cmd_katcp, 0, 0);
 
-#ifdef KATCP_DEPRECATED
   register_flag_mode_katcp(dl, "?system-info",  "report server information (?system-info)", &system_info_cmd_katcp, 0, 0);
-#endif
 
 #ifdef KATCP_EXPERIMENTAL
   register_flag_mode_katcp(dl, "?listener-create", "accept new duplex connections on given interface (?listen-duplex [interface:]port)", &listener_create_group_cmd_katcp, 0, 0);
@@ -629,7 +625,8 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
         }
       } else {
 #ifdef KATCP_EXPERIMENTAL
-        if((s->s_lcount <= 0) && (s->s_epcount <= 0)){ /* if we have no listeners, and we have run out of endpoints, shut down too */
+        //if((s->s_lcount <= 0) && (s->s_epcount <= 0)){ /* if we have no listeners, and we have run out of endpoints, shut down too */
+        if((s->s_lcount <= 0) && (s->s_up_count <= 0)){ /* if we have no listeners, and we have run out of clients, shut down too */
           run = (-1);
         }
 #else
@@ -679,7 +676,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     result = pselect(s->s_max + 1, &(s->s_read), &(s->s_write), NULL, suspend ? NULL : &delta, &(s->s_signal_mask));
 #ifdef DEBUG
     fprintf(stderr, "multi: select=%d, used=%d\n", result, s->s_used);
-    fprintf(stderr, "multi: listeners = %d, endpoints = %d\n", s->s_lcount, s->s_epcount);
+    fprintf(stderr, "multi: lcount = %d, epcount = %d, upcount = %d\n", s->s_lcount, s->s_epcount, s->s_up_count);
 #endif
 
     s->s_busy = 0;
