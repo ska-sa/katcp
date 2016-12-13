@@ -3739,6 +3739,8 @@ int system_info_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   struct katcp_shared *s;
   unsigned long hours;
   unsigned int minutes, seconds;
+  int size;
+  struct heap *th;
 
   s = d->d_shared;
 
@@ -3770,7 +3772,9 @@ int system_info_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
 #if KATCP_EXPERIMENTAL == 2
-  display_heap_timers_katcp(d);
+  th = s->s_tmr_heap;
+  size = get_size_of_heap(th);
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s in heap priority queue", size, size == 1 ? "timer" : "timers");
 #else
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", s->s_length, (s->s_length == 1) ? "timer" : "timers");
 #endif
@@ -3996,6 +4000,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "whoami", "get current connection name (?whoami)", 0, &whoami_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "timer-rename", "rename a timer instance (?timer-rename old-name new-name)", 0, &timer_rename_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "timer-list", "list timer instances (?timer-list)", 0, &timer_list_group_cmd_katcp, NULL, NULL);
 
   } else {
     m = gx->g_maps[KATCP_MAP_REMOTE_REQUEST];

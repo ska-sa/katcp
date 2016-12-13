@@ -1397,6 +1397,7 @@ int display_heap_timers_katcp(struct katcp_dispatch *d){
   struct heap *th;
   struct katcp_shared *s;
   struct katcp_time *ts;
+  int r;
 
   if (NULL == d){
 #if DEBUG
@@ -1421,7 +1422,6 @@ int display_heap_timers_katcp(struct katcp_dispatch *d){
     return 0;
   }
 
-  /* destroy ts objects */
   size = get_size_of_heap(th);
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s in heap priority queue", size, size == 1 ? "timer" : "timers");
@@ -1441,7 +1441,31 @@ int display_heap_timers_katcp(struct katcp_dispatch *d){
         periodic = 0;
       }
 
-      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%s timer <%s>: interval %lu.%06lus, scheduled for %lu.%06lus (%sarmed) [i=%d hit=%d missed=%d late=%d]", periodic ? "periodic" : "one-shot", ts->t_name ? ts->t_name : "unnamed", ts->t_interval.tv_sec, ts->t_interval.tv_usec, ts->t_when.tv_sec, ts->t_when.tv_usec, ts->t_armed ? "" : "not ", i, ts->t_hits, ts->t_misses, ts->t_late);
+      r = prepend_inform_katcp(d);
+      if(r < 0){
+#ifdef DEBUG
+        fprintf(stderr, "heap timer (display): prepend failed\n");
+#endif
+        return (-1);
+      }
+
+      r = append_string_katcp(d, KATCP_FLAG_LAST | KATCP_FLAG_STRING, ts->t_name);
+      if(r < 0){
+#ifdef DEBUG
+        fprintf(stderr, "heap timer (display): append of %s failed\n", ts->t_name);
+#endif
+        return -1;
+      }
+
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s scheduled for %lu.%06lu", ts->t_name ? ts->t_name : "<unnamed>", ts->t_when.tv_sec, ts->t_when.tv_usec);
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s will fire %s", ts->t_name ? ts->t_name : "<unnamed>", periodic ? "periodically" : "once");
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s is %sarmed", ts->t_name ? ts->t_name : "<unnamed>", ts->t_armed ? "" : "not ");
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s interval set to %lu.%06lu", ts->t_name ? ts->t_name : "<unnamed>", ts->t_interval.tv_sec, ts->t_interval.tv_usec);
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s statistics: i=%d hit=%d missed=%d late=%d", ts->t_name ? ts->t_name : "<unnamed>", i, ts->t_hits, ts->t_misses, ts->t_late);
+
+
+/*      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%s timer <%s>: interval %lu.%06lus, scheduled for %lu.%06lus (%sarmed) [i=%d hit=%d missed=%d late=%d]", periodic ? "periodic" : "one-shot", ts->t_name ? ts->t_name : "unnamed", ts->t_interval.tv_sec, ts->t_interval.tv_usec, ts->t_when.tv_sec, ts->t_when.tv_usec, ts->t_armed ? "" : "not ", i, ts->t_hits, ts->t_misses, ts->t_late);
+*/
 
 #if DEBUG == 2
       fprintf(stderr, "heap timer (display): %s timer <%p> located at heap index %d with interval %lu.%06lus and scheduled for %lu.%06lus (%sarmed) [index=%d]\n", periodic ? "periodic" : "one-shot", ts, i, ts->t_interval.tv_sec, ts->t_interval.tv_usec, ts->t_when.tv_sec, ts->t_when.tv_usec, ts->t_armed ? "" : "not ", i);
@@ -1449,7 +1473,7 @@ int display_heap_timers_katcp(struct katcp_dispatch *d){
     }
   }
 
-  return 0;
+  return i;
 }
 
 /* heap timer cmd handlers ******************************************************/
@@ -1483,4 +1507,15 @@ int timer_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc){
   return KATCP_RESULT_OK;
 }
 
+int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc){
+  int total;
+
+  total = display_heap_timers_katcp(d);
+  if (total < 0){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to list timers");
+    return KATCP_RESULT_FAIL;
+  }
+
+  return extra_response_katcp(d, KATCP_RESULT_OK, "%d", total);
+}
 #endif

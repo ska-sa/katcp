@@ -812,6 +812,7 @@ int scope_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int broadcast_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 int timer_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc);
+int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 /* duplex related inform handlers */
 
