@@ -1460,7 +1460,7 @@ int display_heap_timers_katcp(struct katcp_dispatch *d){
       log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s scheduled for %lu.%06lu", ts->t_name ? ts->t_name : "<unnamed>", ts->t_when.tv_sec, ts->t_when.tv_usec);
       log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s will fire %s", ts->t_name ? ts->t_name : "<unnamed>", periodic ? "periodically" : "once");
       log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s is %sarmed", ts->t_name ? ts->t_name : "<unnamed>", ts->t_armed ? "" : "not ");
-      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s interval set to %lu.%06lu", ts->t_name ? ts->t_name : "<unnamed>", ts->t_interval.tv_sec, ts->t_interval.tv_usec);
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s interval set to %lu.%06lu seconds", ts->t_name ? ts->t_name : "<unnamed>", ts->t_interval.tv_sec, ts->t_interval.tv_usec);
       log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s statistics: i=%d hit=%d missed=%d late=%d", ts->t_name ? ts->t_name : "<unnamed>", i, ts->t_hits, ts->t_misses, ts->t_late);
 
 

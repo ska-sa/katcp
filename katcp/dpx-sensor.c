@@ -920,9 +920,10 @@ int monitor_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *v
 
   if (-1 == ret){
     destroy_subscribe_katcp(d, sub);
+    return (-1);
   }
 
-  if (name){  /*FIXME: strdup after possible destroy */
+  if (name){
     sub->s_timer_name = strdup(name);
     if (NULL == sub->s_timer_name) {
       destroy_subscribe_katcp(d, sub);

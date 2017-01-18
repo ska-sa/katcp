@@ -361,6 +361,9 @@ int client_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
     log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "instance previously called %s now is %s", old ? old : "<unknown>", to);
     free(old);
+
+    /* TODO: find and rename all sensor subscription timers linked to this flat instance */
+
     return KATCP_RESULT_OK;
 
   } else {

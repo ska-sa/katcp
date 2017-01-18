@@ -1759,6 +1759,8 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
 
   reconfigure_flat_katcp(d, f, (flags & (~mask)) | set);
 
+  s->s_up_count++;
+
   return f;
 }
 
