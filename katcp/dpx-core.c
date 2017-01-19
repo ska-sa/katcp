@@ -1595,7 +1595,7 @@ int reconfigure_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, unsi
     trigger_connect_flat(d, fx);
   }
 
-  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED | KATCP_FLAT_RETAINFO);
+  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED | KATCP_FLAT_RETAINFO | KATCP_FLAT_LOGPREFIX);
 
   return 0;
 }
@@ -3962,7 +3962,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "client-halt", "stop a client (?client-halt [name [group]])", 0, &client_halt_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-connect", "create a client to a remote host (?client-connect host:port [group])", 0, &client_connect_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "?client-exec", "create a client to a local process (?client-exec label [group [binary [args]*])", 0, &client_exec_group_cmd_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config (duplex|server|client|hidden|visible|prefixed|fixed|translate|native) [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config (duplex|server|client|hidden|visible|prefixed|fixed|translate|native|[no-]named-log) [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-switch", "switch a client's group (?client-switch group [client])", 0, &client_switch_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "group-create", "create a new group (?group-create name [group])", 0, &group_create_group_cmd_katcp, NULL, NULL);

@@ -1051,6 +1051,7 @@ int switch_group_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct k
 #endif
 #define KATCP_FLAT_PREFIXED     0x20   /* sensors have prefix fields to them */
 #define KATCP_FLAT_RETAINFO     0x40   /* do not rewrite relayed info fields */
+#define KATCP_FLAT_LOGPREFIX    0x80   /* prefix flat name to log message name field */
 
 struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned int flags, char *name, struct katcp_group *g);
 struct katcp_flat *create_exec_flat_katcp(struct katcp_dispatch *d, unsigned int flags, char *name, struct katcp_group *gx, char **vector);

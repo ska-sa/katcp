@@ -1554,10 +1554,12 @@ int log_message_katcp(struct katcp_dispatch *d, unsigned int priority, char *nam
   unsigned int level, i;
   struct katcp_shared *s;
   struct katcp_entry *e;
-  char *prefix;
+#define LOCAL_BUFFER_SIZE  64
+  char *prefix, buffer[LOCAL_BUFFER_SIZE];
 #ifdef KATCP_EXPERIMENTAL
   int count;
   struct katcl_parse *px;
+  struct katcp_flat *fx;
 #endif
 
   level = priority & KATCP_MASK_LEVELS;
@@ -1586,6 +1588,16 @@ int log_message_katcp(struct katcp_dispatch *d, unsigned int priority, char *nam
   }
 
 #ifdef KATCP_EXPERIMENTAL
+  fx = this_flat_katcp(d);
+  if ((fx) && (fx->f_name)){
+    if (fx->f_flags & KATCP_FLAT_LOGPREFIX){
+      snprintf(buffer, LOCAL_BUFFER_SIZE - 1, "%s.%s", fx->f_name, prefix);
+      buffer[LOCAL_BUFFER_SIZE - 1] = '\0';
+      prefix = buffer;
+    }
+  }
+#undef LOCAL_BUFFER_SIZE
+
   px = create_referenced_parse_katcl();
   if(px == NULL){
     return -1;
