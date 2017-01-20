@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <time.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -384,9 +385,20 @@ int whoami_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
 static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, char *name)
 {
+#define BUFFER 64
   int result, r, pending;
   char *ptr;
   struct katcp_group *gx;
+  struct katcp_shared *s;
+  char buffer[BUFFER];
+  struct katcp_response_handler *rh;
+  unsigned int i;
+  struct timeval now, delta;
+
+  s = d->d_shared;
+  if(s == NULL){
+    return KATCP_RESULT_FAIL;
+  }
 
   if(fx->f_name == NULL){
     return 0;
@@ -419,6 +431,17 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
 
   result += r;
 
+  gettimeofday(&now, NULL);
+
+  print_time_delta_katcm(buffer, BUFFER, now.tv_sec - s->s_start);
+
+#if KATCP_PROTOCOL_MAJOR_VERSION >= 5
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu", fx->f_name, s->s_start); 
+#else
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu000", fx->f_name, s->s_start); 
+#endif  
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has been running for %s", fx->f_name, buffer);
+
   ptr = log_to_string_katcl(fx->f_log_level);
   if(ptr){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has log level <%s>", fx->f_name, ptr);
@@ -442,6 +465,10 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s prefix its name to log inform messages", fx->f_name, (fx->f_flags & KATCP_FLAT_LOGPREFIX) ? "will" : "will not");
 
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s translate relayed inform messages", fx->f_name, (fx->f_flags & KATCP_FLAT_RETAINFO) ? "will not" : "will");
+
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept katcp admin messages", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESKATCP) ? "will" : "will not");
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept extra admin messages", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESADMIN) ? "will" : "will not");
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept user messages", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESUSER) ? "will" : "will not");
 
   ptr = string_from_scope_katcp(fx->f_scope);
   if(ptr){
@@ -467,6 +494,14 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
 
   log_message_katcp(d, ((fx->f_max_defer > 0) ? KATCP_LEVEL_WARN : KATCP_LEVEL_INFO) | KATCP_LEVEL_LOCAL, NULL, "client %s has had a maximum of %d requests outstanding", fx->f_name, fx->f_max_defer);
 
+  for(i = 0; i < KATCP_SIZE_REPLY; i++){
+    rh = &(fx->f_replies[i]);
+    if(rh->r_reply != NULL){
+      sub_time_katcp(&delta, &now, &(rh->r_when));
+      log_message_katcp(d, (rh->r_message ? KATCP_LEVEL_INFO : KATCP_LEVEL_ERROR) | KATCP_LEVEL_LOCAL, NULL, "client %s has request %u queued for %s issued %lu.%06lus ago", fx->f_name, i, rh->r_message ? rh->r_message : "<UNKNOWN>", delta.tv_sec, delta.tv_usec);
+    }
+  }
+
   if(flushing_katcl(fx->f_line)){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has output pending", fx->f_name);
   }
@@ -485,7 +520,9 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has output pending", fx->f_name);
   }
 
+
   return result;
+#undef BUFFER
 }
 
 int client_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
@@ -966,6 +1003,8 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   append_string_katcp(d, KATCP_FLAG_STRING, KATCP_OK);
   append_string_katcp(d, KATCP_FLAG_STRING, key);
   append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, strategy);
+
+  dump_variable_sensor_katcp(d, vx, KATCP_LEVEL_DEBUG);
 
   return KATCP_RESULT_OWN;
 }

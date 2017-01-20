@@ -311,6 +311,7 @@ void destroy_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subscribe *s
 int delete_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, /*unsigned int index*/ struct katcp_subscribe *sub)
 {
   /*struct katcp_subscribe *sub;*/
+  /* WARNING: delete *has* to decrement size, otherwise the loop relying on it never terminates */
 
   sane_wit(w);
 
@@ -457,7 +458,9 @@ static int broadcast_event_subscribe_katcp(struct katcp_dispatch *d, struct katc
   return w->w_size_event;
 
 #if 0
-  unsigned int i;
+int broadcast_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, struct katcl_parse *px)
+{
+  unsigned int i, inc;
   struct katcp_subscribe *sub;
 
   sane_wit(w);
@@ -466,8 +469,10 @@ static int broadcast_event_subscribe_katcp(struct katcp_dispatch *d, struct katc
   fprintf(stderr, "sensor: broadcasting sensor update to %u interested parties\n", w->w_size);
 #endif
 
-  for(i = 0; i < w->w_size; i++){
+  i = 0; 
+  while(i < w->w_size){
     sub = w->w_vector[i];
+    inc = 1;
 
 #ifdef KATCP_CONSISTENCY_CHECKS
     if(sub == NULL){
@@ -480,8 +485,12 @@ static int broadcast_event_subscribe_katcp(struct katcp_dispatch *d, struct katc
 
     if(sub->s_strategy == KATCP_STRATEGY_EVENT){
       if(send_message_endpoint_katcp(d, w->w_endpoint, sub->s_endpoint, px, 0) < 0){
+#if 0
+        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "subscriber %u/%u unreachable at enpoint %p, retiring it", i, w->w_size, sub->s_endpoint);
+#endif
         /* other end could have gone away, notice it ... */
-        delete_subscribe_katcp(d, w, i);
+        delete_subscribe_katcp(d, w, i); /* implies a w_size-- */
+        inc = 0;
       }
 #ifdef KATCP_CONSISTENCY_CHECKS
     } else {
@@ -490,6 +499,7 @@ static int broadcast_event_subscribe_katcp(struct katcp_dispatch *d, struct katc
 #endif
     }
 
+    i += inc;
   }
 
   return w->w_size;
@@ -978,6 +988,44 @@ int forget_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx
   return delete_subscribe_katcp(d, w, sub);
 }
 
+void dump_variable_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, int level)
+{
+  unsigned int i;
+  struct katcp_wit *w;
+
+  if(is_vrbl_sensor_katcp(d, vx) <= 0){
+    log_message_katcp(d, level, NULL, "variable at %p does not appear to be a reasonable sensor", vx);
+    return;
+  }
+
+  if(vx->v_extra == NULL){
+    log_message_katcp(d, level, NULL, "no extra variable state found for %p", vx->v_extra);
+    return;
+  }
+ 
+  w = vx->v_extra;
+
+  sane_wit(w);
+
+  for(i = 0; i < w->w_size_period; i++){
+    log_message_katcp(d, level, NULL, "subscriber[%u] uses strategy %d with endpoint %p", i, w->w_vector_period[i]->s_strategy, w->w_vector_period[i]->s_endpoint);
+    if(w->w_vector_period[i]->s_variable != vx){
+      log_message_katcp(d, (w->w_vector_period[i]->s_variable == NULL) ? level : KATCP_LEVEL_FATAL, NULL, "subscriber[%u] variable mismatch: cached value %p does not match top-level %p", i, w->w_vector_period[i]->s_variable, vx);
+
+    }
+  }
+
+  for(i = 0; i < w->w_size_event; i++){
+    log_message_katcp(d, level, NULL, "subscriber[%u] uses strategy %d with endpoint %p", i, w->w_vector_event[i]->s_strategy, w->w_vector_event[i]->s_endpoint);
+    if(w->w_vector_event[i]->s_variable != vx){
+      log_message_katcp(d, (w->w_vector_event[i]->s_variable == NULL) ? level : KATCP_LEVEL_FATAL, NULL, "subscriber[%u] variable mismatch: cached value %p does not match top-level %p", i, w->w_vector_event[i]->s_variable, vx);
+
+    }
+  }
+
+  log_message_katcp(d, level, NULL, "variable %p has %u subscribers", vx, (w->w_size_period + w->w_size_event));
+}
+
 /***************************************************************************/
 
 int perform_sensor_update_katcp(struct katcp_dispatch *d, void *data)
@@ -1011,14 +1059,16 @@ int perform_sensor_update_katcp(struct katcp_dispatch *d, void *data)
   for(j = 0; j < s->s_members; j++){
     gx = s->s_groups[j];
     for(i = 0; i < gx->g_count; i++){
-      fx = gx->g_flats[i];
-      if((fx->f_stale & KATCP_STALE_MASK_SENSOR) == KATCP_STALE_SENSOR_STALE){
-        fx->f_stale = KATCP_STALE_SENSOR_NAIVE;
+      fx = is_ready_flat_katcp(d, gx->g_flats[i]);
+      if(fx){
+        if((fx->f_stale & KATCP_STALE_MASK_SENSOR) == KATCP_STALE_SENSOR_STALE){
+          fx->f_stale = KATCP_STALE_SENSOR_NAIVE;
 
-        if(fx->f_flags & KATCP_FLAT_TOCLIENT){
-          /* TODO: shouldn't we use the fancy queue infrastructure ? */
-          append_parse_katcl(fx->f_line, px);
-          count++;
+          if((fx->f_flags & KATCP_FLAT_TOCLIENT) && (fx->f_flags & KATCP_FLAT_SEESKATCP)){
+            /* TODO: shouldn't we use the fancy queue infrastructure ? */
+            append_parse_katcl(fx->f_line, px);
+            count++;
+          }
         }
       }
     }
@@ -1068,6 +1118,7 @@ int schedule_sensor_update_katcp(struct katcp_dispatch *d, char *name)
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "scheduled change notification");
 
   s->s_changes++;
+
   return 0;
 }
 

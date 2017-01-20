@@ -39,7 +39,11 @@ extern "C" {
 
 /***************************************************************************/
 
-struct katcl_byte_bit;
+struct katcl_byte_bit{
+  unsigned long b_byte;
+  unsigned char b_bit;
+  unsigned char b_align;
+};
 
 struct katcl_larg{
   unsigned int a_begin;
@@ -458,6 +462,8 @@ struct katcp_arb{
 #define KATCP_VRF_SEN   0x04  /* a variable visible as a sensor */
 #define KATCP_VRF_FLX   0x08  /* type can change */
 #define KATCP_VRF_HID   0x10  /* hidden */
+#define KATCP_VRF_ROM   0x20  /* no overwrite */
+#define KATCP_VRF_SPE   0x40  /* special variable - still unused */
 
 #define KATCP_MASK_VRF  0x1f  /* mask of all flags */
 
@@ -633,6 +639,7 @@ struct katcp_response_handler{
   struct katcp_endpoint *r_issuer;
   struct katcp_endpoint *r_recipient;
   struct katcl_parse *r_initial;
+  struct timeval r_when;
 };
 
 #define KATCP_SIZE_REPLY         2
@@ -711,6 +718,7 @@ struct katcp_flat{
   /* a sensor could probably be a special type of notice */
 
   struct katcp_region *f_region;
+  time_t f_start;
 };
 #endif
 
@@ -972,6 +980,8 @@ char **copy_vector_katcm(char **vector, unsigned int size);
 void delete_vector_katcm(char **vector, unsigned int size);
 char *default_message_type_katcm(char *string, int type);
 
+int print_time_delta_katcm(char *buffer, unsigned int len, time_t delta);
+
 /* timing support */
 int empty_timers_katcp(struct katcp_dispatch *d);
 int run_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
@@ -1037,7 +1047,9 @@ int load_flat_katcp(struct katcp_dispatch *d);
 int startup_duplex_katcp(struct katcp_dispatch *d, unsigned int stories);
 void shutdown_duplex_katcp(struct katcp_dispatch *d);
 
-#define KATCP_GROUP_OVERRIDE_SENSOR    0x1000
+#define KATCP_GROUP_OVERRIDE_SENSOR    0x10000
+#define KATCP_GROUP_OVERRIDE_BROADCAST 0x20000
+#define KATCP_GROUP_OVERRIDE_RELAYINFO 0x40000
 
 int switch_group_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct katcp_group *gx);
 
@@ -1053,9 +1065,16 @@ int switch_group_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct k
 #define KATCP_FLAT_RETAINFO     0x40   /* do not rewrite relayed info fields */
 #define KATCP_FLAT_LOGPREFIX    0x80   /* prefix flat name to log message name field */
 
+#define KATCP_FLAT_SEESKATCP   0x100   /* sees katcp-specified inform messages */
+#define KATCP_FLAT_SEESADMIN   0x200   /* sees admin messages */
+#define KATCP_FLAT_SEESUSER    0x400   /* wants to see the content of broadcast_inform */
+
+int broadcast_pair_katcp(struct katcp_dispatch *d, char *inform, char *value, unsigned int flag);
+
 struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned int flags, char *name, struct katcp_group *g);
 struct katcp_flat *create_exec_flat_katcp(struct katcp_dispatch *d, unsigned int flags, char *name, struct katcp_group *gx, char **vector);
 int reconfigure_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, unsigned int flags);
+struct katcp_flat *is_ready_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx);
 
 int trigger_connect_flat(struct katcp_dispatch *d, struct katcp_flat *fx);
 
@@ -1302,6 +1321,7 @@ int make_string_vrbl_katcp(struct katcp_dispatch *d, struct katcp_group *gx, cha
 unsigned int current_strategy_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx);
 
 int is_vrbl_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx);
+int is_ver_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx);
 
 char *strategy_to_string_sensor_katcp(struct katcp_dispatch *d, unsigned int strategy);
 int strategy_from_string_sensor_katcp(struct katcp_dispatch *d, char *name);
@@ -1315,6 +1335,8 @@ struct katcl_parse *make_sensor_katcp(struct katcp_dispatch *d, char *name, stru
 
 #define KATCP_NAGLE_CHANGE  500000    /* defer device-changes by this much (us) ... */
 int schedule_sensor_update_katcp(struct katcp_dispatch *d, char *name);
+
+void dump_variable_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, int level);
 
 
 /* version callback */

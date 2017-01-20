@@ -343,7 +343,7 @@ void clear_katcl(struct katcl_line *l) /* discard a full line */
 int have_katcl(struct katcl_line *l)
 {
   if(ready_katcl(l)){
-#if DEBUG>2
+#if DEBUG > 2
     fprintf(stderr, "clearing data buffer\n");
 #endif
     clear_katcl(l);

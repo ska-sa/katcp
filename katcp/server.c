@@ -567,12 +567,15 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 #define LABEL_BUFFER 32
   /* int nfd; */
   int run, result, suspend;
-  /* unsigned int len; */
-  /* struct sockaddr_in sa; */
+#ifdef KATCP_DEPRECATED
+  unsigned int len;
+  struct sockaddr_in sa;
+  char label[LABEL_BUFFER];
+  long opts;
+  int nfd;
+#endif
   struct timespec delta;
   struct katcp_shared *s;
-  /* char label[LABEL_BUFFER]; */
-  /* long opts; */
 
   s = dl->d_shared;
 

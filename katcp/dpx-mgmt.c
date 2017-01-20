@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <time.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -73,7 +74,7 @@ int client_exec_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     vector = NULL;
   }
 
-  fx = create_exec_flat_katcp(d, KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_PREFIXED, label, gx, vector);
+  fx = create_exec_flat_katcp(d, KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_PREFIXED | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER, label, gx, vector);
   if(vector){
     free(vector);
   }
@@ -88,7 +89,7 @@ int client_exec_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
 int client_connect_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
-  char *client, *group;
+  char *client, *group, *name;
   struct katcp_group *gx;
   int fd;
 
@@ -118,6 +119,14 @@ int client_connect_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     gx = this_group_katcp(d);
   }
 
+  name = NULL;
+  if(argc > 3){
+    name = arg_string_katcp(d, 3);
+  }
+  if(name == NULL){
+    name = client;
+  }
+
   fd = net_connect(client, 0, NETC_ASYNC);
   if(fd < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to initiate connection to %s: %s", client, errno ? strerror(errno) : "unknown error");
@@ -126,7 +135,7 @@ int client_connect_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   fcntl(fd, F_SETFD, FD_CLOEXEC);
 
-  if(create_flat_katcp(d, fd, KATCP_FLAT_CONNECTING | KATCP_FLAT_TOSERVER | KATCP_FLAT_PREFIXED, client, gx) == NULL){
+  if(create_flat_katcp(d, fd, KATCP_FLAT_CONNECTING | KATCP_FLAT_TOSERVER | KATCP_FLAT_PREFIXED, name, gx) == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to allocate client connection");
     close(fd);
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
@@ -200,6 +209,19 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     set    = KATCP_FLAT_LOGPREFIX;
   } else if(!strcmp(option, "no-named-log")){
     mask   = KATCP_FLAT_LOGPREFIX;
+  } else if(!strcmp(option, "info-none")){
+    mask   = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER;
+  } else if(!strcmp(option, "info-katcp")){
+    set    = KATCP_FLAT_SEESKATCP;
+    mask   = KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER;
+  } else if(!strcmp(option, "info-user")){
+    set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESUSER;
+    mask   = KATCP_FLAT_SEESADMIN;
+  } else if(!strcmp(option, "info-admin")){
+    set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN;
+    mask   = KATCP_FLAT_SEESUSER;
+  } else if(!strcmp(option, "info-all")){
+    set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER;
   } else {
     /* WARNING: does not error out in an effort to be forward compatible */
     log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unknown configuration option %s", option);
@@ -248,7 +270,7 @@ int client_halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   if(terminate_flat_katcp(d, fx) < 0){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to terminate client");
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to terminate client %s", fx->f_name ? fx->f_name : "without a name");
     return KATCP_RESULT_FAIL;
   }
 
@@ -516,9 +538,15 @@ int group_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s will %s if not used", group, gx->g_autoremove ? "disappear" : "persist");
 
     if(gx->g_flags & KATCP_GROUP_OVERRIDE_SENSOR){
-      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s forces sensor names to be %s", group, (gx->g_flags & KATCP_FLAT_PREFIXED) ? "prefixed" : "without prefix");
+      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s forces names to be %s", group, (gx->g_flags & KATCP_FLAT_PREFIXED) ? "prefixed" : "without prefix");
     } else {
-      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s leaves sensor prefixing decision to client creation context", group);
+      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s leaves prefixing decision to client creation context", group);
+    }
+
+    if(gx->g_flags & KATCP_GROUP_OVERRIDE_RELAYINFO){
+      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s forces relayed informs to be %s", group, (gx->g_flags & KATCP_FLAT_RETAINFO) ? "retained" : "rewritten");
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s leaves relay rewriting decision to client creation context", group);
     }
 
     ptr = log_to_string_katcl(gx->g_log_level);
@@ -605,14 +633,14 @@ int group_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   set  = 0;
   mask = 0;
 
-  if(!strcmp(option, "prefixed")){        /* prefix sensor paths */
+  if(!strcmp(option, "prefixed")){        /* prefix names */
     set    = (KATCP_GROUP_OVERRIDE_SENSOR | KATCP_FLAT_PREFIXED);
-  } else if(!strcmp(option, "fixed")){    /* make sensor paths absolute */
+  } else if(!strcmp(option, "fixed")){    /* make names absolute */
     set    = KATCP_GROUP_OVERRIDE_SENSOR;
     mask   = KATCP_FLAT_PREFIXED;      
   } else if(!strcmp(option, "flexible")){ /* pick whatever the calling logic prefers */
     mask   = (KATCP_GROUP_OVERRIDE_SENSOR | KATCP_FLAT_PREFIXED);
-  } else {
+  } else { /* TODO: broadcast and relayinfo overrides */
     /* WARNING: does not error out in an effort to be forward compatible */
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unknown configuration option %s", option);
     return KATCP_RESULT_OK;
@@ -628,7 +656,7 @@ int group_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 int listener_create_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
   char *name, *group, *address;
-  unsigned int port;
+  unsigned int port, fixup;
   struct katcp_group *gx;
   struct katcp_shared *s;
 
@@ -662,6 +690,13 @@ int listener_create_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   if(argc > 2){
     port = arg_unsigned_long_katcp(d, 2);
+
+    fixup = net_port_fixup(port);
+    if(fixup != port){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "truncating unreasonable port %u to %u", port, fixup);
+      port = fixup;
+    }
+
     if(argc > 3){
       address = arg_string_katcp(d, 3);
       if(argc > 4){
@@ -1109,6 +1144,7 @@ int broadcast_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
   }
 
+  /* WARNING: isn't this a leak, in case no clients are interested ? */
   px = create_parse_katcl();
   if(px == NULL){
     free(ptr);
@@ -1131,6 +1167,48 @@ int broadcast_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
+  return KATCP_RESULT_OK;
+}
+
+/* system information *************************************************************/
+
+int system_info_group_cmd_katcp(struct katcp_dispatch *d, int argc)
+{
+#define BUFFER 64
+  struct katcp_shared *s;
+  time_t now;
+  char buffer[BUFFER];
+  int size;
+  struct heap *th;
+
+  s = d->d_shared;
+  if(s == NULL){
+    return KATCP_RESULT_FAIL;
+  }
+
+  time(&now);
+  print_time_delta_katcm(buffer, BUFFER, now - s->s_start);
+
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "server has %u groups", s->s_members);
+#if KATCP_PROTOCOL_MAJOR_VERSION >= 5
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "server was launched at %lu", s->s_start); 
+#else
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "server was launched at %lu000", s->s_start); 
+#endif  
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "server has been running for %s", buffer);
+#ifdef __DATE__
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "server was built on %s at %s", __DATE__, __TIME__);
+#endif
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_lcount, (s->s_lcount == 1) ? "listener" : "listeners");
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_epcount, (s->s_epcount == 1) ? "endpoint" : "endpoints");
+
+  th = s->s_tmr_heap;
+  size = get_size_of_heap(th);
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s in heap priority queue", size, size == 1 ? "timer" : "timers");
+
+#undef BUFFER
   return KATCP_RESULT_OK;
 }
 

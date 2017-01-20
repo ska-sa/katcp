@@ -19,6 +19,7 @@
 #include "netc.h"
 #include "katcp.h"
 #include "katcl.h"
+#include "katpriv.h"
 
 #define KCPCMD_NAME "kcpcmd"
 
@@ -32,6 +33,7 @@ void usage(char *app)
   printf("usage: %s [options] command [args]\n", app);
   printf("-h                 this help\n");
   printf("-v                 increase verbosity\n");
+  printf("-V                 print version information\n");
   printf("-q                 run quietly\n");
   printf("-x                 print output in hex\n");
   printf("-a                 autodetect mode, only print nonprintable fields as hex\n");
@@ -39,6 +41,7 @@ void usage(char *app)
   printf("-k                 emit katcp log messages\n");
   printf("-s server:port     specify server:port\n");
   printf("-t seconds         set timeout\n");
+  printf("-f                 firm timeout, do not reset when receiving io\n");
   printf("-p position        only print a particular argument number\n");
   printf("-l label           set katcp log message module label\n");
   printf("-r                 toggle printing of reply messages\n");
@@ -252,10 +255,10 @@ int main(int argc, char **argv)
 {
   char *app, *server, *match, *parm, *tmp, *cmd, *extra, *label;
   int i, j, c, fd;
-  int verbose, result, status, base, run, info, reply, display, max, prefix, timeout, fmt, pos, flags, munge, show;
+  int verbose, result, status, base, run, info, reply, display, max, prefix, timeout, fmt, pos, flags, munge, show, firm;
   struct katcl_line *l, *k;
   fd_set fsr, fsw;
-  struct timeval tv;
+  struct timeval tv, when, now;
 
   label = getenv("KATCP_LABEL");
   if(label == NULL){
@@ -267,6 +270,7 @@ int main(int argc, char **argv)
     server = "localhost";
   }
   
+  firm = 0;
   info = 1;
   reply = 1;
   verbose = 1;
@@ -289,6 +293,22 @@ int main(int argc, char **argv)
         case 'h' :
           usage(app);
           return 0;
+        case 'V' :
+          
+#ifdef VERSION
+          printf("%s version %s\n", app, VERSION);
+#else
+          printf("%s version is unknown\n", app);
+#endif
+#ifdef __DATE__
+          printf("%s compiled on %s\n", app, __DATE__);
+#endif
+#ifdef KATCP_PROTOCOL_MAJOR_VERSION
+#ifdef KATCP_PROTOCOL_MINOR_VERSION
+          printf("%s built for katcp %d.%d\n", app, KATCP_PROTOCOL_MAJOR_VERSION, KATCP_PROTOCOL_MINOR_VERSION);
+#endif
+#endif
+          return 0;
 
         case 'v' : 
           verbose++;
@@ -306,6 +326,10 @@ int main(int argc, char **argv)
           break;
         case 'r' : 
           reply = 1 - reply;
+          j++;
+          break;
+        case 'f' : 
+          firm = 1 - firm;
           j++;
           break;
         case 'n' : 
@@ -474,6 +498,15 @@ int main(int argc, char **argv)
 
   /* WARNING: logic a bit intricate */
 
+  tv.tv_sec  = timeout;
+  tv.tv_usec = 0;
+
+  if(firm){
+    gettimeofday(&now, NULL);
+
+    add_time_katcp(&when, &now, &tv);
+  }
+
   for(run = 1; run;){
 
     FD_ZERO(&fsr);
@@ -487,8 +520,11 @@ int main(int argc, char **argv)
       FD_SET(fd, &fsw);
     }
 
-    tv.tv_sec  = timeout;
-    tv.tv_usec = 0;
+    if(k){
+      if(flushing_katcl(k)){ /* only write data if we have some */
+        FD_SET(STDOUT_FILENO, &fsw);
+      }
+    }
 
     result = select(fd + 1, &fsr, &fsw, NULL, &tv);
     switch(result){
@@ -509,10 +545,19 @@ int main(int argc, char **argv)
           sync_message_katcl(k, KATCP_LEVEL_ERROR, label, "request %s timed out after %d seconds", argv[base], timeout);
         } 
         if(verbose){
-          fprintf(stderr, "%s: no io activity within %d seconds\n", app, timeout);
+          fprintf(stderr, "%s: no %s within %d seconds\n", app, firm ? "response" : "io activity", timeout);
         }
         /* could terminate cleanly here, but ... */
         return 2;
+    }
+
+    if(firm){
+      gettimeofday(&now, NULL);
+      
+      sub_time_katcp(&tv, &when, &now);
+    } else{
+      tv.tv_sec  = timeout;
+      tv.tv_usec = 0;
     }
 
     if(FD_ISSET(fd, &fsw)){
@@ -526,6 +571,12 @@ int main(int argc, char **argv)
       }
       if((result > 0) && (match == NULL)){ /* if we finished writing and don't expect a match then quit */
       	run = 0;
+      }
+    }
+
+    if(k){
+      if(FD_ISSET(STDOUT_FILENO, &fsw)){
+        write_katcl(k);
       }
     }
 
