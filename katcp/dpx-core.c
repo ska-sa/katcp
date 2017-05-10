@@ -1008,7 +1008,7 @@ int process_map_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, int 
 
   fx->f_cmd = NULL;
 
-  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "%s callback invocation returns %d", (fx->f_current_endpoint == fx->f_remote) ? "remote" : "internal", result);
+  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "%s map callback invocation returns %d", (fx->f_current_endpoint == fx->f_remote) ? "remote" : "internal", result);
 
   return result;
 }
@@ -1160,7 +1160,7 @@ static struct katcp_response_handler *find_handler_peer_flat_katcp(struct katcp_
     rh = &(fx->f_replies[i]);
     if(rh->r_reply && rh->r_message && (rh->r_recipient == from) && (strcmp(rh->r_message, string + 1) == 0)){
 #ifdef DEBUG
-      fprintf(stderr, "dpx[%p]: found candidate callback[%u]=%p: match for %s\n", fx, i, rh->r_reply, rh->r_message);
+      fprintf(stderr, "dpx[%p]: found handler callback[%u]=%p: match for %s\n", fx, i, rh->r_reply, rh->r_message);
 #endif
       return rh;
     } 
@@ -1262,7 +1262,7 @@ int wake_endpoint_peer_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoin
       if(rh){
         /* WARNING: adjusts default output */
 #ifdef DEBUG
-       fprintf(stderr, "dpx[%p]: setting output to %p\n", fx, rh->r_issuer);
+       fprintf(stderr, "dpx[%p]: overring output from %p to %p\n", fx, fx->f_current_endpoint, rh->r_issuer);
 #endif
         fx->f_current_endpoint = rh->r_issuer;
       }
@@ -1603,7 +1603,7 @@ int reconfigure_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, unsi
     trigger_connect_flat(d, fx);
   }
 
-  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED | KATCP_FLAT_RETAINFO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER);
+  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_RETAINFO | KATCP_FLAT_RUNMAPTOO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER);
 
   return 0;
 }
@@ -1773,6 +1773,8 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
     set  |=   (gx->g_flags)  & KATCP_FLAT_RETAINFO;
     mask |= (~(gx->g_flags)) & KATCP_FLAT_RETAINFO;
   }
+
+  /* TODO: missing INSTALLINFO and RUNMAPTOO */
 
   reconfigure_flat_katcp(d, f, (flags & (~mask)) | set);
 

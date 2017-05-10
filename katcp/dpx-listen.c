@@ -131,7 +131,10 @@ int accept_flat_katcp(struct katcp_dispatch *d, struct katcp_arb *a, unsigned in
 
     broadcast_pair_katcp(d, KATCP_CLIENT_CONNECT, label, KATCP_FLAT_SEESKATCP);
 
+#if 0
     f = create_flat_katcp(d, nfd, KATCP_FLAT_TOCLIENT | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESUSER, label, kl->l_group);
+#endif
+    f = create_flat_katcp(d, nfd, KATCP_FLAT_TOCLIENT | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESUSER, label, kl->l_group);
     if(f == NULL){
       close(nfd);
     }

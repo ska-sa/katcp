@@ -1024,11 +1024,11 @@ int switch_group_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct k
 #define KATCP_FLAT_TOSERVER     0x02   /* direction */
 #define KATCP_FLAT_TOCLIENT     0x04   /* direction */
 #define KATCP_FLAT_HIDDEN       0x08   /* do not show up in client list */
-#if 0
-#define KATCP_FLAT_SEECHANGES   0x10   /* unused */
-#endif
-#define KATCP_FLAT_PREFIXED     0x20   /* sensors have prefix fields to them */
+#define KATCP_FLAT_PREFIXED     0x10   /* sensors have prefix fields to them */
+
+#define KATCP_FLAT_INSTALLINFO  0x20   /* install info relay handler */
 #define KATCP_FLAT_RETAINFO     0x40   /* do not rewrite relayed info fields */
+#define KATCP_FLAT_RUNMAPTOO    0x80   /* invoke map handler even if it is relayed */
 
 #define KATCP_FLAT_SEESKATCP   0x100   /* sees katcp-specified inform messages */
 #define KATCP_FLAT_SEESADMIN   0x200   /* sees admin messages */

@@ -74,7 +74,7 @@ int client_exec_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     vector = NULL;
   }
 
-  fx = create_exec_flat_katcp(d, KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_PREFIXED | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER, label, gx, vector);
+  fx = create_exec_flat_katcp(d, KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_RUNMAPTOO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER, label, gx, vector);
   if(vector){
     free(vector);
   }
@@ -164,6 +164,7 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   option = arg_string_katcp(d, 1);
   if(option == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire a flag");
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "supported flags include duplex server client hidden visible prefixed fixed stop-info relay-info translate native map-fallback map-always info-none info-katcp info-user info-admin info-all");
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
   }
   
@@ -201,10 +202,18 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     set    = KATCP_FLAT_PREFIXED;
   } else if(!strcmp(option, "fixed")){
     mask   = KATCP_FLAT_PREFIXED;
+  } else if(!strcmp(option, "stop-info")){
+    mask   = KATCP_FLAT_INSTALLINFO;
+  } else if(!strcmp(option, "relay-info")){
+    set    = KATCP_FLAT_INSTALLINFO;
   } else if(!strcmp(option, "translate")){
     mask   = KATCP_FLAT_RETAINFO;
   } else if(!strcmp(option, "native")){
     set    = KATCP_FLAT_RETAINFO;
+  } else if(!strcmp(option, "map-fallback")){
+    mask   = KATCP_FLAT_RUNMAPTOO;
+  } else if(!strcmp(option, "map-always")){
+    set    = KATCP_FLAT_RUNMAPTOO;
   } else if(!strcmp(option, "info-none")){
     mask   = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER;
   } else if(!strcmp(option, "info-katcp")){

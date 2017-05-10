@@ -398,12 +398,12 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
 
   gettimeofday(&now, NULL);
 
-  print_time_delta_katcm(buffer, BUFFER, now.tv_sec - s->s_start);
+  print_time_delta_katcm(buffer, BUFFER, now.tv_sec - fx->f_start);
 
 #if KATCP_PROTOCOL_MAJOR_VERSION >= 5
-  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu", fx->f_name, s->s_start); 
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu", fx->f_name, fx->f_start); 
 #else
-  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu000", fx->f_name, s->s_start); 
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu000", fx->f_name, fx->f_start); 
 #endif  
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has been running for %s", fx->f_name, buffer);
 
@@ -427,7 +427,11 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
 
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s prefix its name to sensor definitions", fx->f_name, (fx->f_flags & KATCP_FLAT_PREFIXED) ? "will" : "will not");
 
-  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s translate relayed inform messages", fx->f_name, (fx->f_flags & KATCP_FLAT_RETAINFO) ? "will not" : "will");
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s relay inform messages", fx->f_name, (fx->f_flags & KATCP_FLAT_INSTALLINFO) ? "will not" : "will");
+  if(fx->f_flags & KATCP_FLAT_INSTALLINFO){
+    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s translate relayed inform messages", fx->f_name, (fx->f_flags & KATCP_FLAT_RETAINFO) ? "will not" : "will");
+  }
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s will lookup default inform handler %s", fx->f_name, (fx->f_flags & KATCP_FLAT_RUNMAPTOO) ? "regardless of reply handler" : "if no reply handler available");
 
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept katcp admin messages", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESKATCP) ? "will" : "will not");
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept extra admin messages", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESADMIN) ? "will" : "will not");
@@ -477,10 +481,6 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   pending = pending_endpoint_katcp(d, fx->f_peer);
   if(pending > 0){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has %d %s in queue", fx->f_name, pending, (pending > 1) ? "commands" : "command");
-  }
-
-  if(flushing_katcl(fx->f_line)){
-    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has output pending", fx->f_name);
   }
 
 
