@@ -484,6 +484,7 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has %d %s in queue", fx->f_name, pending, (pending > 1) ? "commands" : "command");
   }
 
+  show_endpoint_katcp(d, fx->f_name ? fx->f_name : "unknown", KATCP_LEVEL_TRACE | KATCP_LEVEL_LOCAL, fx->f_peer);
 
   return result;
 #undef BUFFER
