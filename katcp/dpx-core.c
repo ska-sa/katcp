@@ -1244,7 +1244,7 @@ int wake_endpoint_peer_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoin
   source = source_endpoint_katcp(d, msg);
   rh = NULL;
 
-  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "received a message %s ... (message source endpoint %p, remote %p)", str, source, fx->f_remote);
+  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "%s received a message %s ... (message source endpoint %p, remote %p)", fx->f_name ? fx->f_name, "unknown", str, source, fx->f_remote);
 
   switch(type){
     case KATCP_REQUEST :
