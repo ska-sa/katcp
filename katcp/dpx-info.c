@@ -577,74 +577,77 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
 
   log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "saw a sensor status message (origin=%p, remote=%p, self=%p)", origin, remote, self);
 
-  if(fx->f_flags & KATCP_FLAT_SEESMAPINFO){
-    if(origin != remote){ /* ... remote party is sending us a status update ... */
+  if(origin == remote){
+    /* comes in from fd, process it */
+
+    stamp = get_string_parse_katcl(px, 1);
+    name = get_string_parse_katcl(px, 3);
+    status = get_string_parse_katcl(px, 4);
+    value = get_string_parse_katcl(px, 5);
+
+    if((stamp == NULL) || (name == NULL) || (status == NULL) || (value == NULL)){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "deficient sensor update encountered");
+      return -1;
+    }
+
+    if(fixup_timestamp_katcp(stamp, buffer, TIMESTAMP_BUFFER) < 0){
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "timestamp %s not reasonable", stamp);
+      return -1;
+    }
+    buffer[TIMESTAMP_BUFFER - 1] = '\0';
+
+    ptr = make_child_field_katcp(d, fx, name, 0);
+    if(ptr == NULL){
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unable fixup sensor name %s", name);
+      return -1;
+    }
+
+    vx = find_vrbl_katcp(d, ptr);
+    if(vx){
+      if(is_vrbl_sensor_katcp(d, vx)){
+
+        if(vx->v_flags & KATCP_VRF_HID){
+          log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "variable %s is hidden", ptr);
+          unhide = 0;
+        } else {
+          hide_vrbl_katcp(d, vx);
+          unhide = 1;
+        }
+
+        scan_vrbl_katcp(d, vx, buffer, KATCP_VRC_SENSOR_TIME,   1, KATCP_VRT_STRING);
+        scan_vrbl_katcp(d, vx, status, KATCP_VRC_SENSOR_STATUS, 1, KATCP_VRT_STRING);
+
+        if(unhide){
+          show_vrbl_katcp(d, vx);
+        }
+
+        scan_vrbl_katcp(d, vx, value,  KATCP_VRC_SENSOR_VALUE,  1, KATCP_VRT_STRING);
+
+      } else {
+        log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "variable %s exists but not a sensor thus not propagating it", ptr);
+      }
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "no declaration for sensor %s thus not propagating it", ptr);
+    }
+
+    free(ptr);
+  } else {
+
+    if(fx->f_flags & KATCP_FLAT_TOCLIENT){
 
       log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "origin endpoint of message is %p, remote %p", origin, remote);
 
       if(remote){
+        /* WARNING: this is needed to relay variable subscriptions */
         send_message_endpoint_katcp(d, self, remote, px, 0);
       } else {
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "internal problem, saw a sensor status but have nowhere to send it to");
       }
 
-      if((fx->f_flags & KATCP_FLAT_RUNMAPTOO) == 0){
-        return 0;
-      }
-    }
-  }
-
-  stamp = get_string_parse_katcl(px, 1);
-  name = get_string_parse_katcl(px, 3);
-  status = get_string_parse_katcl(px, 4);
-  value = get_string_parse_katcl(px, 5);
-
-  if((stamp == NULL) || (name == NULL) || (status == NULL) || (value == NULL)){
-    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "deficient sensor update encountered");
-    return -1;
-  }
-
-  if(fixup_timestamp_katcp(stamp, buffer, TIMESTAMP_BUFFER) < 0){
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "timestamp %s not reasonable", stamp);
-    return -1;
-  }
-  buffer[TIMESTAMP_BUFFER - 1] = '\0';
-
-  ptr = make_child_field_katcp(d, fx, name, 0);
-  if(ptr == NULL){
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unable fixup sensor name %s", name);
-    return -1;
-  }
-
-  vx = find_vrbl_katcp(d, ptr);
-  if(vx){
-    if(is_vrbl_sensor_katcp(d, vx)){
-
-      if(vx->v_flags & KATCP_VRF_HID){
-        log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "variable %s is hidden", ptr);
-        unhide = 0;
-      } else {
-        hide_vrbl_katcp(d, vx);
-        unhide = 1;
-      }
-
-      scan_vrbl_katcp(d, vx, buffer, KATCP_VRC_SENSOR_TIME,   1, KATCP_VRT_STRING);
-      scan_vrbl_katcp(d, vx, status, KATCP_VRC_SENSOR_STATUS, 1, KATCP_VRT_STRING);
-
-      if(unhide){
-        show_vrbl_katcp(d, vx);
-      }
-
-      scan_vrbl_katcp(d, vx, value,  KATCP_VRC_SENSOR_VALUE,  1, KATCP_VRT_STRING);
-
     } else {
-      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "variable %s exists but not a sensor thus not propagating it", ptr);
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "%s is not a client so not receiving sensor status messages", fx->f_name ? fx->f_name : "unknown party")
     }
-  } else {
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "no declaration for sensor %s thus not propagating it", ptr);
-  }
-
-  free(ptr);
+  } 
 
   return 0;
 #undef TIMESTAMP_BUFFER
