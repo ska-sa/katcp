@@ -486,6 +486,8 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
 
   show_endpoint_katcp(d, fx->f_name ? fx->f_name : "unknown", KATCP_LEVEL_TRACE | KATCP_LEVEL_LOCAL, fx->f_peer);
 
+  log_message_katcp(d, KATCP_LEVEL_DEBUG | KATCP_LEVEL_LOCAL, NULL, "client %s running with fd %d", fx->f_name ? fx->f_name : "unknown", fileno_katcl(fx->f_line));
+
   return result;
 #undef BUFFER
 }
