@@ -1033,6 +1033,7 @@ int switch_group_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct k
 #define KATCP_FLAT_SEESKATCP   0x100   /* sees katcp-specified inform messages */
 #define KATCP_FLAT_SEESADMIN   0x200   /* sees admin messages */
 #define KATCP_FLAT_SEESUSER    0x400   /* wants to see the content of broadcast_inform */
+#define KATCP_FLAT_SEESMAPINFO 0x800   /* interested in seeing informs which also have a map handler */
 
 int broadcast_pair_katcp(struct katcp_dispatch *d, char *inform, char *value, unsigned int flag);
 
