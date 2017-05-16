@@ -342,18 +342,16 @@ int version_group_info_katcp(struct katcp_dispatch *d, int argc)
 
   log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "%s saw a version message (origin=%p, remote=%p, self=%p)", fx->f_name, origin, remote, self);
 
-  /* WARNING: unclear if this code path is ever needed, as we have the relay infrastructure to track pending requests. For sensor-status we have propagation via the variable subscriptions. What is being missed ?! */
-  if(fx->f_flags & KATCP_FLAT_SEESMAPINFO){
-    if(origin != remote){ /* version information must have originated internally ... */
+  /* WARNING: unclear if this code path is ever needed, as we have the relay infrastructure to track pending requests. sensor-status is special, variable updates queue messages to it */
+  if((fx->f_flags & KATCP_FLAT_TOSERVER) == 0){ /* not connected to a server */
+    if(origin != remote){ /* and message not from remote (weak test, origin gets rewritten in case of relayed requests) */
       if(remote){ /* ... better relay it on, if somebody requested it */
         send_message_endpoint_katcp(d, self, remote, px, 0);
       } else {
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "internal problem, saw a version message but have nowhere to send it to");
       }
 
-      if((fx->f_flags & KATCP_FLAT_RUNMAPTOO) == 0){
-        return 0;
-      }
+      return 0;
     }
   }
 
@@ -457,17 +455,15 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
 
   log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "saw a sensor list message (origin=%p, remote=%p, self=%p)", origin, remote, self);
 
-  if(fx->f_flags & KATCP_FLAT_SEESMAPINFO){
-    if(origin != remote){ /* request must have originated internally, so ... */
+  if((fx->f_flags & KATCP_FLAT_TOSERVER) == 0){ /* we aren't connected to a server */
+    if(origin != remote){ /* and it didn't come from the remote party (weak test, this gets rewritten in case of a relay */
       if(remote){ /* ... better relay it on, if somebody requested it */
         send_message_endpoint_katcp(d, self, remote, px, 0);
       } else {
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "internal problem, saw a sensor list but have nowhere to send it to");
       }
 
-      if((fx->f_flags & KATCP_FLAT_RUNMAPTOO) == 0){
-        return 0;
-      }
+      return 0;
     }
   }
 
