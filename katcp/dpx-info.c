@@ -645,7 +645,7 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
       }
 
     } else {
-      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "%s is not a client so not receiving sensor status messages", fx->f_name ? fx->f_name : "unknown party")
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "%s is not a client so not receiving sensor status messages", fx->f_name ? fx->f_name : "unknown party");
     }
   } 
 
