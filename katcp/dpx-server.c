@@ -65,3 +65,30 @@ int run_server_flat_katcp(struct katcp_dispatch *dl){
 
   return run_core_loop_katcp(dl);
 }
+
+
+#define TEMP_BUFFER_SIZE  21
+
+int run_config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, char *exe, char *host, int port){
+  char buffer[TEMP_BUFFER_SIZE] = {'\0'};
+  char *host_port;
+  int ret;
+
+  /* if port number given in args -> assume hostname and port seperate arguments */
+  if (port){
+    snprintf(buffer, TEMP_BUFFER_SIZE, "%s:%d", host, port);
+    buffer[TEMP_BUFFER_SIZE - 1] = '\0';
+    host_port = buffer;
+  } else {
+  /* if port number not given in args -> assume arg host has format "host:port" */
+    host_port = host;
+  }
+  ret = config_server_flat_katcp(dl, NULL, NULL, host_port);
+  if (ret){
+    return ret;
+  }
+
+  return run_server_flat_katcp(dl);
+}
+
+#undef TEMP_BUFFER_SIZE

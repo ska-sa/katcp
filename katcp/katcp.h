@@ -835,11 +835,14 @@ struct katcp_endpoint *source_endpoint_katcp(struct katcp_dispatch *d, struct ka
 
 /* duplex server api*/
 
-/* configure the server */
+/* configure the duplex server */
 int config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, char *exe, char *host_port);
 
-/* run the server */
+/* run the duplex server */
 int run_server_flat_katcp(struct katcp_dispatch *dl);
+
+/* configure and run duplex server */
+int run_config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, char *exe, char *host, int port);
 
 #ifdef __cplusplus
 }
