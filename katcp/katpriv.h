@@ -1241,7 +1241,7 @@ int fixup_timestamp_katcp(char *src, char *dst, int size);
 #define KATCP_VRBL_DELIM_LOGIC    '.'
 
 #define KATCP_VRBL_DELIM_FORBID   '_'
-#define KATCP_VRBL_DELIM_SPACER   '-'
+#define KATCP_VRBL_DELIM_SPACER   '-' /* also magic in array parsing - appends */
 
 struct katcp_region *create_region_katcp(struct katcp_dispatch *d);
 void destroy_region_katcp(struct katcp_dispatch *d, struct katcp_region *rx);
@@ -1291,6 +1291,9 @@ int is_ver_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx);
 
 char *strategy_to_string_sensor_katcp(struct katcp_dispatch *d, unsigned int strategy);
 int strategy_from_string_sensor_katcp(struct katcp_dispatch *d, char *name);
+
+char *type_to_string_sensor_katcp(struct katcp_dispatch *d, unsigned int type);
+int type_from_string_sensor_katcp(struct katcp_dispatch *d, char *name);
 
 int monitor_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx);
 int forget_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx);

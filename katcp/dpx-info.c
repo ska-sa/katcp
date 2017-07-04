@@ -433,7 +433,8 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
   struct katcl_parse *px;
   struct katcp_vrbl *vx;
   struct katcp_endpoint *self, *remote, *origin;
-  char *name, *description, *units, *type, *ptr;
+  char *name, *description, *units, *type, *ptr, *field;
+  unsigned typecode, i;
 
 #ifdef DEBUG
   fprintf(stderr, "log: encountered a sensor-list message\n");
@@ -475,7 +476,17 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
   type = get_string_parse_katcl(px, 4);
 
   if((name == NULL) || (description == NULL) || (type == NULL)){
-    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "deficient sensor declaration encountered");
+    if(name){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "declaration of sensor %s lacks a description or type", name);
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "deficient sensor declaration does not have a name");
+    }
+    return KATCP_RESULT_FAIL;
+  }
+
+  typecode = type_from_string_sensor_katcp(d, type);
+  if(typecode < 0){
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unsupported type %s of sensor %s", type, name);
     return KATCP_RESULT_FAIL;
   }
 
@@ -517,6 +528,20 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
 
   if(units){
     scan_vrbl_katcp(d, vx, units, KATCP_VRC_SENSOR_UNITS, 1, KATCP_VRT_STRING);
+  }
+
+  if(typecode == KATCP_SENSOR_DISCRETE){
+    for(i = 5; i < argc; i++){
+      field = get_string_parse_katcl(px, i);
+      if(field){
+        scan_vrbl_katcp(d, vx, field, KATCP_VRC_SENSOR_RANGE "#-", 1, KATCP_VRT_STRING);
+      } else {
+        log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unable to acquire field %u of discrete sensor %s declared by %s", i - 5, ptr, fx->f_name);
+      }
+    }
+    if(argc <= 5){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "discrete sensor %s declared by %s has no possible values", ptr, fx->f_name);
+    }
   }
 
   if(configure_vrbl_katcp(d, vx, KATCP_VRF_SEN, NULL, NULL, NULL, NULL) < 0){

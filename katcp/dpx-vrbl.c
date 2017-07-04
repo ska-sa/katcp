@@ -1288,20 +1288,33 @@ int scan_array_vrbl_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struc
     return -1;
   }
 
-  index = strtoul(path + 1, &end, 10);
-  if(end == (path + 1)){
-    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "no index available in path specification %s", path);
-    return -1;
-  }
-
-  if(isalpha(end[0])){
-    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "incorrect suffix %s while scaning path specification %s", end, path);
-    return -1;
-  }
-
   if(next == 1){
     log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "compound variable access path has a null member");
     return -1;
+  }
+
+  if(path[1] == KATCP_VRBL_DELIM_SPACER){
+    /* WARNING: magic token '-' appends */
+    index = va->a_size;
+    end = path + 2;
+  } else {
+    index = strtoul(path + 1, &end, 10);
+    if(end == (path + 1)){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "no index available in path specification %s", path);
+      return -1;
+    }
+  }
+
+  if(next == 0){
+    if(end[0] != '\0'){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "terminal array element %s not well formed", path);
+      /* return -1; */
+    }
+  } else {
+    if(end != (path + next)){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "intermediate array element %s not well formed", path);
+      /* return -1; */
+    }
   }
 
   if(next == 0){

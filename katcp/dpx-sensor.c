@@ -326,6 +326,41 @@ int is_vrbl_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx)
 
 /*************************************************************************/
 
+/* order has to match the values of KATCP_SENSOR_* */
+static char *sensor_type_table[KATCP_SENSORS_COUNT] = { "integer", "boolean", "discrete", "lru"
+#ifdef KATCP_USE_FLOATS
+  , "float"
+#endif
+};
+
+char *type_to_string_sensor_katcp(struct katcp_dispatch *d, unsigned int type)
+{
+  if(type >= KATCP_STRATEGIES_COUNT){
+    return NULL;
+  }
+
+  return sensor_type_table[type];
+}
+
+int type_from_string_sensor_katcp(struct katcp_dispatch *d, char *name)
+{
+  int i;
+
+  if(name == NULL){
+    return -1;
+  }
+
+  for(i = 0; i < KATCP_SENSORS_COUNT; i++){
+    if(!strcmp(name, sensor_type_table[i])){
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+/*************************************************************************/
+
 static char *sensor_strategy_table[KATCP_STRATEGIES_COUNT] = { "none", "period", "event", "differential", "forced" };
 
 char *strategy_to_string_sensor_katcp(struct katcp_dispatch *d, unsigned int strategy)
