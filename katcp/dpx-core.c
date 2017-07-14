@@ -1421,6 +1421,7 @@ int wake_endpoint_remote_flat_katcp(struct katcp_dispatch *d, struct katcp_endpo
           destroy_parse_katcl(pt);
 #endif
         }
+        fx->f_deferring &= (~KATCP_DEFER_OUTSIDE_REQUEST);
       } else {
         pt = remove_head_gueue_katcl(fx->f_defer);
         if(pt){

@@ -400,6 +400,8 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
 
   print_time_delta_katcm(buffer, BUFFER, now.tv_sec - fx->f_start);
 
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "%s connection", fx->f_name);
+
 #if KATCP_PROTOCOL_MAJOR_VERSION >= 5
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu", fx->f_name, fx->f_start); 
 #else
@@ -468,6 +470,13 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
       sub_time_katcp(&delta, &now, &(rh->r_when));
       log_message_katcp(d, (rh->r_message ? KATCP_LEVEL_INFO : KATCP_LEVEL_ERROR) | KATCP_LEVEL_LOCAL, NULL, "client %s has request %u queued for %s issued %lu.%06lus ago", fx->f_name, i, rh->r_message ? rh->r_message : "<UNKNOWN>", delta.tv_sec, delta.tv_usec);
     }
+  }
+
+  if(fx->f_deferring & KATCP_DEFER_OWN_REQUEST){
+    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s is deferring - awaiting reply to its request", fx->f_name);
+  }
+  if(fx->f_deferring & KATCP_DEFER_OUTSIDE_REQUEST){
+    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s is deferring - stalling request made of it", fx->f_name);
   }
 
   if(flushing_katcl(fx->f_line)){
