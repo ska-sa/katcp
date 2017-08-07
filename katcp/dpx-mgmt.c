@@ -74,7 +74,7 @@ int client_exec_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     vector = NULL;
   }
 
-  fx = create_exec_flat_katcp(d, KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_PREFIXED | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER, label, gx, vector);
+  fx = create_exec_flat_katcp(d, KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_RUNMAPTOO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER, label, gx, vector);
   if(vector){
     free(vector);
   }
@@ -135,7 +135,10 @@ int client_connect_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   fcntl(fd, F_SETFD, FD_CLOEXEC);
 
+#if 0
   if(create_flat_katcp(d, fd, KATCP_FLAT_CONNECTING | KATCP_FLAT_TOSERVER | KATCP_FLAT_PREFIXED, name, gx) == NULL){
+#endif
+  if(create_flat_katcp(d, fd, KATCP_FLAT_CONNECTING | KATCP_FLAT_TOSERVER | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_RUNMAPTOO, name, gx) == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to allocate client connection");
     close(fd);
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
@@ -158,6 +161,7 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   if(argc < 2){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need an option");
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "supported flags include duplex server client hidden visible prefixed fixed stop-info relay-info translate native map-fallback map-always info-none info-katcp info-user info-admin info-all extra-relay extra-drop");
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
   }
 
@@ -201,6 +205,10 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     set    = KATCP_FLAT_PREFIXED;
   } else if(!strcmp(option, "fixed")){
     mask   = KATCP_FLAT_PREFIXED;
+  } else if(!strcmp(option, "stop-info")){
+    mask   = KATCP_FLAT_INSTALLINFO;
+  } else if(!strcmp(option, "relay-info")){
+    set    = KATCP_FLAT_INSTALLINFO;
   } else if(!strcmp(option, "translate")){
     mask   = KATCP_FLAT_RETAINFO;
   } else if(!strcmp(option, "native")){
@@ -209,8 +217,12 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     set    = KATCP_FLAT_LOGPREFIX;
   } else if(!strcmp(option, "no-named-log")){
     mask   = KATCP_FLAT_LOGPREFIX;
+  } else if(!strcmp(option, "map-fallback")){
+    mask   = KATCP_FLAT_RUNMAPTOO;
+  } else if(!strcmp(option, "map-always")){
+    set    = KATCP_FLAT_RUNMAPTOO;
   } else if(!strcmp(option, "info-none")){
-    mask   = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER;
+    mask   = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO;
   } else if(!strcmp(option, "info-katcp")){
     set    = KATCP_FLAT_SEESKATCP;
     mask   = KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER;
@@ -220,8 +232,12 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   } else if(!strcmp(option, "info-admin")){
     set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN;
     mask   = KATCP_FLAT_SEESUSER;
+  } else if(!strcmp(option, "extra-relay")){
+    set    = KATCP_FLAT_SEESMAPINFO;
+  } else if(!strcmp(option, "extra-drop")){
+    mask   = KATCP_FLAT_SEESMAPINFO;
   } else if(!strcmp(option, "info-all")){
-    set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER;
+    set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO;
   } else {
     /* WARNING: does not error out in an effort to be forward compatible */
     log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unknown configuration option %s", option);
@@ -826,6 +842,13 @@ int listener_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   return extra_response_katcp(d, KATCP_RESULT_OK, "%d", count);
+}
+
+int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
+{
+  dump_timers_katcp(d);
+
+  return KATCP_RESULT_OK;
 }
 
 /* command/map related commands ***************************************************/

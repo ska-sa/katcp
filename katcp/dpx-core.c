@@ -1009,7 +1009,7 @@ int process_map_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, int 
 
   fx->f_cmd = NULL;
 
-  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "%s callback invocation returns %d", (fx->f_current_endpoint == fx->f_remote) ? "remote" : "internal", result);
+  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "%s map callback invocation returns %d", (fx->f_current_endpoint == fx->f_remote) ? "remote" : "internal", result);
 
   return result;
 }
@@ -1161,7 +1161,7 @@ static struct katcp_response_handler *find_handler_peer_flat_katcp(struct katcp_
     rh = &(fx->f_replies[i]);
     if(rh->r_reply && rh->r_message && (rh->r_recipient == from) && (strcmp(rh->r_message, string + 1) == 0)){
 #ifdef DEBUG
-      fprintf(stderr, "dpx[%p]: found candidate callback[%u]=%p: match for %s\n", fx, i, rh->r_reply, rh->r_message);
+      fprintf(stderr, "dpx[%p]: found handler callback[%u]=%p: match for %s\n", fx, i, rh->r_reply, rh->r_message);
 #endif
       return rh;
     } 
@@ -1245,7 +1245,7 @@ int wake_endpoint_peer_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoin
   source = source_endpoint_katcp(d, msg);
   rh = NULL;
 
-  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "received a message %s ... (message source endpoint %p, remote %p)", str, source, fx->f_remote);
+  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "%s received a message %s ... (message source endpoint %p, remote %p)", fx->f_name ? fx->f_name : "unknown", str, source, fx->f_remote);
 
   switch(type){
     case KATCP_REQUEST :
@@ -1263,7 +1263,7 @@ int wake_endpoint_peer_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoin
       if(rh){
         /* WARNING: adjusts default output */
 #ifdef DEBUG
-       fprintf(stderr, "dpx[%p]: setting output to %p\n", fx, rh->r_issuer);
+       fprintf(stderr, "dpx[%p]: overring output from %p to %p\n", fx, fx->f_current_endpoint, rh->r_issuer);
 #endif
         fx->f_current_endpoint = rh->r_issuer;
       }
@@ -1422,6 +1422,7 @@ int wake_endpoint_remote_flat_katcp(struct katcp_dispatch *d, struct katcp_endpo
           destroy_parse_katcl(pt);
 #endif
         }
+        fx->f_deferring &= (~KATCP_DEFER_OUTSIDE_REQUEST);
       } else {
         pt = remove_head_gueue_katcl(fx->f_defer);
         if(pt){
@@ -1606,7 +1607,8 @@ int reconfigure_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, unsi
     trigger_connect_flat(d, fx);
   }
 
-  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED | KATCP_FLAT_RETAINFO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_LOGPREFIX);
+  //fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED | KATCP_FLAT_RETAINFO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_LOGPREFIX);
+  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_RETAINFO | KATCP_FLAT_RUNMAPTOO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO);
 
   return 0;
 }
@@ -1776,6 +1778,8 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
     set  |=   (gx->g_flags)  & KATCP_FLAT_RETAINFO;
     mask |= (~(gx->g_flags)) & KATCP_FLAT_RETAINFO;
   }
+
+  /* TODO: missing INSTALLINFO, SEESMAPINFO and RUNMAPTOO */
 
   reconfigure_flat_katcp(d, f, (flags & (~mask)) | set);
 
@@ -4163,6 +4167,8 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "listener-create", "create a listener (?listener-create label [port [interface [group]]])", 0, &listener_create_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "listener-halt", "stop a listener (?listener-halt port)", 0, &listener_halt_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "listener-list", "list listeners (?listener-list [label])", 0, &listener_list_group_cmd_katcp, NULL, NULL);
+
+    add_full_cmd_map_katcp(m, "timer-list", "list running timers (?timer-list)", 0, &timer_list_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "restart", "restart (?restart)", 0, &restart_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "halt", "halt (?halt)", 0, &halt_group_cmd_katcp, NULL, NULL);

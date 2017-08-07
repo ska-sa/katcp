@@ -533,7 +533,12 @@ int relay_generic_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   /* TODO: use wrappers to access fx members */
 
-  if(callback_flat_katcp(d, fx->f_current_endpoint, fx->f_rx, target, &complete_relay_generic_group_cmd_katcp, ptr, KATCP_REPLY_HANDLE_REPLIES | KATCP_REPLY_HANDLE_INFORMS)){
+  flags = KATCP_REPLY_HANDLE_REPLIES;
+  if(fx->f_flags & KATCP_FLAT_INSTALLINFO){
+    flags |= KATCP_REPLY_HANDLE_INFORMS;
+  }
+
+  if(callback_flat_katcp(d, fx->f_current_endpoint, fx->f_rx, target, &complete_relay_generic_group_cmd_katcp, ptr, flags)){
 #ifdef KATCP_CONSISTENCY_CHECKS
     fprintf(stderr, "unable to register relay callback for %s from %s to %s", ptr, fx->f_name, fy->f_name);
 #endif

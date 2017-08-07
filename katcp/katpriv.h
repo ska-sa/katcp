@@ -1058,16 +1058,17 @@ int switch_group_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct k
 #define KATCP_FLAT_TOSERVER     0x02   /* direction */
 #define KATCP_FLAT_TOCLIENT     0x04   /* direction */
 #define KATCP_FLAT_HIDDEN       0x08   /* do not show up in client list */
-#if 0
-#define KATCP_FLAT_SEECHANGES   0x10   /* unused */
-#endif
-#define KATCP_FLAT_PREFIXED     0x20   /* sensors have prefix fields to them */
+#define KATCP_FLAT_PREFIXED     0x10   /* sensors have prefix fields to them */
+
+#define KATCP_FLAT_INSTALLINFO  0x20   /* install info relay handler */
 #define KATCP_FLAT_RETAINFO     0x40   /* do not rewrite relayed info fields */
 #define KATCP_FLAT_LOGPREFIX    0x80   /* prefix flat name to log message name field */
+#define KATCP_FLAT_RUNMAPTOO    0x80   /* invoke map handler even if it is relayed */
 
 #define KATCP_FLAT_SEESKATCP   0x100   /* sees katcp-specified inform messages */
 #define KATCP_FLAT_SEESADMIN   0x200   /* sees admin messages */
 #define KATCP_FLAT_SEESUSER    0x400   /* wants to see the content of broadcast_inform */
+#define KATCP_FLAT_SEESMAPINFO 0x800   /* interested in seeing informs which also have a map handler */
 
 int broadcast_pair_katcp(struct katcp_dispatch *d, char *inform, char *value, unsigned int flag);
 
@@ -1275,7 +1276,7 @@ int fixup_timestamp_katcp(char *src, char *dst, int size);
 #define KATCP_VRBL_DELIM_LOGIC    '.'
 
 #define KATCP_VRBL_DELIM_FORBID   '_'
-#define KATCP_VRBL_DELIM_SPACER   '-'
+#define KATCP_VRBL_DELIM_SPACER   '-' /* also magic in array parsing - appends */
 
 struct katcp_region *create_region_katcp(struct katcp_dispatch *d);
 void destroy_region_katcp(struct katcp_dispatch *d, struct katcp_region *rx);
@@ -1325,6 +1326,9 @@ int is_ver_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx);
 
 char *strategy_to_string_sensor_katcp(struct katcp_dispatch *d, unsigned int strategy);
 int strategy_from_string_sensor_katcp(struct katcp_dispatch *d, char *name);
+
+char *type_to_string_sensor_katcp(struct katcp_dispatch *d, unsigned int type);
+int type_from_string_sensor_katcp(struct katcp_dispatch *d, char *name);
 
 int monitor_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx, struct timeval *tv, char *name);
 int monitor_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx);

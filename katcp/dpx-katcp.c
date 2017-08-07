@@ -433,12 +433,14 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
 
   gettimeofday(&now, NULL);
 
-  print_time_delta_katcm(buffer, BUFFER, now.tv_sec - s->s_start);
+  print_time_delta_katcm(buffer, BUFFER, now.tv_sec - fx->f_start);
+
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "%s connection", fx->f_name);
 
 #if KATCP_PROTOCOL_MAJOR_VERSION >= 5
-  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu", fx->f_name, s->s_start); 
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu", fx->f_name, fx->f_start); 
 #else
-  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu000", fx->f_name, s->s_start); 
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu000", fx->f_name, fx->f_start); 
 #endif  
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has been running for %s", fx->f_name, buffer);
 
@@ -466,9 +468,16 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
 
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s translate relayed inform messages", fx->f_name, (fx->f_flags & KATCP_FLAT_RETAINFO) ? "will not" : "will");
 
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s relay inform messages", fx->f_name, (fx->f_flags & KATCP_FLAT_INSTALLINFO) ? "will" : "will not");
+  if(fx->f_flags & KATCP_FLAT_INSTALLINFO){
+    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s translate relayed inform messages", fx->f_name, (fx->f_flags & KATCP_FLAT_RETAINFO) ? "will not" : "will");
+  }
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s will lookup default inform handler %s", fx->f_name, (fx->f_flags & KATCP_FLAT_RUNMAPTOO) ? "regardless of reply handler" : "if no reply handler available");
+
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept katcp admin messages", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESKATCP) ? "will" : "will not");
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept extra admin messages", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESADMIN) ? "will" : "will not");
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept user messages", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESUSER) ? "will" : "will not");
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s relay messages seen in map handlers", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESMAPINFO) ? "will" : "will not");
 
   ptr = string_from_scope_katcp(fx->f_scope);
   if(ptr){
@@ -502,6 +511,13 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
     }
   }
 
+  if(fx->f_deferring & KATCP_DEFER_OWN_REQUEST){
+    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s is deferring - awaiting reply to its request", fx->f_name);
+  }
+  if(fx->f_deferring & KATCP_DEFER_OUTSIDE_REQUEST){
+    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s is deferring - stalling request made of it", fx->f_name);
+  }
+
   if(flushing_katcl(fx->f_line)){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has output pending", fx->f_name);
   }
@@ -516,10 +532,9 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has %d %s in queue", fx->f_name, pending, (pending > 1) ? "commands" : "command");
   }
 
-  if(flushing_katcl(fx->f_line)){
-    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has output pending", fx->f_name);
-  }
+  show_endpoint_katcp(d, fx->f_name ? fx->f_name : "unknown", KATCP_LEVEL_TRACE | KATCP_LEVEL_LOCAL, fx->f_peer);
 
+  log_message_katcp(d, KATCP_LEVEL_DEBUG | KATCP_LEVEL_LOCAL, NULL, "client %s running with fd %d", fx->f_name ? fx->f_name : "unknown", fileno_katcl(fx->f_line));
 
   return result;
 #undef BUFFER
