@@ -1508,6 +1508,7 @@ int timer_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc){
 }
 
 int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc){
+#ifdef KATCP_EXPERIMENTAL
   int total;
 
   total = display_heap_timers_katcp(d);
@@ -1517,5 +1518,10 @@ int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc){
   }
 
   return extra_response_katcp(d, KATCP_RESULT_OK, "%d", total);
+#else
+  dump_timers_katcp(d);
+
+  return KATCP_RESULT_OK;
+#endif
 }
 #endif

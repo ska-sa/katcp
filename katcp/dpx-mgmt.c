@@ -604,11 +604,11 @@ int group_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
   struct katcp_flat *fx;
   struct katcp_group *gx;
-  struct katcp_shared *s;
+  /* struct katcp_shared *s; */
   char *option, *group;
   unsigned int mask, set;
 
-  s = d->d_shared;
+  /* s = d->d_shared; */
 
   fx = this_flat_katcp(d);
   if(fx == NULL){
@@ -844,12 +844,14 @@ int listener_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   return extra_response_katcp(d, KATCP_RESULT_OK, "%d", count);
 }
 
+#if 0
 int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
   dump_timers_katcp(d);
 
   return KATCP_RESULT_OK;
 }
+#endif
 
 /* command/map related commands ***************************************************/
 

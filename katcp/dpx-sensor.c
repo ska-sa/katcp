@@ -779,7 +779,7 @@ int on_event_change_sensor_katcp(struct katcp_dispatch *d, void *state, char *na
 int on_period_timeout_sensor_katcp(struct katcp_dispatch *d, void *data){
   /* struct intermediate *i; */
   struct katcp_subscribe *sub;
-  struct katcp_time *ts;
+  /* struct katcp_time *ts; */
   struct katcl_parse *px;
   struct katcp_vrbl *vx;
 

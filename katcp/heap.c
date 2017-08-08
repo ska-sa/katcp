@@ -425,7 +425,7 @@ static int cascade_down_heap(struct heap *h, int from){
 
 int update_node_on_heap(struct heap *h, int index, void *data){
   struct heap_node *n;
-  int direction;
+  /* int direction; */
   int ret = 0;
 
   if ((NULL == h) || (HEAP_MAGIC != h->h_magic)){

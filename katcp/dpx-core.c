@@ -4168,8 +4168,6 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "listener-halt", "stop a listener (?listener-halt port)", 0, &listener_halt_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "listener-list", "list listeners (?listener-list [label])", 0, &listener_list_group_cmd_katcp, NULL, NULL);
 
-    add_full_cmd_map_katcp(m, "timer-list", "list running timers (?timer-list)", 0, &timer_list_group_cmd_katcp, NULL, NULL);
-
     add_full_cmd_map_katcp(m, "restart", "restart (?restart)", 0, &restart_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "halt", "halt (?halt)", 0, &halt_group_cmd_katcp, NULL, NULL);
 
