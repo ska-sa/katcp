@@ -137,6 +137,8 @@ static struct katcp_time *find_make_append_ts_katcp(struct katcp_dispatch *d, in
       destroy_ts_katcp(d, ts);
       return NULL;
     }
+  } else {
+    ts->t_call = call;
   }
 
   return ts;
