@@ -238,7 +238,7 @@ static void fixup_remap_init()
 }
 #undef FIXUP_TABLE
 
-static char *make_child_field_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, char *name, int locator)
+static char *make_child_field_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, char *name, char *prepend, int locator)
 {
   /* WARNING: in a way this is a bit of a mess, some of this should be subsumed into the variable API, however, the client prefix doesn't belong there either ... it is complicated */
   char *copy, *strip;
@@ -260,14 +260,8 @@ static char *make_child_field_katcp(struct katcp_dispatch *d, struct katcp_flat 
     size += 2;
   }
 
-  if((fx != NULL) && (fx->f_flags & KATCP_FLAT_PREFIXED) && (name[0] != KATCP_VRBL_DELIM_LOGIC)){
-    /* prefix name to things */
-    if(fx->f_name == NULL){
-      /* eh ? */
-      return NULL;
-    }
-
-    prefix = strlen(fx->f_name);
+  if((prepend != NULL) && (name[0] != KATCP_VRBL_DELIM_LOGIC)){
+    prefix = strlen(prepend);
   } else {
     prefix = 0;
   }
@@ -294,8 +288,8 @@ static char *make_child_field_katcp(struct katcp_dispatch *d, struct katcp_flat 
     copy[i++] = KATCP_VRBL_DELIM_GROUP;
   }
   if(prefix){
-    for(j = 0; fx->f_name[j] != '\0'; j++){
-      copy[i++] = fixup_remap_table[((unsigned char *)fx->f_name)[j]];
+    for(j = 0; prepend[j] != '\0'; j++){
+      copy[i++] = fixup_remap_table[((unsigned char *)prepend)[j]];
     }
     copy[i++] = KATCP_VRBL_DELIM_LOGIC;
   }
@@ -372,7 +366,7 @@ int version_group_info_katcp(struct katcp_dispatch *d, int argc)
     build = NULL;
   }
 
-  ptr = make_child_field_katcp(d, fx, name, 1);
+  ptr = make_child_field_katcp(d, fx, name, (fx->f_flags & KATCP_FLAT_PREPEND) ? fx->f_name : NULL, 1);
   if(ptr == NULL){
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unable fixup version field %s", name);
     return KATCP_RESULT_FAIL;
@@ -490,7 +484,8 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
-  ptr = make_child_field_katcp(d, fx, name, 1);
+
+  ptr = make_child_field_katcp(d, fx, name, (fx->f_flags & KATCP_FLAT_PREFIXED) ? fx->f_name : NULL, 1);
   if(ptr == NULL){
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unable fixup sensor name %s", name);
     return KATCP_RESULT_FAIL;
@@ -617,7 +612,7 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
     }
     buffer[TIMESTAMP_BUFFER - 1] = '\0';
 
-    ptr = make_child_field_katcp(d, fx, name, 0);
+    ptr = make_child_field_katcp(d, fx, name, (fx->f_flags & KATCP_FLAT_PREFIXED) ? fx->f_name : NULL, 0);
     if(ptr == NULL){
       log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unable fixup sensor name %s", name);
       return -1;

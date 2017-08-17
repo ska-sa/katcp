@@ -74,7 +74,10 @@ int client_exec_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     vector = NULL;
   }
 
+#if 0
   fx = create_exec_flat_katcp(d, KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_RUNMAPTOO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER, label, gx, vector);
+#endif
+  fx = create_exec_flat_katcp(d, KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_PREPEND, label, gx, vector);
   if(vector){
     free(vector);
   }
@@ -136,9 +139,9 @@ int client_connect_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   fcntl(fd, F_SETFD, FD_CLOEXEC);
 
 #if 0
-  if(create_flat_katcp(d, fd, KATCP_FLAT_CONNECTING | KATCP_FLAT_TOSERVER | KATCP_FLAT_PREFIXED, name, gx) == NULL){
-#endif
   if(create_flat_katcp(d, fd, KATCP_FLAT_CONNECTING | KATCP_FLAT_TOSERVER | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_RUNMAPTOO, name, gx) == NULL){
+#endif
+  if(create_flat_katcp(d, fd, KATCP_FLAT_CONNECTING | KATCP_FLAT_TOSERVER | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_PREPEND, name, gx) == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to allocate client connection");
     close(fd);
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
@@ -205,6 +208,7 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     set    = KATCP_FLAT_PREFIXED;
   } else if(!strcmp(option, "fixed")){
     mask   = KATCP_FLAT_PREFIXED;
+
   } else if(!strcmp(option, "stop-info")){
     mask   = KATCP_FLAT_INSTALLINFO;
   } else if(!strcmp(option, "relay-info")){
@@ -213,10 +217,18 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     mask   = KATCP_FLAT_RETAINFO;
   } else if(!strcmp(option, "native")){
     set    = KATCP_FLAT_RETAINFO;
+#if 0
   } else if(!strcmp(option, "map-fallback")){
     mask   = KATCP_FLAT_RUNMAPTOO;
   } else if(!strcmp(option, "map-always")){
     set    = KATCP_FLAT_RUNMAPTOO;
+#endif
+
+  } else if(!strcmp(option, "version-prepend")){
+    set    = KATCP_FLAT_PREPEND;
+  } else if(!strcmp(option, "version-unchanged")){
+    mask   = KATCP_FLAT_PREPEND;
+
   } else if(!strcmp(option, "info-none")){
     mask   = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO;
   } else if(!strcmp(option, "info-katcp")){
@@ -529,9 +541,15 @@ int group_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s will %s if not used", group, gx->g_autoremove ? "disappear" : "persist");
 
     if(gx->g_flags & KATCP_GROUP_OVERRIDE_SENSOR){
-      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s forces names to be %s", group, (gx->g_flags & KATCP_FLAT_PREFIXED) ? "prefixed" : "without prefix");
+      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s forces sensors to be %s", group, (gx->g_flags & KATCP_FLAT_PREFIXED) ? "prefixed" : "without prefix");
     } else {
-      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s leaves prefixing decision to client creation context", group);
+      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s leaves sensor prefixing decision to client creation context", group);
+    }
+
+    if(gx->g_flags & KATCP_GROUP_OVERRIDE_VERSION){
+      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s forces versions labels to be %s", group, (gx->g_flags & KATCP_FLAT_PREPEND) ? "prepended" : "unchanged");
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "group %s leaves version prepending decision to client creation context", group);
     }
 
     if(gx->g_flags & KATCP_GROUP_OVERRIDE_RELAYINFO){
@@ -625,12 +643,12 @@ int group_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   mask = 0;
 
   if(!strcmp(option, "prefixed")){        /* prefix names */
-    set    = (KATCP_GROUP_OVERRIDE_SENSOR | KATCP_FLAT_PREFIXED);
+    set    = (KATCP_GROUP_OVERRIDE_SENSOR  | KATCP_FLAT_PREFIXED) | (KATCP_GROUP_OVERRIDE_VERSION | KATCP_FLAT_PREPEND);
   } else if(!strcmp(option, "fixed")){    /* make names absolute */
-    set    = KATCP_GROUP_OVERRIDE_SENSOR;
-    mask   = KATCP_FLAT_PREFIXED;      
+    set    = KATCP_GROUP_OVERRIDE_SENSOR | KATCP_GROUP_OVERRIDE_VERSION;
+    mask   = KATCP_FLAT_PREFIXED | KATCP_FLAT_PREPEND;      
   } else if(!strcmp(option, "flexible")){ /* pick whatever the calling logic prefers */
-    mask   = (KATCP_GROUP_OVERRIDE_SENSOR | KATCP_FLAT_PREFIXED);
+    mask   = (KATCP_GROUP_OVERRIDE_SENSOR  | KATCP_FLAT_PREFIXED) | (KATCP_GROUP_OVERRIDE_VERSION | KATCP_FLAT_PREPEND);
   } else { /* TODO: broadcast and relayinfo overrides */
     /* WARNING: does not error out in an effort to be forward compatible */
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unknown configuration option %s", option);

@@ -1013,9 +1013,10 @@ int load_flat_katcp(struct katcp_dispatch *d);
 int startup_duplex_katcp(struct katcp_dispatch *d, unsigned int stories);
 void shutdown_duplex_katcp(struct katcp_dispatch *d);
 
-#define KATCP_GROUP_OVERRIDE_SENSOR    0x10000
-#define KATCP_GROUP_OVERRIDE_BROADCAST 0x20000
-#define KATCP_GROUP_OVERRIDE_RELAYINFO 0x40000
+#define KATCP_GROUP_OVERRIDE_SENSOR    0x10000000
+#define KATCP_GROUP_OVERRIDE_BROADCAST 0x20000000
+#define KATCP_GROUP_OVERRIDE_RELAYINFO 0x40000000
+#define KATCP_GROUP_OVERRIDE_VERSION   0x80000000
 
 int switch_group_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct katcp_group *gx);
 
@@ -1028,12 +1029,16 @@ int switch_group_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct k
 
 #define KATCP_FLAT_INSTALLINFO  0x20   /* install info relay handler */
 #define KATCP_FLAT_RETAINFO     0x40   /* do not rewrite relayed info fields */
+#if 0
 #define KATCP_FLAT_RUNMAPTOO    0x80   /* invoke map handler even if it is relayed */
+#endif
 
 #define KATCP_FLAT_SEESKATCP   0x100   /* sees katcp-specified inform messages */
 #define KATCP_FLAT_SEESADMIN   0x200   /* sees admin messages */
 #define KATCP_FLAT_SEESUSER    0x400   /* wants to see the content of broadcast_inform */
 #define KATCP_FLAT_SEESMAPINFO 0x800   /* interested in seeing informs which also have a map handler */
+
+#define KATCP_FLAT_PREPEND     0x1000  /* add client name to version field */
 
 int broadcast_pair_katcp(struct katcp_dispatch *d, char *inform, char *value, unsigned int flag);
 

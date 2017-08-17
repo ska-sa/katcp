@@ -428,12 +428,15 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   }
 
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s prefix its name to sensor definitions", fx->f_name, (fx->f_flags & KATCP_FLAT_PREFIXED) ? "will" : "will not");
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s prepend its name to version messages", fx->f_name, (fx->f_flags & KATCP_FLAT_PREPEND) ? "will" : "will not");
 
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s relay inform messages", fx->f_name, (fx->f_flags & KATCP_FLAT_INSTALLINFO) ? "will" : "will not");
   if(fx->f_flags & KATCP_FLAT_INSTALLINFO){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s translate relayed inform messages", fx->f_name, (fx->f_flags & KATCP_FLAT_RETAINFO) ? "will not" : "will");
   }
+#if 0
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s will lookup default inform handler %s", fx->f_name, (fx->f_flags & KATCP_FLAT_RUNMAPTOO) ? "regardless of reply handler" : "if no reply handler available");
+#endif
 
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept katcp admin messages", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESKATCP) ? "will" : "will not");
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept extra admin messages", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESADMIN) ? "will" : "will not");
