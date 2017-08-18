@@ -164,7 +164,7 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   if(argc < 2){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need an option");
-    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "supported flags include duplex server client hidden visible prefixed fixed stop-info relay-info translate native map-fallback map-always info-none info-katcp info-user info-admin info-all extra-relay extra-drop");
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "supported flags include duplex server client hidden visible prefixed fixed stop-info relay-info translate native map-fallback map-always info-none info-katcp info-user info-admin info-all extra-relay extra-drop version-prepend version-unchanged");
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
   }
 
@@ -1212,6 +1212,7 @@ int system_info_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "server has been running for %s", buffer);
 #ifdef __DATE__
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "server was built on %s at %s", __DATE__, __TIME__);
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "server has currently %u parse messages allocated", allocated_parses_katcl());
 #endif
 
 #undef BUFFER

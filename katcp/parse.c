@@ -22,6 +22,10 @@ static int check_array_parse_katcl(struct katcl_parse *p);
 
 /****************************************************************/
 
+#ifdef KATCP_MEMSTATS
+static unsigned int katcl_stats_parse = 0;
+#endif
+
 #ifdef KATCP_CONSISTENCY_CHECKS
 static void sane_parse_katcl(struct katcl_parse *p)
 {
@@ -38,6 +42,15 @@ static void sane_parse_katcl(struct katcl_parse *p)
 #define sane_parse_katcl(p)
 #endif
 
+unsigned int allocated_parses_katcl()
+{
+#ifdef KATCP_MEMSTATS
+  return katcl_stats_parse;
+#else
+  return 0;
+#endif
+}
+
 struct katcl_parse *create_parse_katcl()
 {
   struct katcl_parse *p;
@@ -46,6 +59,10 @@ struct katcl_parse *create_parse_katcl()
   if(p == NULL){
     return NULL;
   }
+
+#ifdef KATCP_MEMSTATS
+  katcl_stats_parse++;
+#endif
 
   p->p_magic = KATCL_PARSE_MAGIC;
   p->p_state = KATCL_PARSE_FRESH;
@@ -179,6 +196,17 @@ void destroy_parse_katcl(struct katcl_parse *p)
     p->p_tag = (-1);
 
     free(p);
+
+#ifdef KATCP_MEMSTATS
+    if(katcl_stats_parse > 0){
+      katcl_stats_parse--;
+#ifdef KATCP_CONSISTENCY_CHECKS
+    } else {
+      fprintf(stderr, "major logic problem: deallocating more parse structures than allocated");
+      abort();
+#endif
+    }
+#endif
   }
 }
 

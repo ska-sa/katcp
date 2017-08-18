@@ -27,6 +27,9 @@ CFLAGS += -DKATCP_USE_FLOATS
 # resistant to failures, but will also notice failures sooner
 CFLAGS += -DKATCP_CONSISTENCY_CHECKS
 
+# count the number of allocations - parse only thusfar
+CFLAGS += -DKATCP_MEMSTATS
+
 # log selected noncritical failures to stderr 
 CFLAGS += -DKATCP_STDERR_ERRORS
 
