@@ -1160,8 +1160,7 @@ int broadcast_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
   }
 
-  /* WARNING: isn't this a leak, in case no clients are interested ? */
-  px = create_parse_katcl();
+  px = create_referenced_parse_katcl();
   if(px == NULL){
     free(ptr);
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
@@ -1180,9 +1179,11 @@ int broadcast_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   ptr = NULL;
 
   if(broadcast_flat_katcp(d, gx, px, NULL, NULL) < 0){
+    destroy_parse_katcl(px);
     return KATCP_RESULT_FAIL;
   }
 
+  destroy_parse_katcl(px);
   return KATCP_RESULT_OK;
 }
 

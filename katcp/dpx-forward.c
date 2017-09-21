@@ -159,7 +159,7 @@ struct katcl_parse *generate_relay_forward(struct katcp_dispatch *d, struct forw
   unsigned int size;
   int flags, run, result, i, limit;
 
-  px = create_parse_katcl();
+  px = create_referenced_parse_katcl();
   if(px == NULL){
     return NULL;
   }
@@ -488,7 +488,7 @@ int relay_generic_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   fprintf(stderr, "dpx[%p]: sending %s ...(%d) from endpoint %p to endpoint %p at dpx[%p]\n", fx, cmd, argc, source, target, fy);
 #endif
 
-  px = create_parse_katcl();
+  px = create_referenced_parse_katcl();
   if(px == NULL){
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
   }
@@ -505,6 +505,7 @@ int relay_generic_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     len = strlen(cmd);
     ptr = malloc(len + 2);
     if(ptr == NULL){
+      destroy_parse_katcl(px);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
     }
 
@@ -524,6 +525,11 @@ int relay_generic_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     destroy_parse_katcl(px);
     return KATCP_RESULT_FAIL;
   }
+
+  destroy_parse_katcl(px);
+#ifdef KATCP_CONSISTENCY_CHECKS
+  px = NULL;
+#endif
 
   if(cmd[0] == KATCP_REQUEST){
     ptr = cmd + 1;
@@ -620,6 +626,11 @@ int perform_forward_symbolic_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     destroy_parse_katcl(px);
     return KATCP_RESULT_FAIL;
   }
+
+  destroy_parse_katcl(px);
+#ifdef KATCP_CONSISTENCY_CHECKS
+  px = NULL;
+#endif
 
 #if 0
   /* TODO: use wrappers to access fx members */
