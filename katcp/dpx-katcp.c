@@ -357,7 +357,7 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   struct katcp_shared *s;
   char buffer[BUFFER];
   struct katcp_response_handler *rh;
-  unsigned int i;
+  unsigned int i, count;
   struct timeval now, delta;
 
   s = d->d_shared;
@@ -485,6 +485,9 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   if(flushing_katcl(fx->f_line)){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has output pending", fx->f_name);
   }
+
+  count = size_queue_katcl(fx->f_line->l_queue);
+  log_message_katcp(d, ((count > 1) ? KATCP_LEVEL_WARN : KATCP_LEVEL_INFO) | KATCP_LEVEL_LOCAL, NULL, "client %s has %u messages in output queue", fx->f_name, count);
 
   gx = fx->f_group;
   if(gx && gx->g_name){
