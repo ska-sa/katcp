@@ -597,11 +597,15 @@ int group_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
   struct katcp_flat *fx;
   struct katcp_group *gx;
+#if 0
   struct katcp_shared *s;
+#endif
   char *option, *group;
   unsigned int mask, set;
 
+#if 0
   s = d->d_shared;
+#endif
 
   fx = this_flat_katcp(d);
   if(fx == NULL){
