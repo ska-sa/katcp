@@ -2465,6 +2465,7 @@ static int reload_sensor_katcp(struct katcp_dispatch *d, struct katcp_sensor *sz
   struct katcp_sensor *sn;
   struct katcp_acquire *a;
   struct katcp_shared *s;
+  struct katcp_time *ts;
   int users, periodics, polling, forced;
 
   s = d->d_shared;
@@ -2552,9 +2553,30 @@ static int reload_sensor_katcp(struct katcp_dispatch *d, struct katcp_sensor *sz
 
   } else { /* we need timers, replace old with new if necessary */
     a->a_periodics = periodics;
+
+#ifdef KATCP_HEAP_TIMERS
+    /* check if the timer already exists */
+    ts = find_by_data_ref_heap_timer_katcp(d, a, NULL);
+
+    if ( ts == NULL){
+#ifdef DEBUG
+      fprintf(stderr, "nonsense: timer doesn't exist...creating it with data ref %p\n", a);
+#endif
+      /* create an anonymous timer */
+      if(register_heap_timer_every_tv_katcp(d, &(a->a_current), &run_timer_acquire_katcp, a, NULL) < 0){
+        return -1;
+      }
+    } else {
+      if (adjust_interval_anonymous_heap_timer_katcp(d, &(a->a_current), a) < 0){
+        return -1;
+      }
+    }
+
+#else
     if(register_every_tv_katcp(d, &(a->a_current), &run_timer_acquire_katcp, a) < 0){
       return -1;
     }
+#endif
   }
 
 

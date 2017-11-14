@@ -1647,6 +1647,8 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
 
   f->f_flags = 0;
 
+  f->f_rename_lock = 0;
+
   /* for cases where connect() still has to succeed */
   f->f_state = (flags & KATCP_FLAT_CONNECTING) ? FLAT_STATE_CONNECTING : FLAT_STATE_UP;
 
@@ -2493,6 +2495,11 @@ int rename_flat_katcp(struct katcp_dispatch *d, char *group, char *was, char *sh
   fx = find_name_flat_katcp(d, group, was, 0);
   if(fx == NULL){
     log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "no entry %s found", was);
+    return -1;
+  }
+
+  if(fx->f_rename_lock == 1){
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "cannot rename instance with active periodic sensor subscriptions");
     return -1;
   }
 

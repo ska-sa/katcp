@@ -9,7 +9,7 @@
 
 #include <avltree.h>
 
-#if KATCP_EXPERIMENTAL == 2
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
 #include <heap.h>
 #endif
 
@@ -719,6 +719,8 @@ struct katcp_flat{
 
   struct katcp_region *f_region;
   time_t f_start;
+
+  int f_rename_lock;
 };
 #endif
 
@@ -768,7 +770,7 @@ struct katcp_shared{
   struct katcp_time **s_queue;
   unsigned int s_length;
 
-#if KATCP_EXPERIMENTAL == 2
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
   struct heap *s_tmr_heap;
 #endif
 
@@ -987,7 +989,7 @@ int empty_timers_katcp(struct katcp_dispatch *d);
 int run_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
 void dump_timers_katcp(struct katcp_dispatch *d);
 
-#if KATCP_EXPERIMENTAL == 2
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
 int load_heap_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
 int run_heap_timers_katcp(struct katcp_dispatch *d);
 int empty_heap_timers_katcp(struct katcp_dispatch *d);

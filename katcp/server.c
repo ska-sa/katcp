@@ -597,7 +597,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 
     s->s_max = (-1);
 
-#if KATCP_EXPERIMENTAL == 2
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
     suspend = load_heap_timers_katcp(dl, &delta);
 #else
     suspend = run_timers_katcp(dl, &delta);
@@ -718,7 +718,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
       run = (-1);
     }
 
-#if KATCP_EXPERIMENTAL == 2
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
     run_heap_timers_katcp(dl);
 #endif
 

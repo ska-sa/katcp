@@ -43,10 +43,13 @@ CFLAGS += -DKATCP_SUBPROCESS
 #CFLAGS += -DKATCP_EXPERIMENTAL
 
 # enable experimental experimental code i.e. not sure if this code should make it into final lib
-CFLAGS += -DKATCP_EXPERIMENTAL=2
+#CFLAGS += -DKATCP_EXPERIMENTAL=2
 
 # keep older code 
-#CFLAGS += -DKATCP_DEPRECATED
+CFLAGS += -DKATCP_DEPRECATED
+
+# enable heap timers - for old code
+CFLAGS += -DKATCP_HEAP_TIMERS
 
 # respond to trap TERM signal in main loop
 CFLAGS += -DKATCP_TRAP_TERM

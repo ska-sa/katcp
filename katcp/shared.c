@@ -237,7 +237,7 @@ int startup_shared_katcp(struct katcp_dispatch *d)
   s->s_queue = NULL;
   s->s_length = 0;
 
-#if KATCP_EXPERIMENTAL == 2
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
   s->s_tmr_heap = NULL;
 #endif
 
@@ -498,7 +498,7 @@ void shutdown_shared_katcp(struct katcp_dispatch *d)
 #endif
 
 
-#if KATCP_EXPERIMENTAL == 2
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
   /* destroy heap timer and associated remaining timers */
   empty_heap_timers_katcp(d);
 #else

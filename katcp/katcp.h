@@ -448,15 +448,17 @@ int register_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*
 int register_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
 int register_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
 
-#if KATCP_EXPERIMENTAL == 2
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
 int register_heap_timer_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
 int register_heap_timer_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
 int register_heap_timer_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
 int register_heap_timer_every_ms_katcp(struct katcp_dispatch *d, unsigned int milli, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
 
 int adjust_interval_heap_timer_katcp(struct katcp_dispatch *d, struct timeval *adjust, char *name);
+int adjust_interval_anonymous_heap_timer_katcp(struct katcp_dispatch *d, struct timeval *adjust, void *data);
 int rename_heap_timer_katcp(struct katcp_dispatch *d, char *old_name, char *new_name);
 
+struct katcp_time *find_by_data_ref_heap_timer_katcp(struct katcp_dispatch *d, void *data, int *index);
 int disarm_by_ref_heap_timer(struct katcp_dispatch *d, void *data);
 #endif
 

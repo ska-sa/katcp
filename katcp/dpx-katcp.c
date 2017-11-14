@@ -923,6 +923,8 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
     new_stg = strategy_from_string_sensor_katcp(d, strategy);
 
+    fx->f_rename_lock = 0;
+
     switch(new_stg){
       case KATCP_STRATEGY_EVENT :
         if (current_stg == KATCP_STRATEGY_PERIOD){
@@ -973,6 +975,10 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
           log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to register period based sampling for sensor %s", key);
           return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
         }
+
+        /* disable renaming of flat */
+        fx->f_rename_lock = 1;
+
         break;
 
       case KATCP_STRATEGY_OFF :
