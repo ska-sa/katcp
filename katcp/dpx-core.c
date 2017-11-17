@@ -1586,8 +1586,10 @@ int reconfigure_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, unsi
   }
 
   if(flags & KATCP_FLAT_TOCLIENT){
-    if(fx->f_log_level == KATCP_LEVEL_OFF){
-      fx->f_log_level = gx->g_log_level;
+    if((fx->f_flags & KATCP_FLAT_TOCLIENT) == 0){
+      if(fx->f_log_level == KATCP_LEVEL_OFF){
+        fx->f_log_level = gx->g_log_level;
+      }
     }
   } else {
     /* WARNING: we assume servers aren't interested in our log messages */
