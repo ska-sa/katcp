@@ -22,10 +22,6 @@
 #include <katcl.h>
 
 #if 0
-#define DEBUG 1
-#endif
-
-#if 0
 #define MAP_UNSET               (-1)
 #define MAP_INNER                 0
 #define MAP_REMOTE                1
@@ -526,7 +522,7 @@ int terminate_group_katcp(struct katcp_dispatch *d, struct katcp_group *gx, int 
 /* duplex setup *****************************************************/
 
 #ifdef KATCP_CONSISTENCY_CHECKS
-static void sane_flat_katcp(struct katcp_flat *f)
+void sane_flat_katcp(struct katcp_flat *f)
 {
   if(f == NULL){
     fprintf(stderr, "flat: received null pointer, expecting a flat structure\n");
@@ -537,8 +533,6 @@ static void sane_flat_katcp(struct katcp_flat *f)
     abort();
   }
 }
-#else 
-#define sane_flat_katcp(f);
 #endif
 
 void destroy_flats_katcp(struct katcp_dispatch *d)
@@ -1928,6 +1922,7 @@ int broadcast_parse_katcp(struct katcp_dispatch *d, struct katcl_parse *px, unsi
       check = &test_broadcast_user_katcp;
       break;
     default :
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unknown broadcast type 0x%x", flag);
       return -1;
   }
 

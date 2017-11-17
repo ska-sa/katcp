@@ -37,7 +37,7 @@ static void sane_wit(struct katcp_wit *w)
 #define sane_wit(w)
 #endif
 
-void destroy_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subscribe *sub);
+static void destroy_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subscribe *sub);
 
 /*************************************************************************/
 
@@ -121,6 +121,7 @@ struct katcp_subscribe *create_subscribe_katcp(struct katcp_dispatch *d, struct 
     if(tx == NULL){
       return NULL;
     }
+    sane_flat_katcp(tx);
   } else {
     tx = fx;
   }
@@ -170,9 +171,8 @@ int find_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, struct k
   return -1;
 }
 
-void destroy_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subscribe *sub)
+static void destroy_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subscribe *sub)
 {
-
   if(sub == NULL){
     return;
   }
@@ -185,6 +185,8 @@ void destroy_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subscribe *s
     sub->s_endpoint = NULL;
   }
 
+#if 0
+  /* It seems there is no reason to do deallocation here - this is just a copy of the variable pointer, and we know the real one always outlives this one */
   if(sub->s_variable){
 #if 1
     /* WARNING */
@@ -192,7 +194,9 @@ void destroy_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subscribe *s
     abort();
 #endif
   }
+#endif
 
+  sub->s_variable = NULL;
   sub->s_strategy = KATCP_STRATEGY_OFF;
 
   free(sub);
@@ -220,6 +224,10 @@ int delete_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w, unsign
   if(index < w->w_size){
     w->w_vector[index] = w->w_vector[w->w_size];
   }
+
+#ifdef KATCP_CONSISTENCY_CHECKS
+  w->w_vector[w->w_size] = NULL;
+#endif
 
   destroy_subscribe_katcp(d, sub);
 
@@ -535,7 +543,11 @@ void release_sensor_katcp(struct katcp_dispatch *d, void *state, char *name, str
 
   w = state;
 
-  sane_wit(w);
+#ifdef KATCP_CONSISTENCY_CHECKS
+  if (w != vx->v_extra){
+    log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "attempting to destroy variable %p where payload %p is not %p", vx, vx->v_extra, w);
+  }
+#endif
 
   destroy_wit_katcp(d, w);
 }
@@ -645,6 +657,7 @@ void dump_variable_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx,
     log_message_katcp(d, level, NULL, "subscriber[%u] uses strategy %d with endpoint %p", i, w->w_vector[i]->s_strategy, w->w_vector[i]->s_endpoint);
     if(w->w_vector[i]->s_variable != vx){
       log_message_katcp(d, (w->w_vector[i]->s_variable == NULL) ? level : KATCP_LEVEL_FATAL, NULL, "subscriber[%u] variable mismatch: cached value %p does not match top-level %p", i, w->w_vector[i]->s_variable, vx);
+
 
     }
   }

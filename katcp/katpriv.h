@@ -1008,6 +1008,11 @@ int set_help_cmd_item_katcp(struct katcp_cmd_item *ix, char *help);
 int run_flat_katcp(struct katcp_dispatch *d);
 int load_flat_katcp(struct katcp_dispatch *d);
 
+#ifdef KATCP_CONSISTENCY_CHECKS
+void sane_flat_katcp(struct katcp_flat *f);
+#else
+#define sane_flat_katcp(f);
+#endif
 
 /* duplex (flat+group) setup */
 int startup_duplex_katcp(struct katcp_dispatch *d, unsigned int stories);
