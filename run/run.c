@@ -220,6 +220,8 @@ void usage(char *app)
   printf("-s subsystem       specify the subsystem (overrides KATCP_LABEL)\n");
   printf("-n label[=value]   modify the child process environment\n");
   printf("-i                 inhibit termination of subprocess on eof on standard input\n");
+  printf("-j                 do not read from standard input\n");
+  printf("-t milliseconds    set a maximum time to run for the given command\n");
   printf("-r                 forward raw #log messages unchanged\n");
   printf("-x                 relay child exit codes\n");
 }
@@ -312,7 +314,7 @@ static int collect_child(struct katcl_line *k, char *task, char *system, int ver
 int main(int argc, char **argv)
 {
 #define BUFFER 128
-  int terminate, code, childgone, parentgone, exitrelay;
+  int terminate, code, childgone, parentgone, exitrelay, checkinput, limit;
   int levels[2], index, efds[2], ofds[2];
   int i, j, c, offset, result, rr;
   struct katcl_line *k;
@@ -324,13 +326,15 @@ int main(int argc, char **argv)
   fd_set fsr, fsw;
   int mfd, fd;
   unsigned char buffer[BUFFER];
-
+  struct timeval timeout;
   
   ts = &total;
 
   terminate = 1;
   offset = (-1);
   exitrelay = 0;
+  checkinput = 1;
+  limit = 0;
 
   levels[0] = KATCP_LEVEL_INFO;
   levels[1] = KATCP_LEVEL_ERROR;
@@ -372,6 +376,11 @@ int main(int argc, char **argv)
           j++;
           break;
 
+        case 'j' : 
+          checkinput = 0;
+          j++;
+          break;
+
         case 'r' : 
           ts->t_infer = 1;
           j++;
@@ -391,6 +400,7 @@ int main(int argc, char **argv)
         case 'n' :
         case 'o' :
         case 's' :
+        case 't' :
 
           j++;
           if (argv[i][j] == '\0') {
@@ -449,6 +459,16 @@ int main(int argc, char **argv)
                 sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unable to retrieve environment variable");
               }
               break;
+            case 't' :
+              limit = atoi(argv[i] + j);
+              if(limit == 0){
+                sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "limit needs to be a natural number");
+              } else {
+                timeout.tv_sec = limit / 1000;
+                timeout.tv_usec = (limit % 1000) * 1000;
+              }
+              break;
+
           }
 
           i++;
@@ -498,7 +518,7 @@ int main(int argc, char **argv)
   if(pid == 0){
     /* in child */
 
-    if(terminate){
+    if(terminate || (checkinput == 0)){
       /* child not going to listen to stdin anyway, though maybe use /dev/zero instead, just in case ? */
       fd = open("/dev/null", O_RDONLY);
       if(fd < 0){
@@ -555,10 +575,12 @@ int main(int argc, char **argv)
 
     mfd = 0;
 
-    fd = STDIN_FILENO;
-    FD_SET(fd, &fsr);
-    if(fd > mfd){
-      mfd = fd;
+    if(checkinput){
+      fd = STDIN_FILENO;
+      FD_SET(fd, &fsr);
+      if(fd > mfd){
+        mfd = fd;
+      }
     }
 
     FD_SET(orp->i_fd, &fsr);
@@ -579,7 +601,7 @@ int main(int argc, char **argv)
       FD_SET(fd, &fsw);
     }
 
-    result = select(mfd + 1, &fsr, &fsw, NULL, NULL);
+    result = select(mfd + 1, &fsr, &fsw, NULL, limit ? &timeout : NULL);
     if(result < 0){
       switch(errno){
         case EAGAIN :
@@ -590,6 +612,9 @@ int main(int argc, char **argv)
           log_message_katcl(k, tweaklevel(ts->t_verbose, KATCP_LEVEL_ERROR), ts->t_system, "select failed: %s", strerror(errno));
           break;
       }
+    } else if(result == 0){
+      log_message_katcl(k, tweaklevel(ts->t_verbose, KATCP_LEVEL_WARN), ts->t_system, "timeout after %ums", limit);
+      result = (-1);
     } else {
 
       fd = fileno_katcl(k);
