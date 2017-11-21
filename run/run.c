@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sysexits.h>
+#include <signal.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -12,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/select.h>
+#include <sys/wait.h>
 #include <sys/wait.h>
 
 #include <katcp.h>
@@ -240,12 +242,18 @@ static int tweaklevel(int verbose, int level)
   return result;
 }
 
-static int collect_child(struct katcl_line *k, char *task, char *system, int verbose, pid_t pid)
+static int collect_child(struct katcl_line *k, char *task, char *system, int verbose, pid_t pid, int timeout)
 {
   int status, code, sig, level;
   pid_t result;
 
-  result = waitpid(pid, &status, WNOHANG);
+  if(timeout > 0){
+    alarm(timeout);
+  }
+
+  result = waitpid(pid, &status, (timeout > 0) ? 0 : WNOHANG);
+
+  alarm(0);
 
   if(result == 0){
     /* child still running */
@@ -255,6 +263,9 @@ static int collect_child(struct katcl_line *k, char *task, char *system, int ver
 
   if(result < 0){
     switch(errno){
+      case EINTR :
+        log_message_katcl(k, tweaklevel(verbose, KATCP_LEVEL_DEBUG), system, "task %s still running after waiting for %d000ms", task, timeout);
+        return -1;
       case ENOENT :
       case ECHILD :
         /* no child */
@@ -311,6 +322,13 @@ static int collect_child(struct katcl_line *k, char *task, char *system, int ver
   return 1;
 }
 
+volatile int saw_timeout=0;
+
+void handle_timeout(int signal)
+{
+  saw_timeout++;
+}
+
 int main(int argc, char **argv)
 {
 #define BUFFER 128
@@ -327,6 +345,13 @@ int main(int argc, char **argv)
   int mfd, fd;
   unsigned char buffer[BUFFER];
   struct timeval timeout;
+  struct sigaction sag;
+
+  sag.sa_handler = &handle_timeout;
+  sag.sa_flags = 0;
+  sigemptyset(&sag.sa_mask);
+
+  sigaction(SIGALRM, &sag, NULL);
   
   ts = &total;
 
@@ -663,7 +688,7 @@ int main(int argc, char **argv)
 
   } while(result >= 0);
 
-  code = collect_child(k, argv[offset], ts->t_system, ts->t_verbose, pid);
+  code = collect_child(k, argv[offset], ts->t_system, ts->t_verbose, pid, 0);
 
   if(code < 0){
     if(terminate){
@@ -678,8 +703,7 @@ int main(int argc, char **argv)
             break;
         }
       } else {
-        sleep(1);
-        if(collect_child(k, argv[offset], ts->t_system, ts->t_verbose, pid) < 0){
+        if(collect_child(k, argv[offset], ts->t_system, ts->t_verbose, pid, 1) < 0){
           log_message_katcl(k, tweaklevel(ts->t_verbose, KATCP_LEVEL_INFO), ts->t_system, "killing task %s", argv[offset]);
           if(kill(pid, SIGKILL) < 0){
             switch(errno){
@@ -691,8 +715,7 @@ int main(int argc, char **argv)
                 break;
             }
           } else {
-            sleep(1);
-            code = collect_child(k, argv[offset], ts->t_system, ts->t_verbose, pid);
+            code = collect_child(k, argv[offset], ts->t_system, ts->t_verbose, pid, 1);
           }
         }
       }
