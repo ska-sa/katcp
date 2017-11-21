@@ -613,7 +613,7 @@ int main(int argc, char **argv)
           break;
       }
     } else if(result == 0){
-      log_message_katcl(k, tweaklevel(ts->t_verbose, KATCP_LEVEL_WARN), ts->t_system, "timeout after %ums", limit);
+      log_message_katcl(k, tweaklevel(ts->t_verbose, KATCP_LEVEL_WARN), ts->t_system, "timeout of %s after %ums", argv[offset], limit);
       result = (-1);
     } else {
 
@@ -692,7 +692,7 @@ int main(int argc, char **argv)
             }
           } else {
             sleep(1);
-            collect_child(k, argv[offset], ts->t_system, ts->t_verbose, pid);
+            code = collect_child(k, argv[offset], ts->t_system, ts->t_verbose, pid);
           }
         }
       }
