@@ -427,6 +427,7 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
   struct katcp_shared *s;
   unsigned long hours;
   unsigned int minutes, seconds;
+  int num_timers = ret_num_timers(d);
 
   s = d->d_shared;
 
@@ -461,7 +462,7 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s", s->s_pending, (s->s_pending == 1) ? "notice" : "notices");
 
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", s->s_length, (s->s_length == 1) ? "timer" : "timers");
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", num_timers, (num_timers == 1) ? "timer" : "timers");
 
   return KATCP_RESULT_OK;
 #undef BUFFER

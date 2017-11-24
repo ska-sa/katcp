@@ -88,7 +88,6 @@ static void destroy_ts_katcp(struct katcp_dispatch *d, struct katcp_time *ts)
 #ifdef DEBUG
   fprintf(stderr, "ts: destroying timer object <%p>\n", ts);
 #endif
-
   free(ts);
 }
 
@@ -599,6 +598,18 @@ int run_timers_katcp(struct katcp_dispatch *d, struct timespec *interval)
   return 0;
 }
 
+int ret_num_timers(struct katcp_dispatch *d){
+  struct katcp_shared *s;
+  s = d->d_shared;
+
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+  struct heap *ht;
+  ht = s->s_tmr_heap;
+  return get_size_of_heap(ht);
+#else
+  return s->s_length;
+#endif
+}
 
 #if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
 
@@ -1157,7 +1168,7 @@ int register_heap_timer_every_tv_katcp(struct katcp_dispatch *d, struct timeval 
     destroy_ts_katcp(d, ts);
     return (-1);
   }
-
+ 
   return 0;
 }
 
@@ -1605,4 +1616,5 @@ int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc){
   return KATCP_RESULT_OK;
 #endif
 }
+
 #endif
