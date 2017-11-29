@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sysexits.h>
+#include <time.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -1560,6 +1561,8 @@ struct katcp_flat *create_exec_flat_katcp(struct katcp_dispatch *d, unsigned int
     execvp(vector[0], vector);
   }
 
+  fprintf(stderr, "dpx: unable to launch command <%s> (%s)\n", vector ? vector[0] : name, strerror(errno));
+
   sync_message_katcl(xl, KATCP_LEVEL_ERROR, NULL, "unable to launch command <%s>", vector ? vector[0] : name, strerror(errno)); 
 
   destroy_katcl(xl, 0);
@@ -1601,9 +1604,6 @@ int reconfigure_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, unsi
   }
 
   fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_RETAINFO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO | KATCP_FLAT_PREPEND);
-#if 0
-  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_RETAINFO | KATCP_FLAT_RUNMAPTOO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO);
-#endif
 
   return 0;
 }
@@ -1641,6 +1641,8 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
   f->f_name = NULL;
 
   f->f_flags = 0;
+
+  f->f_rename_lock = 0;
 
   /* for cases where connect() still has to succeed */
   f->f_state = (flags & KATCP_FLAT_CONNECTING) ? FLAT_STATE_CONNECTING : FLAT_STATE_UP;
@@ -1782,6 +1784,8 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
   /* TODO: missing INSTALLINFO, SEESMAPINFO and PREPEND */
 
   reconfigure_flat_katcp(d, f, (flags & (~mask)) | set);
+
+  s->s_up_count++;
 
   return f;
 }
@@ -2022,6 +2026,10 @@ static struct katcp_flat *search_name_flat_katcp(struct katcp_dispatch *d, char 
   } else {
     gr = gx;
   }
+
+#ifdef DEBUG
+  fprintf(stderr, "search: attempting to find flat %s in group %s [%p]\n", name, gr->g_name, gr);
+#endif
 
   if(gr){
     for(i = 0; i < gr->g_count; i++){
@@ -2476,11 +2484,23 @@ int rename_flat_katcp(struct katcp_dispatch *d, char *group, char *was, char *sh
   }
 #endif
 
+#ifdef KATCP_UNIQUE_CLIENT_NAMES
+  if(find_name_flat_katcp(d, group, should, 1)){ /* limit = 1 i.e. limit search to group scope */
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unwilling to rename %s to %s as it already exists", was, should);
+    return -1;
+  }
+#endif
+
   len = strlen(should) + 1;
 
   fx = find_name_flat_katcp(d, group, was, 0);
   if(fx == NULL){
     log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "no entry %s found", was);
+    return -1;
+  }
+
+  if(fx->f_rename_lock == 1){
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "cannot rename instance with active periodic sensor subscriptions");
     return -1;
   }
 
@@ -3697,6 +3717,8 @@ int load_flat_katcp(struct katcp_dispatch *d)
           deallocate_flat_katcp(d, fx);
           gx->g_flats[gx->g_count] = NULL;
 
+          s->s_up_count--;
+
           inc = 0;
           break;
 
@@ -3911,6 +3933,60 @@ int run_flat_katcp(struct katcp_dispatch *d)
 
 /* commands, both old and new ***************************************/
 
+#if 0
+int system_info_group_cmd_katcp(struct katcp_dispatch *d, int argc)
+{
+#define BUFFER 64
+  char buffer[BUFFER];
+  struct tm *when;
+  time_t now, delta;
+  struct katcp_shared *s;
+  unsigned long hours;
+  unsigned int minutes, seconds;
+  int size;
+  struct heap *th;
+
+  s = d->d_shared;
+
+  when = localtime(&(s->s_start));
+  if(when == NULL){
+    return KATCP_RESULT_FAIL;
+  }
+
+  time(&now);
+
+  delta = now - s->s_start;
+
+  hours   = (delta / 3600);
+  minutes = (delta / 60)     - (hours * 60);
+  seconds = (delta)          - (((hours * 60) + minutes) * 60);
+
+  strftime(buffer, BUFFER - 1, "%Y-%m-%dT%H:%M:%S", when);
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "server started at %s localtime which is T%lu:%02u:%02u ago", buffer, hours, minutes, seconds);
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_lcount, (s->s_lcount == 1) ? "listener" : "listeners");
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_epcount, (s->s_epcount == 1) ? "endpoint" : "endpoints");
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s", s->s_tally, (s->s_tally == 1) ? "sensor" : "sensors");
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s", s->s_size, (s->s_size == 1) ? "mode" : "modes");
+  if(s->s_size > 1){
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d (%s) is current %s mode", s->s_mode,  s->s_vector[s->s_mode].e_name ? s->s_vector[s->s_mode].e_name : "UNKNOWN", s->s_flaky ? "failed" : "ok");
+  }
+
+#if KATCP_EXPERIMENTAL == 2
+  th = s->s_tmr_heap;
+  size = get_size_of_heap(th);
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s in heap priority queue", size, size == 1 ? "timer" : "timers");
+#else
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", s->s_length, (s->s_length == 1) ? "timer" : "timers");
+#endif
+
+  return KATCP_RESULT_OK;
+#undef BUFFER
+}
+#endif
 
 /* connection management commands ***********************************/
 
@@ -4064,6 +4140,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     hold_cmd_map_katcp(m);
 
     add_full_cmd_map_katcp(m, "help", "display help messages (?help [command])", 0, &help_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "arb", "arbitrary callback manipulation (?arb [list]", 0, &arb_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "watchdog", "pings the system (?watchdog)", 0, &watchdog_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "list-duplex", "display active connection detail (?list-duplex)", 0, &list_duplex_cmd_katcp, NULL, NULL);
@@ -4088,8 +4165,8 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "client-halt", "stop a client (?client-halt [name [group]])", 0, &client_halt_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-connect", "create a client to a remote host (?client-connect host:port [group [name]])", 0, &client_connect_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "?client-exec", "create a client to a local process (?client-exec label [group [binary [args]*])", 0, &client_exec_group_cmd_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config option [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "client-switch", "set a client option (?client-switch group [client])", 0, &client_switch_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config (duplex|server|client|hidden|visible|prefixed|fixed|translate|native|[no-]named-log) [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "client-switch", "switch a client's group (?client-switch group [client])", 0, &client_switch_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "group-create", "create a new group (?group-create name [group])", 0, &group_create_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "group-list", "list groups (?group-list)", 0, &group_list_group_cmd_katcp, NULL, NULL);
@@ -4099,8 +4176,6 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "listener-create", "create a listener (?listener-create label [port [interface [group]]])", 0, &listener_create_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "listener-halt", "stop a listener (?listener-halt port)", 0, &listener_halt_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "listener-list", "list listeners (?listener-list [label])", 0, &listener_list_group_cmd_katcp, NULL, NULL);
-
-    add_full_cmd_map_katcp(m, "timer-list", "list running timers (?timer-list)", 0, &timer_list_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "restart", "restart (?restart)", 0, &restart_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "halt", "halt (?halt)", 0, &halt_group_cmd_katcp, NULL, NULL);
@@ -4127,6 +4202,13 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
 
     add_full_cmd_map_katcp(m, "scope", "change scoping level (?scope scope [(group | client) name])", 0, &scope_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "broadcast", "send messages to everybody (?broadcast group inform [arguments])", 0, &broadcast_group_cmd_katcp, NULL, NULL);
+
+    add_full_cmd_map_katcp(m, "system-info", "report server information (?system-info)", 0, &system_info_group_cmd_katcp, NULL, NULL);
+
+    add_full_cmd_map_katcp(m, "whoami", "get current connection name (?whoami)", 0, &whoami_group_cmd_katcp, NULL, NULL);
+
+    add_full_cmd_map_katcp(m, "timer-rename", "rename a timer instance (?timer-rename old-name new-name)", 0, &timer_rename_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "timer-list", "list timer instances (?timer-list)", 0, &timer_list_group_cmd_katcp, NULL, NULL);
 
   } else {
     m = gx->g_maps[KATCP_MAP_REMOTE_REQUEST];

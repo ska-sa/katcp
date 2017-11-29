@@ -448,6 +448,20 @@ int register_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*
 int register_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
 int register_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
 
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+int register_heap_timer_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
+int register_heap_timer_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
+int register_heap_timer_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
+int register_heap_timer_every_ms_katcp(struct katcp_dispatch *d, unsigned int milli, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
+
+int adjust_interval_heap_timer_katcp(struct katcp_dispatch *d, struct timeval *adjust, char *name);
+int adjust_interval_anonymous_heap_timer_katcp(struct katcp_dispatch *d, struct timeval *adjust, void *data);
+int rename_heap_timer_katcp(struct katcp_dispatch *d, char *old_name, char *new_name);
+
+struct katcp_time *find_by_data_ref_heap_timer_katcp(struct katcp_dispatch *d, void *data, int *index);
+int disarm_by_ref_heap_timer(struct katcp_dispatch *d, void *data);
+#endif
+
 int wake_notice_at_tv_katcp(struct katcp_dispatch *d, struct katcp_notice *n, struct timeval *tv);
 int wake_notice_in_tv_katcp(struct katcp_dispatch *d, struct katcp_notice *n, struct timeval *tv);
 int wake_notice_every_tv_katcp(struct katcp_dispatch *d, struct katcp_notice *n, struct timeval *tv);
@@ -754,6 +768,7 @@ int log_override_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int help_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int client_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int watchdog_group_cmd_katcp(struct katcp_dispatch *d, int argc);
+int whoami_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 int listen_duplex_cmd_katcp(struct katcp_dispatch *d, int argc);
 int list_duplex_cmd_katcp(struct katcp_dispatch *d, int argc);
@@ -776,8 +791,6 @@ int group_config_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int listener_create_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int listener_halt_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int listener_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
-
-int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 int restart_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int halt_group_cmd_katcp(struct katcp_dispatch *d, int argc);
@@ -806,6 +819,8 @@ int version_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int scope_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int broadcast_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
+int timer_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc);
+int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 /* duplex related inform handlers */
 
@@ -819,6 +834,17 @@ int version_group_info_katcp(struct katcp_dispatch *d, int argc);
 int send_message_endpoint_katcp(struct katcp_dispatch *d, struct katcp_endpoint *from, struct katcp_endpoint *to, struct katcl_parse *px, int acknowledged);
 struct katcl_parse *parse_of_endpoint_katcp(struct katcp_dispatch *d, struct katcp_message *msg);
 struct katcp_endpoint *source_endpoint_katcp(struct katcp_dispatch *d, struct katcp_message *msg);
+
+/* duplex server api*/
+
+/* configure the duplex server */
+int config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, char *exe, char *host_port);
+
+/* run the duplex server */
+int run_server_flat_katcp(struct katcp_dispatch *dl);
+
+/* configure and run duplex server */
+int run_config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, char *exe, char *host, int port);
 
 #ifdef __cplusplus
 }

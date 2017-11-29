@@ -269,6 +269,9 @@ int init_endpoint_katcp(struct katcp_dispatch *d, struct katcp_endpoint *ep, int
 struct katcp_endpoint *create_endpoint_katcp(struct katcp_dispatch *d, int (*wake)(struct katcp_dispatch *d, struct katcp_endpoint *ep, struct katcp_message *msg, void *data), void (*release)(struct katcp_dispatch *d, void *data), void *data)
 {
   struct katcp_endpoint *ep;
+  struct katcp_shared *s;
+
+  s = d->d_shared;
 
   ep = malloc(sizeof(struct katcp_endpoint));
   if(ep == NULL){
@@ -283,6 +286,8 @@ struct katcp_endpoint *create_endpoint_katcp(struct katcp_dispatch *d, int (*wak
   }
 
   ep->e_freeable = 1;
+
+  s->s_epcount++;
 
   return ep;
 }
@@ -373,6 +378,7 @@ static void clear_endpoint_katcp(struct katcp_dispatch *d, struct katcp_endpoint
     (*(ep->e_release))(d, ep->e_data);
     ep->e_release = NULL;
   }
+
   ep->e_data = NULL;
 
   ep->e_next = NULL;
@@ -642,6 +648,9 @@ int flush_endpoint_katcp(struct katcp_dispatch *d, struct katcp_endpoint *ep)
 int release_endpoint_katcp(struct katcp_dispatch *d, struct katcp_endpoint *ep)
 {
   int count;
+  struct katcp_shared *s;
+
+  s = d->d_shared;
 
   sane_endpoint_katcp(ep);
 
@@ -664,6 +673,8 @@ int release_endpoint_katcp(struct katcp_dispatch *d, struct katcp_endpoint *ep)
   count = flush_endpoint_katcp(d, ep);
 
   ep->e_state = ENDPOINT_STATE_GONE;
+
+  s->s_epcount--;
 
   return count;
 

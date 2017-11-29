@@ -66,6 +66,10 @@ unsigned int infer_fpga_range(struct katcp_dispatch *d);
 
 #define GETAP_VECTOR_PERIOD      4
 
+#define GETAP_DHCP_BUFFER_SIZE 416
+
+typedef enum {INIT, RANDOMIZE, SELECT, WAIT, REQUEST, BOUND, RENEW, REBIND} DHCP_STATE_TYPE;
+
 struct getap_state{
   uint32_t s_magic;
 
@@ -121,10 +125,14 @@ struct getap_state{
   unsigned long s_tx_arp;
   unsigned long s_tx_user;
   unsigned long s_tx_error;
+  unsigned long s_tx_dhcp;
 
   unsigned long s_rx_arp;
   unsigned long s_rx_user;
   unsigned long s_rx_error;
+  unsigned long s_rx_dhcp_valid;
+  unsigned long s_rx_dhcp_unknown;
+  unsigned long s_rx_dhcp_invalid;
 
   unsigned char s_rxb[GETAP_MAX_FRAME];
   unsigned char s_txb[GETAP_MAX_FRAME];
@@ -145,12 +153,45 @@ struct getap_state{
   uint8_t s_arp_table[GETAP_ARP_CACHE][GETAP_MAC_SIZE];
   uint32_t s_arp_fresh[GETAP_ARP_CACHE];
 
+  unsigned char s_dhcp_tx_buffer[GETAP_DHCP_BUFFER_SIZE];
+  unsigned char s_dhcp_rx_buffer[GETAP_MAX_FRAME];
+
+  uint8_t s_dhcp_next_hop_mac_binary[GETAP_MAC_SIZE];
+
+  uint32_t s_dhcp_xid_binary;
+  uint8_t s_dhcp_xid[4];
+
+  time_t s_dhcp_sec_start;
+
+  DHCP_STATE_TYPE s_dhcp_state;
+  int s_dhcp_sm_enable;
+  int s_dhcp_buffer_flag;
+  int s_dhcp_sm_count;
+  int s_dhcp_sm_retries;
+
+  int s_dhcp_wait;
+
+  unsigned char s_dhcp_yip_addr[4];
+  unsigned char s_dhcp_srv_addr[4];
+
+  unsigned char s_dhcp_submask[4];
+  unsigned char s_dhcp_route[4];
+
+  uint32_t s_dhcp_lease_t;
+  uint32_t s_dhcp_t1;
+  uint32_t s_dhcp_t2;
+  int s_dhcp_timer;
+
+  int s_dhcp_errors;
+  int s_dhcp_obtained;
+  struct katcp_notice *s_dhcp_notice;
+
 };
 
 #define TBS_FPGA_DOWN        0
 #define TBS_FPGA_PROGRAMMED  1
 #define TBS_FPGA_MAPPED      2
-#define TBS_FPGA_READY       3    
+#define TBS_FPGA_READY       3
 #define TBS_STATES_FPGA      4
 
 struct tbs_raw
@@ -175,6 +216,8 @@ struct tbs_raw
   unsigned int r_instances;
 
   struct avl_tree *r_meta;
+
+  char *r_lkey;
 };
 
 struct meta_entry

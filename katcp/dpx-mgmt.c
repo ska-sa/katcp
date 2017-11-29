@@ -217,6 +217,10 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     mask   = KATCP_FLAT_RETAINFO;
   } else if(!strcmp(option, "native")){
     set    = KATCP_FLAT_RETAINFO;
+  } else if(!strcmp(option, "log-prefix")){
+    set    = KATCP_FLAT_LOGPREFIX;
+  } else if(!strcmp(option, "log-plain")){
+    mask   = KATCP_FLAT_LOGPREFIX;
 #if 0
   } else if(!strcmp(option, "map-fallback")){
     mask   = KATCP_FLAT_RUNMAPTOO;
@@ -343,6 +347,11 @@ int client_switch_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     }
   }
 
+  if(gx == fx->f_group){
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "client already in group %s", group);
+    return KATCP_RESULT_OK;
+  }
+
   if(switch_group_katcp(d, fx, gx) < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to transfer client to group %s", group);
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
@@ -353,7 +362,7 @@ int client_switch_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
 int client_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
-  char *from, *to, *group;
+  char *from, *to, *group, *old;
   struct katcp_flat *fx;
 
   if(argc < 2){
@@ -391,12 +400,35 @@ int client_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     group = NULL;
   }
 
-  if(rename_flat_katcp(d, group, from, to) < 0){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to rename from %s to %s in within %s group", from, to, group ? group : "any");
+  if(from == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "this client does not have a valid current name and cannot proceed");
+    /* TODO: could do a find and check if any sensors pending - if not this test is too general */
     return KATCP_RESULT_FAIL;
   }
 
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "instance previously called %s now is %s", from, to);
+  old = strdup(from);
+  if (old == NULL){
+    /* non-critical failure but need to handle error case for later usage*/
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "allocation failure (non-critical)");
+  }
+
+  /* WARNING: commited to freeing old from here onwards */
+
+  if(rename_flat_katcp(d, group, from, to) < 0){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to rename from %s to %s within %s group", from, to, group ? group : "any");
+    if(old){
+      free(old);
+    }
+    return KATCP_RESULT_FAIL;
+  }
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "instance previously called %s now is %s", old ? old : "<unknown>", to);
+
+  /* TODO: find and rename all sensor subscription timers linked to this flat instance, or maybe cancel them if this isn't possible */
+
+  if(old != NULL){
+    free(old);
+  }
 
   return KATCP_RESULT_OK;
 }
@@ -841,13 +873,6 @@ int listener_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   return extra_response_katcp(d, KATCP_RESULT_OK, "%d", count);
 }
 
-int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
-{
-  dump_timers_katcp(d);
-
-  return KATCP_RESULT_OK;
-}
-
 /* command/map related commands ***************************************************/
 
 #define CMD_OP_REMOVE  0
@@ -1199,6 +1224,8 @@ int system_info_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   struct katcp_shared *s;
   time_t now;
   char buffer[BUFFER];
+  int size;
+  struct heap *th;
 
   s = d->d_shared;
   if(s == NULL){
@@ -1220,8 +1247,50 @@ int system_info_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "server has currently %u parse messages allocated", allocated_parses_katcl());
 #endif
 
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_lcount, (s->s_lcount == 1) ? "listener" : "listeners");
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_epcount, (s->s_epcount == 1) ? "endpoint" : "endpoints");
+
+  th = s->s_tmr_heap;
+  size = get_size_of_heap(th);
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s in heap priority queue", size, size == 1 ? "timer" : "timers");
+
 #undef BUFFER
   return KATCP_RESULT_OK;
+}
+
+/* identify current connection - several telnet localhost connections end up ambiguous */
+
+int whoami_group_cmd_katcp(struct katcp_dispatch *d, int argc)
+{
+  struct katcp_flat *fx;
+
+  fx = this_flat_katcp(d);
+  if (fx == NULL){
+#ifdef KATCP_CONSISTENCY_CHECKS
+    fprintf(stderr, "whoami: major logic problem: no handle to current connection\n");
+    abort();
+#endif
+    /* potentially serious error - why don't we have a valid handle on connection */
+    log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "no handle to current connection");
+#ifdef DEBUG
+    fprintf(stderr, "whoami: null pointer to connection - potentially dangerous\n");
+#endif
+    return KATCP_RESULT_FAIL;
+  }
+
+  /* is the flat named ?*/
+
+  if(fx->f_name == NULL){
+    /* flat was created with no name */
+    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "current client has no name and will not show up in client list");
+    /* probably nicer to have an un-named connection have a nonexistant name */
+    return KATCP_RESULT_OK;
+  }
+
+  extra_response_katcp(d, KATCP_RESULT_OK, fx->f_name);
+
+  return KATCP_RESULT_OWN;
 }
 
 #endif

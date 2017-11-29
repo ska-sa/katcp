@@ -39,14 +39,24 @@ CFLAGS += -DKATCP_STDERR_ERRORS
 # log client messages 
 CFLAGS += -DKATCP_LOG_REQUESTS
 
+# require unique client names - otherwise collisions are permitted
+# probably needed by new timer sensors, as they are looked up by name
+CFLAGS += -DKATCP_UNIQUE_CLIENT_NAMES
+
 # enable the ability to manage katcp subprocesses
 CFLAGS += -DKATCP_SUBPROCESS
 
 # enable newer, broken or nonfunctional code
-CFLAGS += -DKATCP_EXPERIMENTAL
+#CFLAGS += -DKATCP_EXPERIMENTAL
+
+# enable experimental experimental code i.e. not sure if this code should make it into final lib
+#CFLAGS += -DKATCP_EXPERIMENTAL=2
 
 # keep older code 
 CFLAGS += -DKATCP_DEPRECATED
+
+# enable heap timers - for old code
+CFLAGS += -DKATCP_HEAP_TIMERS
 
 # respond to trap TERM signal in main loop
 CFLAGS += -DKATCP_TRAP_TERM
@@ -62,7 +72,7 @@ CFLAGS += -DKATCP_PROTOCOL_MAJOR_VERSION=5 -DKATCP_PROTOCOL_MINOR_VERSION=0
 
 # amount of debugging logic to enable 
 #CFLAGS += -DDEBUG=4
-#CFLAGS += -DDEBUG
+CFLAGS += -DDEBUG
 CFLAGS += -ggdb
 
 # what compiler to use 

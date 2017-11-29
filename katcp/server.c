@@ -124,7 +124,7 @@ static int client_list_cmd_katcp(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OWN;
 }
 
-static int pipe_from_file_katcp(struct katcp_dispatch *dl, char *file)
+/*static*/ int pipe_from_file_katcp(struct katcp_dispatch *dl, char *file)
 {
 #define S_READ 1
 #define S_PARSE 2
@@ -162,6 +162,7 @@ static int pipe_from_file_katcp(struct katcp_dispatch *dl, char *file)
 
   fd = open(file, O_RDONLY);
   if(fd < 0){
+    fprintf(stderr, "init: can't open file <%s> (%s)\n", file, strerror(errno));
     exit(EX_UNAVAILABLE);
   }
 
@@ -200,15 +201,18 @@ static int pipe_from_file_katcp(struct katcp_dispatch *dl, char *file)
           switch (state){
             case S_READ:
                 rsvp = read_katcl(pl);
-                if (rsvp == 0)
+                if (rsvp == 0){
                   state = S_PARSE;
+                } else {
+                  exit((rsvp > 0) ? EX_OK : EX_IOERR);
+                }
               break;
             case S_PARSE:
                 
                 if (have_katcl(pl)){
                   if(arg_reply_katcl(pl)){
 #ifdef DEBUG
-                    fprintf(stderr,"Found REPLY: %s\n",arg_string_katcl(pl,0));
+                    fprintf(stderr,"Found REPLY: %s %s\n", arg_string_katcl(pl,0), arg_string_katcl(pl,1));
 #endif
                     state = S_DONE;
                   }
@@ -423,6 +427,7 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
   struct katcp_shared *s;
   unsigned long hours;
   unsigned int minutes, seconds;
+  int num_timers = ret_num_timers(d);
 
   s = d->d_shared;
 
@@ -457,7 +462,7 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s", s->s_pending, (s->s_pending == 1) ? "notice" : "notices");
 
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", s->s_length, (s->s_length == 1) ? "timer" : "timers");
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", num_timers, (num_timers == 1) ? "timer" : "timers");
 
   return KATCP_RESULT_OK;
 #undef BUFFER
@@ -561,13 +566,17 @@ int prepare_core_loop_katcp(struct katcp_dispatch *dl)
 int run_core_loop_katcp(struct katcp_dispatch *dl)
 {
 #define LABEL_BUFFER 32
-  int run, nfd, result, suspend;
+  /* int nfd; */
+  int run, result, suspend;
+#ifdef KATCP_DEPRECATED
   unsigned int len;
   struct sockaddr_in sa;
-  struct timespec delta;
-  struct katcp_shared *s;
   char label[LABEL_BUFFER];
   long opts;
+  int nfd;
+#endif
+  struct timespec delta;
+  struct katcp_shared *s;
 
   s = dl->d_shared;
 
@@ -580,6 +589,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     FD_ZERO(&(s->s_read));
     FD_ZERO(&(s->s_write));
 
+
 #if 0
     gettimeofday(&now, NULL);
     future.tv_sec = now.tv_sec + KATCP_INIT_WAIT;
@@ -588,21 +598,11 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 
     s->s_max = (-1);
 
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+    suspend = load_heap_timers_katcp(dl, &delta);
+#else
     suspend = run_timers_katcp(dl, &delta);
-
-    if(run > 0){ /* only bother with new connections if not stopping */
-      if(s->s_lfd >= 0){
-        FD_SET(s->s_lfd, &(s->s_read));
-        if(s->s_lfd > s->s_max){
-          s->s_max = s->s_lfd;
-        }
-      } else {
-        if(s->s_used <= 0){ /* if we are not listening, and we have run out of clients, shut down too */
-          run = (-1);
-        }
-      }
-
-    }
+#endif
 
 #ifdef KATCP_SUBPROCESS
     load_jobs_katcp(dl);
@@ -621,6 +621,25 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     load_endpoints_katcp(dl);
 #endif
 
+    if(run > 0){ /* only bother with new connections if not stopping */
+      if(s->s_lfd >= 0){
+        FD_SET(s->s_lfd, &(s->s_read));
+        if(s->s_lfd > s->s_max){
+          s->s_max = s->s_lfd;
+        }
+      } else {
+#ifdef KATCP_EXPERIMENTAL
+        //if((s->s_lcount <= 0) && (s->s_epcount <= 0)){ /* if we have no listeners, and we have run out of endpoints, shut down too */
+        if((s->s_lcount <= 0) && (s->s_up_count <= 0)){ /* if we have no listeners, and we have run out of clients, shut down too */
+          run = (-1);
+        }
+#else
+        if(s->s_used <= 0){ /* if we are not listening, and we have run out of clients, shut down too */
+          run = (-1);
+        }
+#endif
+      }
+    }
 
     if(run < 0){
 
@@ -661,6 +680,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     result = pselect(s->s_max + 1, &(s->s_read), &(s->s_write), NULL, suspend ? NULL : &delta, &(s->s_signal_mask));
 #ifdef DEBUG
     fprintf(stderr, "multi: select=%d, used=%d\n", result, s->s_used);
+    fprintf(stderr, "multi: lcount = %d, epcount = %d, upcount = %d\n", s->s_lcount, s->s_epcount, s->s_up_count);
 #endif
 
     s->s_busy = 0;
@@ -699,6 +719,10 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
       run = (-1);
     }
 
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+    run_heap_timers_katcp(dl);
+#endif
+
 #ifdef KATCP_EXPERIMENTAL
     run_flat_katcp(dl);
     /* order between flat and endpoint now important */
@@ -712,6 +736,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     run_notices_katcp(dl);
     run_arb_katcp(dl);
 
+#ifdef KATCP_DEPRECATED
     if(FD_ISSET(s->s_lfd, &(s->s_read))){
       if(s->s_used < s->s_count){
 
@@ -737,6 +762,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
         perforate_client_server_katcp(dl);
       }
     }
+#endif
 
   }
 

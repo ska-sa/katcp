@@ -9,6 +9,10 @@
 
 #include <avltree.h>
 
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#include <heap.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -370,6 +374,7 @@ struct katcp_job{
 
 struct katcp_time{
   int t_magic;
+  char *t_name;       /* used in newer timer heap priority queue */
 
   struct timeval t_when;
   struct timeval t_interval;
@@ -378,6 +383,10 @@ struct katcp_time{
 
   void *t_data;
   int (*t_call)(struct katcp_dispatch *d, void *data);
+
+  int t_hits;
+  int t_misses;
+  int t_late;
 };
 
 struct katcp_invoke{
@@ -526,6 +535,9 @@ struct katcp_subscribe{
   struct katcp_vrbl *s_variable;
   struct katcp_endpoint *s_endpoint;
   unsigned int s_strategy;
+  unsigned int s_index;   /* subscriber knows it's own index in the respective vector */
+
+  char *s_timer_name;
 
   /* for time, last time updated, next time when ... */
 };
@@ -533,8 +545,12 @@ struct katcp_subscribe{
 struct katcp_wit{
   unsigned int w_magic;
   struct katcp_endpoint *w_endpoint;
-  struct katcp_subscribe **w_vector;
-  unsigned int w_size;
+
+  struct katcp_subscribe **w_vector_period;    /* list of period sampling subscribers */
+  struct katcp_subscribe **w_vector_event;    /* list of event sampling subscribers */
+
+  unsigned int w_size_period;
+  unsigned int w_size_event;
 
   /* todo - timeval counter ... runs at rate */
 };
@@ -700,6 +716,8 @@ struct katcp_flat{
 
   struct katcp_region *f_region;
   time_t f_start;
+
+  int f_rename_lock;
 };
 #endif
 
@@ -732,6 +750,10 @@ struct katcp_shared{
   unsigned int s_count;
   unsigned int s_used;
 
+  unsigned int s_lcount;  /* flat listener count */
+  unsigned int s_epcount;  /* flat endpoint count */
+  unsigned int s_up_count;  /* count of connections */
+
   int s_lfd;
 
   struct katcp_job **s_tasks;
@@ -744,6 +766,10 @@ struct katcp_shared{
 
   struct katcp_time **s_queue;
   unsigned int s_length;
+
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+  struct heap *s_tmr_heap;
+#endif
 
   struct katcp_arb **s_extras;
   unsigned int s_total;
@@ -960,6 +986,13 @@ int empty_timers_katcp(struct katcp_dispatch *d);
 int run_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
 void dump_timers_katcp(struct katcp_dispatch *d);
 
+#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+int load_heap_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
+int run_heap_timers_katcp(struct katcp_dispatch *d);
+int empty_heap_timers_katcp(struct katcp_dispatch *d);
+int display_heap_timers_katcp(struct katcp_dispatch *d);
+#endif
+
 /* nonsense support */
 void forget_nonsense_katcp(struct katcp_dispatch *d, unsigned int index);
 
@@ -1034,9 +1067,7 @@ int switch_group_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct k
 
 #define KATCP_FLAT_INSTALLINFO  0x20   /* install info relay handler */
 #define KATCP_FLAT_RETAINFO     0x40   /* do not rewrite relayed info fields */
-#if 0
-#define KATCP_FLAT_RUNMAPTOO    0x80   /* invoke map handler even if it is relayed */
-#endif
+#define KATCP_FLAT_LOGPREFIX    0x80   /* prefix flat name to log message name field */
 
 #define KATCP_FLAT_SEESKATCP   0x100   /* sees katcp-specified inform messages */
 #define KATCP_FLAT_SEESADMIN   0x200   /* sees admin messages */
@@ -1305,8 +1336,10 @@ int strategy_from_string_sensor_katcp(struct katcp_dispatch *d, char *name);
 char *type_to_string_sensor_katcp(struct katcp_dispatch *d, unsigned int type);
 int type_from_string_sensor_katcp(struct katcp_dispatch *d, char *name);
 
+int monitor_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx, struct timeval *tv, char *name);
 int monitor_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx);
 int forget_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx);
+int forget_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx);
 
 struct katcl_parse *make_sensor_katcp(struct katcp_dispatch *d, char *name, struct katcp_vrbl *vx, char *prefix);
 
@@ -1323,6 +1356,8 @@ int version_generic_callback_katcp(struct katcp_dispatch *d, void *state, char *
 /******************************************/
 
 int prepend_generic_flat_katcp(struct katcp_dispatch *d, int reply);
+int pipe_from_file_katcp(struct katcp_dispatch *dl, char *file);
+int run_core_loop_katcp(struct katcp_dispatch *dl);
 
 /******************************************/
 

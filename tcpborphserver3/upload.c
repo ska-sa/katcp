@@ -582,6 +582,11 @@ int upload_bin_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
  
+  if ((tr->r_lkey != NULL) && strcmp(tr->r_lkey, d->d_name)){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
+    return KATCP_RESULT_FAIL;
+  }
+
   expected = 0;
   timeout = 0;
   port = UPLOAD_PORT;
@@ -987,6 +992,11 @@ int upload_program_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
  
+  if ((tr->r_lkey != NULL) && strcmp(tr->r_lkey, d->d_name)){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
+    return KATCP_RESULT_FAIL;
+  }
+
   expected = 0;
   timeout = 0;
   port = UPLOAD_PORT;

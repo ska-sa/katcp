@@ -3021,6 +3021,8 @@ int var_declare_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     }
   }
 
+  /* WARNING: in theory a call to schedule_sensor_update_katcp might be useful here, but since we are creating sensors at a low level, a broadcast inform afterwards seems more appropriate */
+
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "%s variable %s with type %u and flags 0x%x", fresh ? "created" : "updated", name, type, options);
 
   return KATCP_RESULT_OK;
