@@ -487,7 +487,7 @@ static int send_period_subscribe_katcp(struct katcp_dispatch *d, struct katcp_su
     }
   } else {
 #ifdef KATCP_CONSISTENCY_CHECKS
-    fprintf(stderr, "major logic problem: unexpected sensor strategy %u of periodic subscriber %p\n", sub, sub->s_strategy);
+    fprintf(stderr, "major logic problem: unexpected sensor strategy %u of periodic subscriber %p\n", sub->s_strategy, sub);
     abort();
 #endif
     return (-1);
@@ -860,6 +860,7 @@ int monitor_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *v
 {
   int ret;
   struct katcp_subscribe *sub;
+  struct katcp_wit *w;
 
   sub = monitor_variable_katcp(d, vx, fx, KATCP_STRATEGY_PERIOD);
   if (NULL == sub){
@@ -868,7 +869,11 @@ int monitor_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *v
 
   ret = register_heap_timer_every_tv_katcp(d, tv, &on_period_timeout_sensor_katcp, sub, name);
   if (-1 == ret){
-    delete_subscribe_katcp(d, sub);
+    w = vx->v_extra;
+
+    sane_wit(w);
+
+    delete_subscribe_katcp(d, w, sub);
     return (-1);
   }
 

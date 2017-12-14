@@ -47,7 +47,7 @@ CFLAGS += -DKATCP_UNIQUE_CLIENT_NAMES
 CFLAGS += -DKATCP_SUBPROCESS
 
 # enable newer, broken or nonfunctional code
-#CFLAGS += -DKATCP_EXPERIMENTAL
+CFLAGS += -DKATCP_EXPERIMENTAL
 
 # enable experimental experimental code i.e. not sure if this code should make it into final lib
 #CFLAGS += -DKATCP_EXPERIMENTAL=2
