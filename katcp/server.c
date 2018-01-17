@@ -610,12 +610,18 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     load_arb_katcp(dl);
 
     if(load_shared_katcp(dl) < 0){ /* want to shut down */
+#ifdef DEBUG
+      fprintf(stderr, "core loop: load shared initiating shutdown\n");
+#endif
       run = (-1);
     }
 
 #ifdef KATCP_EXPERIMENTAL
     /* WARNING: new code */
     if(load_flat_katcp(dl) < 0){
+#ifdef DEBUG
+      fprintf(stderr, "core loop: load flat initiating shutdown\n");
+#endif
       run = (-1);
     }
     load_endpoints_katcp(dl);
@@ -631,10 +637,16 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 #ifdef KATCP_EXPERIMENTAL
         //if((s->s_lcount <= 0) && (s->s_epcount <= 0)){ /* if we have no listeners, and we have run out of endpoints, shut down too */
         if((s->s_lcount <= 0) && (s->s_up_count <= 0)){ /* if we have no listeners, and we have run out of clients, shut down too */
+#ifdef DEBUG
+          fprintf(stderr, "core loop: shutdown as listener and endpoint count at zero\n");
+#endif
           run = (-1);
         }
 #else
         if(s->s_used <= 0){ /* if we are not listening, and we have run out of clients, shut down too */
+#ifdef DEBUG
+          fprintf(stderr, "core loop: shutdown as used count at zero\n");
+#endif
           run = (-1);
         }
 #endif
