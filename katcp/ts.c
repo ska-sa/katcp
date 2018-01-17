@@ -8,7 +8,7 @@
 #include "katcp.h"
 #include "katpriv.h"
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
 #include "heap.h"
 #endif
 
@@ -115,7 +115,7 @@ static struct katcp_time *find_ts_katcp(struct katcp_dispatch *d, void *data)
 
 
 #if 0
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
 static struct katcp_time *find_heaped_ts_by_name_katcp(struct katcp_dispatch *d, void *data){
 
 
@@ -180,7 +180,7 @@ static struct katcp_time *find_make_append_ts_katcp(struct katcp_dispatch *d, in
 
 int register_every_ms_katcp(struct katcp_dispatch *d, unsigned int milli, int (*call)(struct katcp_dispatch *d, void *data), void *data)
 {
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
 
   return register_heap_timer_every_ms_katcp(d, milli, call, data, NULL);
 
@@ -198,8 +198,7 @@ int register_every_ms_katcp(struct katcp_dispatch *d, unsigned int milli, int (*
 
 int register_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data)
 {
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
-
+#ifdef KATCP_HEAP_TIMERS
   return register_heap_timer_every_tv_katcp(d, tv, call, data, NULL);
 
 #else
@@ -240,10 +239,8 @@ int register_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*
 
 int register_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data)
 {
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
-
+#ifdef KATCP_HEAP_TIMERS
   return register_heap_timer_at_tv_katcp(d, tv, call, data, NULL);
-
 #else
 
   struct katcp_shared *s;
@@ -281,7 +278,7 @@ int register_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*cal
 
 int register_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data)
 {
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
 
   return register_heap_timer_in_tv_katcp(d, tv, call, data, NULL);
 
@@ -602,7 +599,7 @@ int ret_num_timers(struct katcp_dispatch *d){
   struct katcp_shared *s;
   s = d->d_shared;
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
   struct heap *ht;
   ht = s->s_tmr_heap;
   return get_size_of_heap(ht);
@@ -611,7 +608,7 @@ int ret_num_timers(struct katcp_dispatch *d){
 #endif
 }
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
 
 /* heap timer infrastructure ***************************************************/
 
@@ -1600,7 +1597,7 @@ int timer_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc){
 }
 
 int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc){
-#if defined(KATCP_EXPERIMENTAL) || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
   int total;
 
   total = display_heap_timers_katcp(d);

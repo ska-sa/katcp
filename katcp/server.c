@@ -28,6 +28,12 @@
 #define KATCP_HALT_WAIT       1
 #define KATCP_BRIEF_WAIT  10000   /* 10 ms */
 
+#if KATCP_EXPERIMENTAL == 2
+#ifndef KATCP_HEAP_TIMERS
+#error "require HEAP_TIMERS for LEVEL 2 EXPERIMENTAL code"
+#endif
+#endif
+
 int inform_client_connections_katcp(struct katcp_dispatch *d, char *type)
 {
   int i;
@@ -598,7 +604,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 
     s->s_max = (-1);
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
     suspend = load_heap_timers_katcp(dl, &delta);
 #else
     suspend = run_timers_katcp(dl, &delta);
@@ -682,17 +688,17 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 
 #ifdef DEBUG
     if(suspend){
-      fprintf(stderr, "multi: selecting indefinitely\n");
+      fprintf(stderr, "core loop: selecting indefinitely\n");
     } else {
-      fprintf(stderr, "multi: selecting for %lu.%09lu\n", delta.tv_sec, delta.tv_nsec);
+      fprintf(stderr, "core loop: selecting for %lu.%09lu\n", delta.tv_sec, delta.tv_nsec);
     }
 #endif
 
     /* delta now timespec, not timeval */
     result = pselect(s->s_max + 1, &(s->s_read), &(s->s_write), NULL, suspend ? NULL : &delta, &(s->s_signal_mask));
 #ifdef DEBUG
-    fprintf(stderr, "multi: select=%d, used=%d\n", result, s->s_used);
-    fprintf(stderr, "multi: lcount = %d, epcount = %d, upcount = %d\n", s->s_lcount, s->s_epcount, s->s_up_count);
+    fprintf(stderr, "core loop: select=%d, used=%d\n", result, s->s_used);
+    fprintf(stderr, "core loop: lcount = %d, epcount = %d, upcount = %d\n", s->s_lcount, s->s_epcount, s->s_up_count);
 #endif
 
     s->s_busy = 0;
@@ -710,7 +716,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
           break;
         default  :
 #ifdef DEBUG
-          fprintf(stderr, "select failed: %s\n", strerror(errno));
+          fprintf(stderr, "core loop: select failed: %s\n", strerror(errno));
 #endif
           run = 0; 
           break;
@@ -719,7 +725,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 
     if(child_signal_shared_katcp(s)){
 #ifdef DEBUG
-      fprintf(stderr, "multi: saw child signal\n");
+      fprintf(stderr, "core loop: saw child signal\n");
 #endif
 #ifdef KATCP_SUBPROCESS
       wait_jobs_katcp(dl);
@@ -731,7 +737,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
       run = (-1);
     }
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
     run_heap_timers_katcp(dl);
 #endif
 

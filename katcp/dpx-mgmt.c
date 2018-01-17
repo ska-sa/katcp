@@ -1251,9 +1251,13 @@ int system_info_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_epcount, (s->s_epcount == 1) ? "endpoint" : "endpoints");
 
+#ifdef KATCP_HEAP_TIMERS
   th = s->s_tmr_heap;
   size = get_size_of_heap(th);
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s in heap priority queue", size, size == 1 ? "timer" : "timers");
+#else
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", s->s_length, (s->s_length == 1) ? "timer" : "timers");
+#endif
 
 #undef BUFFER
   return KATCP_RESULT_OK;
