@@ -644,22 +644,13 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
           s->s_max = s->s_lfd;
         }
       } else {
-#ifdef KATCP_EXPERIMENTAL
         //if((s->s_lcount <= 0) && (s->s_epcount <= 0)){ /* if we have no listeners, and we have run out of endpoints, shut down too */
-        if((s->s_lcount <= 0) && (s->s_up_count <= 0)){ /* if we have no listeners, and we have run out of clients, shut down too */
+        if((s->s_lcount <= 0) && (s->s_up_count <= 0) && (s->s_used <= 0)){ /* if we have no listeners, and we have run out of clients, shut down too */
 #ifdef DEBUG
-          fprintf(stderr, "core loop: shutdown as listener and endpoint count at zero\n");
+          fprintf(stderr, "core loop: shutdown as listener, up and used count at zero\n");
 #endif
           run = (-1);
         }
-#else
-        if(s->s_used <= 0){ /* if we are not listening, and we have run out of clients, shut down too */
-#ifdef DEBUG
-          fprintf(stderr, "core loop: shutdown as used count at zero\n");
-#endif
-          run = (-1);
-        }
-#endif
       }
     }
 

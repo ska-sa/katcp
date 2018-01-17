@@ -124,7 +124,7 @@ static struct katcp_time *find_heaped_ts_by_name_katcp(struct katcp_dispatch *d,
 #endif
 #endif
 
-
+#ifndef KATCP_HEAP_TIMERS
 static int append_ts_katcp(struct katcp_dispatch *d, struct katcp_time *ts)
 {
   struct katcp_time **tptr;
@@ -150,7 +150,9 @@ static int append_ts_katcp(struct katcp_dispatch *d, struct katcp_time *ts)
 
   return 0;
 }
+#endif
 
+#ifndef KATCP_HEAP_TIMERS
 static struct katcp_time *find_make_append_ts_katcp(struct katcp_dispatch *d, int (*call)(struct katcp_dispatch *d, void *data), void *data)
 {
   struct katcp_time *ts;
@@ -175,6 +177,7 @@ static struct katcp_time *find_make_append_ts_katcp(struct katcp_dispatch *d, in
 
   return ts;
 }
+#endif
 
 /* functions to schedule things at particular times *******************************/
 
@@ -689,8 +692,8 @@ int run_heap_timers_katcp(struct katcp_dispatch *d){
   struct katcp_shared *s;
   struct katcp_time *ts;
   struct timeval now, delta, deadline, diff;
-  int ret;
   unsigned long long ti,td;
+  int ret;
 
   if (NULL == d){
 #ifdef DEBUG
