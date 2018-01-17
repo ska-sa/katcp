@@ -595,7 +595,7 @@ int run_timers_katcp(struct katcp_dispatch *d, struct timespec *interval)
   return 0;
 }
 
-int ret_num_timers(struct katcp_dispatch *d){
+int count_timers_katcp(struct katcp_dispatch *d){
   struct katcp_shared *s;
   s = d->d_shared;
 

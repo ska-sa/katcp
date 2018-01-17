@@ -188,6 +188,7 @@ struct katcp_subscribe *create_subscribe_katcp(struct katcp_dispatch *d, struct 
       w->w_size_event++;
       break;
 
+#ifdef KATCP_HEAP_TIMERS
     case KATCP_STRATEGY_PERIOD:
       re = realloc(w->w_vector_period, sizeof(struct katcp_subscribe *) * (w->w_size_period + 1));
       if(re == NULL){
@@ -200,6 +201,7 @@ struct katcp_subscribe *create_subscribe_katcp(struct katcp_dispatch *d, struct 
       sub->s_index = w->w_size_period;
       w->w_size_period++;
       break;
+#endif
 
     default:
 #ifdef DEBUG
@@ -291,6 +293,7 @@ static void destroy_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subsc
   /* It seems there is no reason to do deallocation here - this is just a copy of the variable pointer, and we know the real one always outlives this one */
   sub->s_variable = NULL;
 
+#ifdef KATCP_HEAP_TIMERS
   if (KATCP_STRATEGY_PERIOD == sub->s_strategy){
     /* WARNING - have to disarm associated timer !! */
     if (disarm_by_ref_heap_timer(d, sub)){
@@ -300,6 +303,7 @@ static void destroy_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subsc
 #endif
     }
   }
+#endif
 
   sub->s_strategy = KATCP_STRATEGY_OFF;
 
@@ -354,6 +358,7 @@ static int delete_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w,
 #endif
       break;
 
+#ifdef KATCP_HEAP_TIMERS
     case KATCP_STRATEGY_PERIOD:
 #ifdef KATCP_CONSISTENCY_CHECKS
       if(sub->s_index >= w->w_size_period){
@@ -382,6 +387,7 @@ static int delete_subscribe_katcp(struct katcp_dispatch *d, struct katcp_wit *w,
       fprintf(stderr, "subscribe: %u period %s in wit [%p]\n", w->w_size_period, (w->w_size_period == 1) ? "subscriber" : "subscribers", w);
 #endif
       break;
+#endif
 
     default:
 #ifdef KATCP_CONSISTENCY_CHECKS
@@ -464,6 +470,7 @@ static int broadcast_event_subscribe_katcp(struct katcp_dispatch *d, struct katc
   return w->w_size_event;
 }
 
+#ifdef KATCP_HEAP_TIMERS
 static int send_period_subscribe_katcp(struct katcp_dispatch *d, struct katcp_subscribe *sub, struct katcl_parse *px, struct katcp_vrbl *vx)
 {
   struct katcp_wit *w;
@@ -495,6 +502,7 @@ static int send_period_subscribe_katcp(struct katcp_dispatch *d, struct katcp_su
 
   return 0;
 }
+#endif
 
 
 /*************************************************************************/
@@ -725,6 +733,7 @@ int on_event_change_sensor_katcp(struct katcp_dispatch *d, void *state, char *na
   return 0;
 }
 
+#ifdef KATCP_HEAP_TIMERS
 int on_period_timeout_sensor_katcp(struct katcp_dispatch *d, void *data)
 {
   struct katcp_subscribe *sub;
@@ -760,6 +769,7 @@ int on_period_timeout_sensor_katcp(struct katcp_dispatch *d, void *data)
 
   return 0;
 }
+#endif
 
 void release_sensor_katcp(struct katcp_dispatch *d, void *state, char *name, struct katcp_vrbl *vx)
 {
@@ -856,6 +866,7 @@ int monitor_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx
   return 0;
 }
 
+#ifdef KATCP_HEAP_TIMERS
 int monitor_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx, struct timeval *tv, char *name)
 {
   int ret;
@@ -897,6 +908,7 @@ int monitor_period_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *v
 
   return ret;
 }
+#endif
 
 int forget_event_variable_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_flat *fx)
 {

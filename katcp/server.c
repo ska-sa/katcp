@@ -18,7 +18,6 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 
-
 #include "katpriv.h"
 #include "katcl.h"
 #include "katcp.h"
@@ -433,7 +432,7 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
   struct katcp_shared *s;
   unsigned long hours;
   unsigned int minutes, seconds;
-  int num_timers = ret_num_timers(d);
+  int num_timers;
 
   s = d->d_shared;
 
@@ -467,6 +466,8 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s", s->s_pending, (s->s_pending == 1) ? "notice" : "notices");
+
+  num_timers = count_timers_katcp(d);
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", num_timers, (num_timers == 1) ? "timer" : "timers");
 
@@ -557,8 +558,10 @@ int prepare_core_loop_katcp(struct katcp_dispatch *dl)
   register_flag_mode_katcp(dl, "?system-info",  "report server information (?system-info)", &system_info_cmd_katcp, 0, 0);
 
 #ifdef KATCP_EXPERIMENTAL
-  register_flag_mode_katcp(dl, "?listener-create", "accept new duplex connections on given interface (?listen-duplex [interface:]port)", &listener_create_group_cmd_katcp, 0, 0);
+  register_flag_mode_katcp(dl, "?listener-create", "accept new duplex connections on given interface (?listener-create label [port [interface [group]]])", &listener_create_group_cmd_katcp, 0, 0);
+#if 0
   register_flag_mode_katcp(dl, "?list-duplex",  "report duplex information (?list-duplex)", &list_duplex_cmd_katcp, 0, 0);
+#endif
 #endif
 
   time(&(s->s_start));
@@ -569,6 +572,7 @@ int prepare_core_loop_katcp(struct katcp_dispatch *dl)
   return 0;
 }
 
+/* This is the main loop that combines both old and new style logic - it is called via two main (but many sub) initialisation paths */
 int run_core_loop_katcp(struct katcp_dispatch *dl)
 {
 #define LABEL_BUFFER 32

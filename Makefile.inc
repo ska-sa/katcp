@@ -56,7 +56,7 @@ CFLAGS += -DKATCP_EXPERIMENTAL
 CFLAGS += -DKATCP_DEPRECATED
 
 # enable heap timers - for old code
-CFLAGS += -DKATCP_HEAP_TIMERS
+#CFLAGS += -DKATCP_HEAP_TIMERS
 
 # respond to trap TERM signal in main loop
 CFLAGS += -DKATCP_TRAP_TERM

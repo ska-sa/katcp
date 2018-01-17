@@ -4065,8 +4065,10 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
 
     add_full_cmd_map_katcp(m, "whoami", "get current connection name (?whoami)", 0, &whoami_group_cmd_katcp, NULL, NULL);
 
+#ifdef KATCP_HEAP_TIMERS
     add_full_cmd_map_katcp(m, "timer-rename", "rename a timer instance (?timer-rename old-name new-name)", 0, &timer_rename_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "timer-list", "list timer instances (?timer-list)", 0, &timer_list_group_cmd_katcp, NULL, NULL);
+#endif
 
   } else {
     m = gx->g_maps[KATCP_MAP_REMOTE_REQUEST];

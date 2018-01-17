@@ -9,9 +9,7 @@
 
 #include <avltree.h>
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
 #include <heap.h>
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -767,9 +765,7 @@ struct katcp_shared{
   struct katcp_time **s_queue;
   unsigned int s_length;
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
   struct heap *s_tmr_heap;
-#endif
 
   struct katcp_arb **s_extras;
   unsigned int s_total;
@@ -985,6 +981,7 @@ int print_time_delta_katcm(char *buffer, unsigned int len, time_t delta);
 int empty_timers_katcp(struct katcp_dispatch *d);
 int run_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
 void dump_timers_katcp(struct katcp_dispatch *d);
+int count_timers_katcp(struct katcp_dispatch *d);
 
 #if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
 int load_heap_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
