@@ -423,6 +423,13 @@ int unwarp_timers_katcp(struct katcp_dispatch *d)
 
 /* release timers ********************************************************************/
 
+#ifdef KATCP_HEAP_TIMERS
+int discharge_named_timer_katcp(struct katcp_dispatch *d, char *name)
+{
+  return disarm_by_name_heap_timer(d, name);
+}
+#endif
+
 int discharge_timer_katcp(struct katcp_dispatch *d, void *data)
 {
 #ifdef KATCP_HEAP_TIMERS
@@ -1182,7 +1189,6 @@ int register_heap_timer_every_ms_katcp(struct katcp_dispatch *d, unsigned int mi
   return register_heap_timer_every_tv_katcp(d, &tv, call, data, name);
 }
 
-
 int disarm_by_ref_heap_timer(struct katcp_dispatch *d, void *data){
   struct katcp_time *ts;
 
@@ -1200,6 +1206,23 @@ int disarm_by_ref_heap_timer(struct katcp_dispatch *d, void *data){
   return 0;
 }
 
+int disarm_by_name_heap_timer(struct katcp_dispatch *d, char *name)
+{
+  struct katcp_time *ts;
+
+  ts = find_by_name_heap_timer_katcp(d, name, NULL);
+
+  if ((NULL == ts) || (ts->t_magic != TS_MAGIC)){
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (disarm): no valid timer state at heap index for reference %p\n", data);
+#endif
+    return (-1);
+  }
+
+  ts->t_armed = 0;
+
+  return 0;
+}
 
 /* heap timer adjustment API ***************************************************/
 /*
