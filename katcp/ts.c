@@ -759,7 +759,7 @@ int run_heap_timers_katcp(struct katcp_dispatch *d){
     fprintf(stderr, "heap timer (run): missed deadline: scheduled=%lu.%06lus actual=%lu.%06lus for %p\n", ts->t_when.tv_sec, ts->t_when.tv_usec, now.tv_sec, now.tv_usec, ts);
 #endif
     ts->t_late++;
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "heap timer <%s> recorded %d late timer %s with T(deadline) = %dus", ts->t_name, ts->t_late, (ts->t_late == 1) ? "deadline" : "deadlines", KATCP_DEFAULT_DEADLINE);
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s recorded %d late timer %s with deadline %dus", ts->t_name ? ts->t_name : "<UNKNOWN>" , ts->t_late, (ts->t_late == 1) ? "deadline" : "deadlines", KATCP_DEFAULT_DEADLINE);
   } else {
     ts->t_hits++;
   }
@@ -798,7 +798,7 @@ int run_heap_timers_katcp(struct katcp_dispatch *d){
 #endif
         ts->t_misses = ts->t_misses + (td / ti);   /* TODO: calculated how many times we miss-fired */
         add_time_katcp(&(ts->t_when), &now, &(ts->t_interval));
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "heap timer <%s> recorded %d missed timer %s", ts->t_name, ts->t_misses, (ts->t_misses == 1) ? "deadline" : "deadlines");
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s recorded %d missed timer %s", ts->t_name ? ts->t_name : "<UNKNOWN>", ts->t_misses, (ts->t_misses == 1) ? "deadline" : "deadlines");
 
       }
 

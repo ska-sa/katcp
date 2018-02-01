@@ -983,12 +983,10 @@ int run_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
 void dump_timers_katcp(struct katcp_dispatch *d);
 int count_timers_katcp(struct katcp_dispatch *d);
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
 int load_heap_timers_katcp(struct katcp_dispatch *d, struct timespec *interval);
 int run_heap_timers_katcp(struct katcp_dispatch *d);
 int empty_heap_timers_katcp(struct katcp_dispatch *d);
 int display_heap_timers_katcp(struct katcp_dispatch *d);
-#endif
 
 /* nonsense support */
 void forget_nonsense_katcp(struct katcp_dispatch *d, unsigned int index);
