@@ -388,6 +388,10 @@ int register_discrete_sensor_katcp(struct katcp_dispatch *d, int mode, char *nam
 
 int expand_sensor_discrete_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn, unsigned int position, char *name);
 
+
+int declare_multi_discrete_sensor_katcp(struct katcp_dispatch *d, int mode, char *name, char *description, char *units, char **vector, unsigned int size, struct katcp_acquire *a, int (*extract)(struct katcp_dispatch *d, struct katcp_sensor *sn), int (*flush)(struct katcp_dispatch *d, struct katcp_sensor *sn));
+int register_multi_discrete_sensor_katcp(struct katcp_dispatch *d, int mode, char *name, char *description, char *units, char **vector, unsigned int size, struct katcp_acquire *a, int (*extract)(struct katcp_dispatch *d, struct katcp_sensor *sn), int (*flush)(struct katcp_dispatch *d, struct katcp_sensor *sn));
+
 struct katcp_acquire *setup_discrete_acquire_katcp(struct katcp_dispatch *d, int (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a));
 
 int set_discrete_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a, unsigned value);

@@ -3108,6 +3108,35 @@ int register_discrete_sensor_katcp(struct katcp_dispatch *d, int mode, char *nam
   return 0;
 }
 
+/* discrete registration with one acquire handling multiple sensors *******/
+
+int declare_multi_discrete_sensor_katcp(struct katcp_dispatch *d, int mode, char *name, char *description, char *units, char **vector, unsigned int size, struct katcp_acquire *a, int (*extract)(struct katcp_dispatch *d, struct katcp_sensor *sn), int (*flush)(struct katcp_dispatch *d, struct katcp_sensor *sn))
+{
+  struct katcp_sensor *sn;
+
+  sn = create_sensor_katcp(d, name, description, units, KATCP_STRATEGY_EVENT, KATCP_SENSOR_DISCRETE, mode, flush);
+  if(sn == NULL){
+    return -1;
+  }
+
+  if(create_sensor_vector_discrete_katcp(d, sn, vector, size) < 0){
+    destroy_sensor_katcp(d, sn);
+    return -1;
+  }
+
+  if(link_acquire_katcp(d, a, sn, extract)){
+    destroy_sensor_katcp(d, sn);
+    return -1;
+  }
+
+  return 0;
+}
+
+int register_multi_discrete_sensor_katcp(struct katcp_dispatch *d, int mode, char *name, char *description, char *units, char **vector, unsigned int size, struct katcp_acquire *a, int (*extract)(struct katcp_dispatch *d, struct katcp_sensor *sn), int (*flush)(struct katcp_dispatch *d, struct katcp_sensor *sn))
+{
+  return declare_multi_discrete_sensor_katcp(d, mode, name, description, units, vector, size, a, extract, flush);
+}
+
 /* strategy information *********************************************/
 
 static char *sensor_strategy_table[KATCP_STRATEGIES_COUNT] = { "none", "period", "event", "differential", "forced" };
