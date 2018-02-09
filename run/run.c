@@ -434,7 +434,7 @@ int main(int argc, char **argv)
           }
 
           if (i >= argc) {
-            sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "option -%c needs a parameter");
+            sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "option -%c needs a parameter", c);
             return EX_USAGE;
           }
 
