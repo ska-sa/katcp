@@ -569,7 +569,7 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
   struct katcl_parse *px;
   struct katcp_endpoint *self, *remote, *origin;
   struct katcp_vrbl *vx;
-  char *name, *stamp, *value, *status, *ptr;
+  char *name, *stamp, *value, *status, *ptr, *tmp;
   char buffer[TIMESTAMP_BUFFER];
   int unhide;
 
@@ -602,7 +602,18 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
     value = get_string_parse_katcl(px, 5);
 
     if((stamp == NULL) || (name == NULL) || (status == NULL) || (value == NULL)){
-      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "deficient sensor update encountered");
+      if(name){
+        if(stamp == NULL){
+          tmp = "timestamp";
+        } else if(status == NULL){
+          tmp = "status";
+        } else {
+          tmp = "value";
+        }
+        log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "encountered sensor update for %s which lacks a valid %s field", name, tmp);
+      } else {
+        log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "encountered sensor update without a valid name");
+      }
       return -1;
     }
 
