@@ -1018,9 +1018,11 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   struct katcp_flat *fx;
   int strategy, prior;
   struct timeval tv;
+  int back, i;
+#ifdef KATC_HEAPTIMERS
   char *temp;
   int len;
-  int back;
+#endif
 
   if(argc <= 2){
     if(argc > 1){
@@ -1063,7 +1065,7 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
       break;
 
     case KATCP_STRATEGY_DIFF :
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "sampling strategy %s not implemented for sensor %s", strategy, key);
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "sampling strategy %s not implemented", strategy);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
 
     default :
@@ -1132,7 +1134,7 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
           break;
 
         case KATCP_STRATEGY_PERIOD :
-
+#ifdef KATCP_HEAPTIMERS
           len = strlen(key) + strlen(fx->f_name) + strlen(fx->f_group->g_name) + 1 + 1 + 1;   /* group name + dot + connection name + dot + sensor name + '\0' */
 
           temp = (char *) malloc(len);
@@ -1153,6 +1155,10 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
           /* WARNING: a timer means that the flat can not be renamed */
           fx->f_rename_lock = 1;
+#else
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no period sensor sampling support - rebuild with HEAP_TIMER to enable it");
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
+#endif
 
           break;
 

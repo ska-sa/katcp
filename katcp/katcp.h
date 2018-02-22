@@ -811,6 +811,7 @@ int alias_cmd_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 int sensor_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc);
+int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int sensor_value_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 int var_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);
