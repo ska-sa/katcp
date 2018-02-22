@@ -47,7 +47,7 @@ int set_group_log_level_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, s
         fy = gx->g_flats[i];
         fy->f_log_level = level;
       }
-    } 
+    }
     gx->g_log_level = level;
     return level;
   }
@@ -125,7 +125,7 @@ int generic_log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc, unsign
           }
         break;
       }
-    } 
+    }
 
     log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "decided to use log extent %u", type);
   } else {
@@ -196,7 +196,7 @@ int generic_log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc, unsign
   if(level < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to retrieve or set a log level in this context");
     return KATCP_RESULT_FAIL;
-  } 
+  }
 
   name = log_to_string_katcl(level);
   if(name == NULL){
@@ -253,7 +253,7 @@ int print_help_cmd_item(struct katcp_dispatch *d, void *global, char *key, void 
 
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "%s is %s with %d references and %s local data", i->i_name, i->i_flags & KATCP_MAP_FLAG_HIDDEN ? "hidden" : "visible", i->i_refs, i->i_data ? "own" : "no");
 
-  if(i->i_flags & KATCP_MAP_FLAG_HIDDEN){ 
+  if(i->i_flags & KATCP_MAP_FLAG_HIDDEN){
     return -1;
   }
 
@@ -298,7 +298,7 @@ int help_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   } else {
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "should provide help for %s", name);
     switch(name[0]){
-      case KATCP_REQUEST : 
+      case KATCP_REQUEST :
       case KATCP_REPLY   :
       case KATCP_INFORM  :
         match = name + 1;
@@ -403,10 +403,10 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "%s connection", fx->f_name);
 
 #if KATCP_PROTOCOL_MAJOR_VERSION >= 5
-  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu", fx->f_name, fx->f_start); 
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu", fx->f_name, fx->f_start);
 #else
-  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu000", fx->f_name, fx->f_start); 
-#endif  
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s was started at %lu000", fx->f_name, fx->f_start);
+#endif
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has been running for %s", fx->f_name, buffer);
 
   ptr = log_to_string_katcl(fx->f_log_level);
@@ -601,7 +601,7 @@ int restart_group_cmd_katcp(struct katcp_dispatch *d, int argc)
       }
       return KATCP_RESULT_OK;
     case KATCP_SCOPE_GROUP :
-      gx = fx->f_group; 
+      gx = fx->f_group;
       if(gx){
         if(terminate_group_katcp(d, gx, 0) >= 0){
           return KATCP_RESULT_OK;
@@ -1037,16 +1037,19 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
   }
 
-  for(back = argc - 1; (strategy < 0) && (back > 2); back--){
-    string = arg_string_katcp(d, 2);
+  back = argc - 1;
+  for(strategy = (-1); (strategy < 0) && (back > 1); back--){
+    string = arg_string_katcp(d, back);
     if(string == NULL){
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
     }
 
     strategy = strategy_from_string_sensor_katcp(d, string);
+
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "potential strategy %d at parameter [%d]=%s", strategy, back, string);
   }
 
-  if(back <= 2){
+  if(strategy < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to discover a strategy from argument %d onwards", back + 1);
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
   }
@@ -1069,12 +1072,12 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
 
     default :
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid sensor sampling strategy %s", strategy);
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid sensor sampling strategy number %d", strategy);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
   }
 
-  for(i = 1; i < back; i++){
-    key = arg_string_katcp(d, 1);
+  for(i = 1; i <= back; i++){
+    key = arg_string_katcp(d, i);
     if(key == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no useful sensor in parameter %d", i);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
@@ -1102,7 +1105,6 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
       log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "not using hidden sensor %s", key);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
     }
-
 
     prior = current_strategy_sensor_katcp(d, vx, fx);
     if(prior == strategy){
