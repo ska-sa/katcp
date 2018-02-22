@@ -831,10 +831,12 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   struct katcp_vrbl *vx;
   struct katcp_flat *fx;
   int current_stg, new_stg;
+#ifdef KATCP_HEAP_TIMERS
   struct timeval tv;
   char *temp;
   int ret;
   int len;
+#endif
 
   if(argc <= 1){
     return extra_response_katcp(d, KATCP_RESULT_INVALID, KATCP_FAIL_USAGE);
@@ -917,6 +919,7 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
         break;
 
       case KATCP_STRATEGY_PERIOD :
+#ifdef KATCP_HEAP_TIMERS
         if (string_to_tv_katcp(&tv, arg_string_katcp(d, 3))){
           return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
         }
@@ -936,10 +939,10 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
           return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
         }
 
-        snprintf(temp, len, "%s.%s.%s\0", fx->f_group->g_name, fx->f_name, key);
+        snprintf(temp, len, "%s.%s.%s", fx->f_group->g_name, fx->f_name, key);
         /* FIXME: handle case where client is renamed or client moves to new group -> timer name needs to change */
         /*        in order to maintain "lookup-ability" */
-//        temp[len] = '\0';
+        temp[len - 1] = '\0';
 
         ret = monitor_period_variable_katcp(d, vx, fx, &tv, temp);
 //        ret = monitor_period_variable_katcp(d, vx, fx, &tv, NULL);
@@ -952,7 +955,10 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
         /* disable renaming of flat */
         fx->f_rename_lock = 1;
-
+#else
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no period sensor sampling support - rebuild with HEAP_TIMER to enable it");
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
+#endif
         break;
 
       case KATCP_STRATEGY_OFF :

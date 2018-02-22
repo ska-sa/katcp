@@ -3931,65 +3931,9 @@ int run_flat_katcp(struct katcp_dispatch *d)
   return s->s_members;
 }
 
-/* commands, both old and new ***************************************/
-
-#if 0
-int system_info_group_cmd_katcp(struct katcp_dispatch *d, int argc)
-{
-#define BUFFER 64
-  char buffer[BUFFER];
-  struct tm *when;
-  time_t now, delta;
-  struct katcp_shared *s;
-  unsigned long hours;
-  unsigned int minutes, seconds;
-  int size;
-  struct heap *th;
-
-  s = d->d_shared;
-
-  when = localtime(&(s->s_start));
-  if(when == NULL){
-    return KATCP_RESULT_FAIL;
-  }
-
-  time(&now);
-
-  delta = now - s->s_start;
-
-  hours   = (delta / 3600);
-  minutes = (delta / 60)     - (hours * 60);
-  seconds = (delta)          - (((hours * 60) + minutes) * 60);
-
-  strftime(buffer, BUFFER - 1, "%Y-%m-%dT%H:%M:%S", when);
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "server started at %s localtime which is T%lu:%02u:%02u ago", buffer, hours, minutes, seconds);
-
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_lcount, (s->s_lcount == 1) ? "listener" : "listeners");
-
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_epcount, (s->s_epcount == 1) ? "endpoint" : "endpoints");
-
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s", s->s_tally, (s->s_tally == 1) ? "sensor" : "sensors");
-
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s", s->s_size, (s->s_size == 1) ? "mode" : "modes");
-  if(s->s_size > 1){
-    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d (%s) is current %s mode", s->s_mode,  s->s_vector[s->s_mode].e_name ? s->s_vector[s->s_mode].e_name : "UNKNOWN", s->s_flaky ? "failed" : "ok");
-  }
-
-#if KATCP_EXPERIMENTAL == 2
-  th = s->s_tmr_heap;
-  size = get_size_of_heap(th);
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s in heap priority queue", size, size == 1 ? "timer" : "timers");
-#else
-  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", s->s_length, (s->s_length == 1) ? "timer" : "timers");
-#endif
-
-  return KATCP_RESULT_OK;
-#undef BUFFER
-}
-#endif
-
 /* connection management commands ***********************************/
 
+#if 0
 int list_duplex_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
   unsigned int i, j, k;
@@ -4021,94 +3965,6 @@ int list_duplex_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   return KATCP_RESULT_OK;
-}
-
-#if 0
-int complete_relay_watchdog_group_cmd_katcp(struct katcp_dispatch *d, int argc)
-{
-  struct katcp_flat *fx;
-  char *code;
-
-  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "triggering watchdog complete logic");
-
-  fx = require_flat_katcp(d);
-  if(fx == NULL){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not retrive current session detail");
-    return extra_response_katcp(d, KATCP_RESULT_FAIL, "cmd not run within a session");
-  }
-
-  code = arg_string_katcp(d, 1);
-  if(code == NULL){
-    return extra_response_katcp(d, KATCP_RESULT_INVALID, "usage");
-  }
-
-  if(strcmp(code, KATCP_OK)){
-    return KATCP_RESULT_FAIL;
-  }
-
-  return KATCP_RESULT_OK;
-}
-
-int relay_watchdog_group_cmd_katcp(struct katcp_dispatch *d, int argc)
-{
-  struct katcp_shared *s;
-  char *name, *group;
-  struct katcp_flat *fx;
-  struct katcl_parse *px;
-  struct katcp_endpoint *source, *target;
-
-  s = d->d_shared;
-
-  name = arg_string_katcp(d, 1);
-  if(name == NULL){
-    return extra_response_katcp(d, KATCP_RESULT_INVALID, "usage");
-  }
-
-  if(argc > 2){
-    group = arg_string_katcp(d, 2);
-  } else {
-    group = NULL;
-  }
-
-  fx = require_flat_katcp(d);
-  if(fx == NULL){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not retrive current session detail");
-    return extra_response_katcp(d, KATCP_RESULT_FAIL, "cmd not run within a session");
-  }
-  source = handler_of_flat_katcp(d, fx);
-
-  fx = find_name_flat_katcp(d, group, name, 0);
-  if(fx == NULL){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not look up name %s", name);
-    return extra_response_katcp(d, KATCP_RESULT_FAIL, "resolver");
-  }
-  target = handler_of_flat_katcp(d, fx);
-
-  log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "sending ping from endpoint %p to endpoint %p", source, target);
-
-  px = create_parse_katcl();
-  if(px == NULL){
-    return extra_response_katcp(d, KATCP_RESULT_FAIL, "allocation");
-  }
-
-  add_string_parse_katcl(px, KATCP_FLAG_FIRST | KATCP_FLAG_LAST | KATCP_FLAG_STRING, "?watchdog");
-
-  if(send_message_endpoint_katcp(d, source, target, px, 1) < 0){
-    return KATCP_RESULT_FAIL;
-  }
-
-  if(callback_flat_katcp(d, fx->f_current_endpoint, target, &complete_relay_watchdog_group_cmd_katcp, "?watchdog", 0)){
-    log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "unable to register watchdog callback");
-    return KATCP_RESULT_FAIL;
-  }
-
-  /* WARNING: broken - will currently not resume, despite returning an ok ... */
-
-#if 1
-  return KATCP_RESULT_PAUSE;
-#else
-  return KATCP_RESULT_OK;
-#endif
 }
 #endif
 
@@ -4143,7 +3999,9 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "arb", "arbitrary callback manipulation (?arb [list]", 0, &arb_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "watchdog", "pings the system (?watchdog)", 0, &watchdog_group_cmd_katcp, NULL, NULL);
 
+#if 0
     add_full_cmd_map_katcp(m, "list-duplex", "display active connection detail (?list-duplex)", 0, &list_duplex_cmd_katcp, NULL, NULL);
+#endif
 
     add_full_cmd_map_katcp(m, "log-level", "retrieve or adjust the log level (?log-level [level])", 0, &log_level_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "log-local", "adjust the log level of the current connection (?log-local [level])", 0, &log_local_group_cmd_katcp, NULL, NULL);
@@ -4208,8 +4066,10 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
 
     add_full_cmd_map_katcp(m, "whoami", "get current connection name (?whoami)", 0, &whoami_group_cmd_katcp, NULL, NULL);
 
+#ifdef KATCP_HEAP_TIMERS
     add_full_cmd_map_katcp(m, "timer-rename", "rename a timer instance (?timer-rename old-name new-name)", 0, &timer_rename_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "timer-list", "list timer instances (?timer-list)", 0, &timer_list_group_cmd_katcp, NULL, NULL);
+#endif
 
   } else {
     m = gx->g_maps[KATCP_MAP_REMOTE_REQUEST];

@@ -18,7 +18,6 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 
-
 #include "katpriv.h"
 #include "katcl.h"
 #include "katcp.h"
@@ -27,6 +26,12 @@
 #define KATCP_INIT_WAIT    3600
 #define KATCP_HALT_WAIT       1
 #define KATCP_BRIEF_WAIT  10000   /* 10 ms */
+
+#if KATCP_EXPERIMENTAL == 2
+#ifndef KATCP_HEAP_TIMERS
+#error "require HEAP_TIMERS for LEVEL 2 EXPERIMENTAL code"
+#endif
+#endif
 
 int inform_client_connections_katcp(struct katcp_dispatch *d, char *type)
 {
@@ -427,7 +432,7 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
   struct katcp_shared *s;
   unsigned long hours;
   unsigned int minutes, seconds;
-  int num_timers = ret_num_timers(d);
+  int num_timers;
 
   s = d->d_shared;
 
@@ -461,6 +466,8 @@ int system_info_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s", s->s_pending, (s->s_pending == 1) ? "notice" : "notices");
+
+  num_timers = count_timers_katcp(d);
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d %s scheduled", num_timers, (num_timers == 1) ? "timer" : "timers");
 
@@ -551,8 +558,10 @@ int prepare_core_loop_katcp(struct katcp_dispatch *dl)
   register_flag_mode_katcp(dl, "?system-info",  "report server information (?system-info)", &system_info_cmd_katcp, 0, 0);
 
 #ifdef KATCP_EXPERIMENTAL
-  register_flag_mode_katcp(dl, "?listener-create", "accept new duplex connections on given interface (?listen-duplex [interface:]port)", &listener_create_group_cmd_katcp, 0, 0);
+  register_flag_mode_katcp(dl, "?listener-create", "accept new duplex connections on given interface (?listener-create label [port [interface [group]]])", &listener_create_group_cmd_katcp, 0, 0);
+#if 0
   register_flag_mode_katcp(dl, "?list-duplex",  "report duplex information (?list-duplex)", &list_duplex_cmd_katcp, 0, 0);
+#endif
 #endif
 
   time(&(s->s_start));
@@ -563,6 +572,7 @@ int prepare_core_loop_katcp(struct katcp_dispatch *dl)
   return 0;
 }
 
+/* This is the main loop that combines both old and new style logic - it is called via two main (but many sub) initialisation paths */
 int run_core_loop_katcp(struct katcp_dispatch *dl)
 {
 #define LABEL_BUFFER 32
@@ -598,7 +608,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 
     s->s_max = (-1);
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
     suspend = load_heap_timers_katcp(dl, &delta);
 #else
     suspend = run_timers_katcp(dl, &delta);
@@ -610,12 +620,18 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     load_arb_katcp(dl);
 
     if(load_shared_katcp(dl) < 0){ /* want to shut down */
+#ifdef DEBUG
+      fprintf(stderr, "core loop: load shared initiating shutdown\n");
+#endif
       run = (-1);
     }
 
 #ifdef KATCP_EXPERIMENTAL
     /* WARNING: new code */
     if(load_flat_katcp(dl) < 0){
+#ifdef DEBUG
+      fprintf(stderr, "core loop: load flat initiating shutdown\n");
+#endif
       run = (-1);
     }
     load_endpoints_katcp(dl);
@@ -628,16 +644,13 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
           s->s_max = s->s_lfd;
         }
       } else {
-#ifdef KATCP_EXPERIMENTAL
         //if((s->s_lcount <= 0) && (s->s_epcount <= 0)){ /* if we have no listeners, and we have run out of endpoints, shut down too */
-        if((s->s_lcount <= 0) && (s->s_up_count <= 0)){ /* if we have no listeners, and we have run out of clients, shut down too */
-          run = (-1);
-        }
-#else
-        if(s->s_used <= 0){ /* if we are not listening, and we have run out of clients, shut down too */
-          run = (-1);
-        }
+        if((s->s_lcount <= 0) && (s->s_up_count <= 0) && (s->s_used <= 0)){ /* if we have no listeners, and we have run out of clients, shut down too */
+#ifdef DEBUG
+          fprintf(stderr, "core loop: shutdown as listener, up and used count at zero\n");
 #endif
+          run = (-1);
+        }
       }
     }
 
@@ -670,17 +683,17 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 
 #ifdef DEBUG
     if(suspend){
-      fprintf(stderr, "multi: selecting indefinitely\n");
+      fprintf(stderr, "core loop: selecting indefinitely\n");
     } else {
-      fprintf(stderr, "multi: selecting for %lu.%09lu\n", delta.tv_sec, delta.tv_nsec);
+      fprintf(stderr, "core loop: selecting for %lu.%09lu\n", delta.tv_sec, delta.tv_nsec);
     }
 #endif
 
     /* delta now timespec, not timeval */
     result = pselect(s->s_max + 1, &(s->s_read), &(s->s_write), NULL, suspend ? NULL : &delta, &(s->s_signal_mask));
 #ifdef DEBUG
-    fprintf(stderr, "multi: select=%d, used=%d\n", result, s->s_used);
-    fprintf(stderr, "multi: lcount = %d, epcount = %d, upcount = %d\n", s->s_lcount, s->s_epcount, s->s_up_count);
+    fprintf(stderr, "core loop: select=%d, used=%d\n", result, s->s_used);
+    fprintf(stderr, "core loop: lcount = %d, epcount = %d, upcount = %d\n", s->s_lcount, s->s_epcount, s->s_up_count);
 #endif
 
     s->s_busy = 0;
@@ -698,7 +711,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
           break;
         default  :
 #ifdef DEBUG
-          fprintf(stderr, "select failed: %s\n", strerror(errno));
+          fprintf(stderr, "core loop: select failed: %s\n", strerror(errno));
 #endif
           run = 0; 
           break;
@@ -707,7 +720,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 
     if(child_signal_shared_katcp(s)){
 #ifdef DEBUG
-      fprintf(stderr, "multi: saw child signal\n");
+      fprintf(stderr, "core loop: saw child signal\n");
 #endif
 #ifdef KATCP_SUBPROCESS
       wait_jobs_katcp(dl);
@@ -719,7 +732,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
       run = (-1);
     }
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
     run_heap_timers_katcp(dl);
 #endif
 

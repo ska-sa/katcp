@@ -1,3 +1,4 @@
+#ifdef KATCP_HEAP_TIMERS
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -590,3 +591,4 @@ int show_heap(struct heap *h){
 
   return i;
 }
+#endif

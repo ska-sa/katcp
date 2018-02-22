@@ -446,13 +446,14 @@ int hook_commands_katcp(struct katcp_dispatch *d, unsigned int type, int (*hook)
 /* timing callbacks */
 
 int discharge_timer_katcp(struct katcp_dispatch *d, void *data);
+int discharge_named_timer_katcp(struct katcp_dispatch *d, char *name);
+
 int unwarp_timers_katcp(struct katcp_dispatch *d);
 int register_every_ms_katcp(struct katcp_dispatch *d, unsigned int milli, int (*call)(struct katcp_dispatch *d, void *data), void *data);
 int register_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
 int register_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
 int register_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
 int register_heap_timer_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
 int register_heap_timer_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
 int register_heap_timer_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name);
@@ -464,7 +465,7 @@ int rename_heap_timer_katcp(struct katcp_dispatch *d, char *old_name, char *new_
 
 struct katcp_time *find_by_data_ref_heap_timer_katcp(struct katcp_dispatch *d, void *data, int *index);
 int disarm_by_ref_heap_timer(struct katcp_dispatch *d, void *data);
-#endif
+int disarm_by_name_heap_timer(struct katcp_dispatch *d, char *name);
 
 int wake_notice_at_tv_katcp(struct katcp_dispatch *d, struct katcp_notice *n, struct timeval *tv);
 int wake_notice_in_tv_katcp(struct katcp_dispatch *d, struct katcp_notice *n, struct timeval *tv);

@@ -8,7 +8,7 @@
 #include "katcp.h"
 #include "katpriv.h"
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
 #include "heap.h"
 #endif
 
@@ -115,7 +115,7 @@ static struct katcp_time *find_ts_katcp(struct katcp_dispatch *d, void *data)
 
 
 #if 0
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
 static struct katcp_time *find_heaped_ts_by_name_katcp(struct katcp_dispatch *d, void *data){
 
 
@@ -124,7 +124,7 @@ static struct katcp_time *find_heaped_ts_by_name_katcp(struct katcp_dispatch *d,
 #endif
 #endif
 
-
+#ifndef KATCP_HEAP_TIMERS
 static int append_ts_katcp(struct katcp_dispatch *d, struct katcp_time *ts)
 {
   struct katcp_time **tptr;
@@ -150,7 +150,9 @@ static int append_ts_katcp(struct katcp_dispatch *d, struct katcp_time *ts)
 
   return 0;
 }
+#endif
 
+#ifndef KATCP_HEAP_TIMERS
 static struct katcp_time *find_make_append_ts_katcp(struct katcp_dispatch *d, int (*call)(struct katcp_dispatch *d, void *data), void *data)
 {
   struct katcp_time *ts;
@@ -175,12 +177,13 @@ static struct katcp_time *find_make_append_ts_katcp(struct katcp_dispatch *d, in
 
   return ts;
 }
+#endif
 
 /* functions to schedule things at particular times *******************************/
 
 int register_every_ms_katcp(struct katcp_dispatch *d, unsigned int milli, int (*call)(struct katcp_dispatch *d, void *data), void *data)
 {
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
 
   return register_heap_timer_every_ms_katcp(d, milli, call, data, NULL);
 
@@ -198,8 +201,7 @@ int register_every_ms_katcp(struct katcp_dispatch *d, unsigned int milli, int (*
 
 int register_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data)
 {
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
-
+#ifdef KATCP_HEAP_TIMERS
   return register_heap_timer_every_tv_katcp(d, tv, call, data, NULL);
 
 #else
@@ -240,10 +242,8 @@ int register_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*
 
 int register_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data)
 {
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
-
+#ifdef KATCP_HEAP_TIMERS
   return register_heap_timer_at_tv_katcp(d, tv, call, data, NULL);
-
 #else
 
   struct katcp_shared *s;
@@ -281,7 +281,7 @@ int register_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*cal
 
 int register_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data)
 {
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
 
   return register_heap_timer_in_tv_katcp(d, tv, call, data, NULL);
 
@@ -422,6 +422,13 @@ int unwarp_timers_katcp(struct katcp_dispatch *d)
 }
 
 /* release timers ********************************************************************/
+
+#ifdef KATCP_HEAP_TIMERS
+int discharge_named_timer_katcp(struct katcp_dispatch *d, char *name)
+{
+  return disarm_by_name_heap_timer(d, name);
+}
+#endif
 
 int discharge_timer_katcp(struct katcp_dispatch *d, void *data)
 {
@@ -598,11 +605,11 @@ int run_timers_katcp(struct katcp_dispatch *d, struct timespec *interval)
   return 0;
 }
 
-int ret_num_timers(struct katcp_dispatch *d){
+int count_timers_katcp(struct katcp_dispatch *d){
   struct katcp_shared *s;
   s = d->d_shared;
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
   struct heap *ht;
   ht = s->s_tmr_heap;
   return get_size_of_heap(ht);
@@ -611,7 +618,7 @@ int ret_num_timers(struct katcp_dispatch *d){
 #endif
 }
 
-#if KATCP_EXPERIMENTAL == 2 || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
 
 /* heap timer infrastructure ***************************************************/
 
@@ -692,8 +699,8 @@ int run_heap_timers_katcp(struct katcp_dispatch *d){
   struct katcp_shared *s;
   struct katcp_time *ts;
   struct timeval now, delta, deadline, diff;
-  int ret;
   unsigned long long ti,td;
+  int ret;
 
   if (NULL == d){
 #ifdef DEBUG
@@ -752,7 +759,7 @@ int run_heap_timers_katcp(struct katcp_dispatch *d){
     fprintf(stderr, "heap timer (run): missed deadline: scheduled=%lu.%06lus actual=%lu.%06lus for %p\n", ts->t_when.tv_sec, ts->t_when.tv_usec, now.tv_sec, now.tv_usec, ts);
 #endif
     ts->t_late++;
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "heap timer <%s> recorded %d late timer %s with T(deadline) = %dus", ts->t_name, ts->t_late, (ts->t_late == 1) ? "deadline" : "deadlines", KATCP_DEFAULT_DEADLINE);
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s recorded %d late timer %s with deadline %dus", ts->t_name ? ts->t_name : "<UNKNOWN>" , ts->t_late, (ts->t_late == 1) ? "deadline" : "deadlines", KATCP_DEFAULT_DEADLINE);
   } else {
     ts->t_hits++;
   }
@@ -791,7 +798,7 @@ int run_heap_timers_katcp(struct katcp_dispatch *d){
 #endif
         ts->t_misses = ts->t_misses + (td / ti);   /* TODO: calculated how many times we miss-fired */
         add_time_katcp(&(ts->t_when), &now, &(ts->t_interval));
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "heap timer <%s> recorded %d missed timer %s", ts->t_name, ts->t_misses, (ts->t_misses == 1) ? "deadline" : "deadlines");
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "timer %s recorded %d missed timer %s", ts->t_name ? ts->t_name : "<UNKNOWN>", ts->t_misses, (ts->t_misses == 1) ? "deadline" : "deadlines");
 
       }
 
@@ -1182,7 +1189,6 @@ int register_heap_timer_every_ms_katcp(struct katcp_dispatch *d, unsigned int mi
   return register_heap_timer_every_tv_katcp(d, &tv, call, data, name);
 }
 
-
 int disarm_by_ref_heap_timer(struct katcp_dispatch *d, void *data){
   struct katcp_time *ts;
 
@@ -1200,6 +1206,23 @@ int disarm_by_ref_heap_timer(struct katcp_dispatch *d, void *data){
   return 0;
 }
 
+int disarm_by_name_heap_timer(struct katcp_dispatch *d, char *name)
+{
+  struct katcp_time *ts;
+
+  ts = find_by_name_heap_timer_katcp(d, name, NULL);
+
+  if ((NULL == ts) || (ts->t_magic != TS_MAGIC)){
+#ifdef DEBUG
+    fprintf(stderr, "heap timer (disarm): no valid timer state at heap index for reference %p\n", data);
+#endif
+    return (-1);
+  }
+
+  ts->t_armed = 0;
+
+  return 0;
+}
 
 /* heap timer adjustment API ***************************************************/
 /*
@@ -1600,7 +1623,7 @@ int timer_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc){
 }
 
 int timer_list_group_cmd_katcp(struct katcp_dispatch *d, int argc){
-#if defined(KATCP_EXPERIMENTAL) || defined(KATCP_HEAP_TIMERS)
+#ifdef KATCP_HEAP_TIMERS
   int total;
 
   total = display_heap_timers_katcp(d);

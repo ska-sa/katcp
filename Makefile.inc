@@ -43,13 +43,12 @@ CFLAGS += -DKATCP_LOG_REQUESTS
 # probably needed by new timer sensors, as they are looked up by name
 CFLAGS += -DKATCP_UNIQUE_CLIENT_NAMES
 
-# enable the ability to manage katcp subprocesses
+# enable manage old katcp subprocesses interface (job)
 CFLAGS += -DKATCP_SUBPROCESS
 
-# enable newer, broken or nonfunctional code
-#CFLAGS += -DKATCP_EXPERIMENTAL
-
-# enable experimental experimental code i.e. not sure if this code should make it into final lib
+# enable newer code: contains the new flat/duplex logic to replace older interface
+CFLAGS += -DKATCP_EXPERIMENTAL
+# enable even more experimental code: switch to new duplex logic by default: will break users of job interface and nonsense 
 #CFLAGS += -DKATCP_EXPERIMENTAL=2
 
 # keep older code 
@@ -72,7 +71,7 @@ CFLAGS += -DKATCP_PROTOCOL_MAJOR_VERSION=5 -DKATCP_PROTOCOL_MINOR_VERSION=0
 
 # amount of debugging logic to enable 
 #CFLAGS += -DDEBUG=4
-CFLAGS += -DDEBUG
+#CFLAGS += -DDEBUG
 CFLAGS += -ggdb
 
 # what compiler to use 
