@@ -553,10 +553,13 @@ struct katcp_wit{
   /* todo - timeval counter ... runs at rate */
 };
 
+#define KATCP_LISTEN_NO_NAGLE  0x1
+
 struct katcp_listener{
   unsigned int l_magic;
   unsigned int l_port;
   char *l_address;
+  unsigned int l_options;
 
   struct katcp_group *l_group;
 };

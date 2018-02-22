@@ -14,6 +14,7 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 
 #include <netc.h>
 #include <katcp.h>
@@ -51,6 +52,7 @@ struct katcp_listener *allocate_listener_katcp(struct katcp_dispatch *d)
 
   kl->l_port = 0;
   kl->l_address = NULL;
+  kl->l_options = 0;
   kl->l_group = NULL;
 
   kl->l_magic = LISTEN_MAGIC;
@@ -99,7 +101,7 @@ int accept_flat_katcp(struct katcp_dispatch *d, struct katcp_arb *a, unsigned in
   struct katcp_flat *f;
   struct katcp_listener *kl;
   char label[LABEL_BUFFER];
-  long opts;
+  int opts;
   int result;
 
   result = 0;
@@ -130,8 +132,14 @@ int accept_flat_katcp(struct katcp_dispatch *d, struct katcp_arb *a, unsigned in
     if(opts >= 0){
       opts = fcntl(nfd, F_SETFL, opts | O_NONBLOCK);
     }
-
     fcntl(nfd, F_SETFD, FD_CLOEXEC);
+
+#ifdef TCP_NODELAY
+    if(kl->l_options & KATCP_LISTEN_NO_NAGLE){
+      opts = 1;
+      setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opts, sizeof(opts));
+    }
+#endif
 
     snprintf(label, LABEL_BUFFER, "%s:%d", inet_ntoa(sa.sin_addr), ntohs(sa.sin_port));
     label[LABEL_BUFFER - 1] = '\0';

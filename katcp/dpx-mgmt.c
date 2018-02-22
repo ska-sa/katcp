@@ -794,6 +794,45 @@ int listener_halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 }
 
+int listener_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
+{
+  char *name, *value;
+  struct katcp_listener *kl;
+  struct katcp_arb *a;
+
+  if(argc <= 2){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a listener to configure");
+    return extra_response_katcp(d, KATCP_RESULT_INVALID, KATCP_FAIL_USAGE);
+  }
+
+  name = arg_string_katcp(d, 1);
+  value = arg_string_katcp(d, 2);
+  if((name == NULL) || (value == NULL)){
+    return extra_response_katcp(d, KATCP_RESULT_INVALID, KATCP_FAIL_BUG);
+  }
+
+  a = find_type_arb_katcp(d, name, KATCP_ARB_TYPE_LISTENER);
+  if(a == NULL){
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "no listener %s found", name);
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+  }
+
+  kl = data_arb_katcp(d, a);
+  if(kl == NULL){
+    return extra_response_katcp(d, KATCP_RESULT_INVALID, KATCP_FAIL_BUG);
+  }
+
+  if(!strcmp(value, "nagle")){
+    kl->l_options &= ~KATCP_LISTEN_NO_NAGLE;
+  } else if(!strcmp(value, "fast")){
+    kl->l_options |=  KATCP_LISTEN_NO_NAGLE;
+  } else {
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unsupported option %s", value);
+  }
+
+  return KATCP_RESULT_OK;
+}
+
 int print_listener_katcp(struct katcp_dispatch *d, struct katcp_arb *a, void *data)
 {
   char *name, *extra;
@@ -809,6 +848,8 @@ int print_listener_katcp(struct katcp_dispatch *d, struct katcp_arb *a, void *da
   if(kl == NULL){
     return -1;
   }
+
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL , NULL, "listener %s %s nagles algorithm", name, (kl->l_options & KATCP_LISTEN_NO_NAGLE) ? "does not use" : "uses");
 
   prepend_inform_katcp(d);
 
