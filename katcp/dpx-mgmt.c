@@ -14,6 +14,7 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 
 #include <netc.h>
 #include <katcp.h>
@@ -799,6 +800,7 @@ int listener_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   char *name, *value;
   struct katcp_listener *kl;
   struct katcp_arb *a;
+  int opts, fd;
 
   if(argc <= 2){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a listener to configure");
@@ -829,6 +831,14 @@ int listener_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   } else {
     log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unsupported option %s", value);
   }
+
+#ifdef TCP_NODELAY
+  opts = (kl->l_options & KATCP_LISTEN_NO_NAGLE) ? 1 : 0;
+  fd = fileno_arb_katcp(d, a);
+  if(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opts, sizeof(opts)) < 0){
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unable to update nagle socket option: %s", strerror(errno));
+  }
+#endif
 
   return KATCP_RESULT_OK;
 }
