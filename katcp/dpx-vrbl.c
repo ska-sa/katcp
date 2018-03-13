@@ -1683,8 +1683,8 @@ int foreach_array_vrbl_katcp(struct katcp_dispatch *d, void *state, char *key, s
     memcpy(buffer, key, len);
   }
 
-  buffer[len++] = KATCP_VRBL_DELIM_ARRAY;
-  buffer[len] = '\0';
+  buffer[len] = KATCP_VRBL_DELIM_ARRAY;
+  buffer[len + 1] = '\0';
 
   result = 0;
 
@@ -1698,7 +1698,7 @@ int foreach_array_vrbl_katcp(struct katcp_dispatch *d, void *state, char *key, s
 
       if(type < KATCP_MAX_VRT){
 
-        snprintf(buffer + len, SUFFIX_ARRAY, "%u", i);
+        snprintf(buffer + len + 1, SUFFIX_ARRAY, "%u", i);
         buffer[len + SUFFIX_ARRAY + 1] = '\0';
 
         r = (*(ops_type_vrbl[type].t_foreach))(d, state, buffer, ty, call);
