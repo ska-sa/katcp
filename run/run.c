@@ -464,6 +464,10 @@ int main(int argc, char **argv)
               break;
             case 's' :
               ts->t_system = argv[i] + j;
+              if(ts->t_system){
+                setenv("KATCP_LABEL", ts->t_system, 1);
+              }
+
               break;
             case 'n' :
               tmp = strdup(argv[i] + j);
