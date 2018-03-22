@@ -707,7 +707,7 @@ int scan_tree_vrbl_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct
   result = (*(ops_type_vrbl[infer].t_scan))(d, vx, ty, text, rest, how, type);
   
   if(result < 0){
-    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "child addition to map failed");
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "addition %s to map variable failed", path ? path : "will null name");
   }
 
 #if 0
@@ -1385,7 +1385,7 @@ int scan_array_vrbl_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struc
   result = (*(ops_type_vrbl[infer].t_scan))(d, vx, ty, text, rest, how, type);
   
   if(result < 0){
-    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "child addition to map failed");
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "child addition to array failed");
   }
 
 #if 0
