@@ -1018,7 +1018,8 @@ int register_heap_timer_at_tv_katcp(struct katcp_dispatch *d, struct timeval *tv
 }
 
 
-int register_heap_timer_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name){
+int register_heap_timer_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data, char *name)
+{
   struct katcp_shared *s;
   struct katcp_time *ts;
   struct heap *th;
@@ -1090,7 +1091,7 @@ int register_heap_timer_in_tv_katcp(struct katcp_dispatch *d, struct timeval *tv
 
   ts->t_armed = 1;
 
-  if (add_to_heap(th, 1, ts)){
+  if(add_to_heap(th, 1, ts)){
     destroy_ts_katcp(d, ts);
     return (-1);
   }

@@ -1008,7 +1008,7 @@ int perform_sensor_update_katcp(struct katcp_dispatch *d, void *data)
   }
 
   if(s->s_changes <= 0){
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "logic problem: scheduled device update, but nothing requires updating");
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "logic problem: scheduled device update, but nothing requires updating");
     return -1;
   }
 
@@ -1064,6 +1064,7 @@ int schedule_sensor_update_katcp(struct katcp_dispatch *d, char *name)
   struct timeval tv;
   struct katcp_shared *s;
   struct katcp_flat *fx;
+  int result;
 
   s = d->d_shared;
   if(s == NULL){
@@ -1074,11 +1075,16 @@ int schedule_sensor_update_katcp(struct katcp_dispatch *d, char *name)
 
   for_all_flats_vrbl_katcp(d, fx, name, NULL, &mark_stale_flat_katcp);
 
+  if(s->s_changes > 0){
+    return 0;
+  }
+
   tv.tv_sec = 0;
   tv.tv_usec = KATCP_NAGLE_CHANGE;
 
-  if(register_in_tv_katcp(d, &tv, &perform_sensor_update_katcp, &(s->s_changes)) < 0){
-    return -1;
+  result = register_in_tv_katcp(d, &tv, &perform_sensor_update_katcp, &(s->s_changes));
+  if(result != 0){
+    return result;
   }
 
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "scheduled change notification");
