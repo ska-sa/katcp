@@ -1008,7 +1008,7 @@ int perform_sensor_update_katcp(struct katcp_dispatch *d, void *data)
   }
 
   if(s->s_changes <= 0){
-    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "logic problem: scheduled device update, but nothing requires updating");
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "logic problem: scheduled device update, but nothing requires updating");
     return -1;
   }
 
