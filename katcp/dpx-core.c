@@ -1975,7 +1975,7 @@ int broadcast_pair_katcp(struct katcp_dispatch *d, char *inform, char *value, un
 
   destroy_parse_katcl(px);
 
-  return (sum >= 0) ? 0 : (-1);
+  return sum;
 }
 
 /* TODO and WARNING: superceeded by broadcast_parse_katcp ? */
@@ -2537,9 +2537,12 @@ int terminate_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx)
     case FLAT_STATE_UP : 
       fx->f_state = FLAT_STATE_FINISHING;
       /* WARNING: at the moment, the terminated client doesn't see it, and it is marked admin, as the specs don't mention it, even though it is symetrical with #client-connected */
+#if 0
+      /* plan to move this down deeper into the stack so that network errors also generate this */
       if(fx->f_name){
         broadcast_pair_katcp(d, KATCP_CLIENT_DISCONNECT, fx->f_name, KATCP_FLAT_SEESADMIN);
       }
+#endif
       mark_busy_katcp(d);
       return 0;
     default :
@@ -3689,6 +3692,19 @@ int load_flat_katcp(struct katcp_dispatch *d)
 
         case FLAT_STATE_CRASHING :
 
+#if 1
+          /* should be safe to use f_name, deallocate zeros it */
+          if(fx->f_name){
+            log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "destruction of named duplex %s", fx->f_name);
+            if(broadcast_pair_katcp(d, KATCP_CLIENT_DISCONNECT, fx->f_name, KATCP_FLAT_SEESADMIN) > 0){
+              /* force select to return, as we have (now) added stuff to queues of clients after we check the queues */
+              mark_busy_katcp(d);
+            }
+          } else {
+            log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "destruction of anonymous duplex %p", fx);
+          }
+#endif
+
           if(fx->f_remote){
             release_endpoint_katcp(d, fx->f_remote);
             fx->f_remote = NULL;
@@ -3707,6 +3723,7 @@ int load_flat_katcp(struct katcp_dispatch *d)
           }
 
           fx->f_state = FLAT_STATE_DEAD;
+
           /* WARNING: falls */
 
         case FLAT_STATE_DEAD : /* not to be set directly */
