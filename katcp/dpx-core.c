@@ -1907,15 +1907,17 @@ static int broadcast_group_katcp(struct katcp_dispatch *d, struct katcp_group *g
   return sum;
 }
 
-int broadcast_parse_katcp(struct katcp_dispatch *d, struct katcl_parse *px, unsigned int flag)
+int broadcast_parse_group_katcp(struct katcp_dispatch *d, struct katcl_parse *px, unsigned int flag, struct katcp_group *gx)
 {
   int i, sum, result;
   struct katcp_shared *s;
-  struct katcp_group *gx;
   int (*check)(struct katcp_dispatch *d, struct katcp_flat *fx, void *data);
 
   s = d->d_shared;
-  gx = this_group_katcp(d);
+
+  if(gx == NULL){
+    gx = this_group_katcp(d);
+  }
 
   switch(flag){
     case KATCP_FLAT_SEESKATCP :
@@ -1950,7 +1952,12 @@ int broadcast_parse_katcp(struct katcp_dispatch *d, struct katcl_parse *px, unsi
   return sum;
 }
 
-int broadcast_pair_katcp(struct katcp_dispatch *d, char *inform, char *value, unsigned int flag)
+int broadcast_parse_katcp(struct katcp_dispatch *d, struct katcl_parse *px, unsigned int flag)
+{
+  return broadcast_parse_group_katcp(d, px, flag, NULL);
+}
+
+int broadcast_pair_group_katcp(struct katcp_dispatch *d, char *inform, char *value, unsigned int flag, struct katcp_group *gx)
 {
   int sum;
   struct katcl_parse *px;
@@ -1970,12 +1977,17 @@ int broadcast_pair_katcp(struct katcp_dispatch *d, char *inform, char *value, un
   }
 
   if(sum >= 0){
-    sum = broadcast_parse_katcp(d, px, flag);
+    sum = broadcast_parse_group_katcp(d, px, flag, gx);
   }
 
   destroy_parse_katcl(px);
 
   return sum;
+}
+
+int broadcast_pair_katcp(struct katcp_dispatch *d, char *inform, char *value, unsigned int flag)
+{
+  return broadcast_pair_group_katcp(d, inform, value, flag, NULL);
 }
 
 /* TODO and WARNING: superceeded by broadcast_parse_katcp ? */
@@ -3696,7 +3708,7 @@ int load_flat_katcp(struct katcp_dispatch *d)
           /* should be safe to use f_name, deallocate zeros it */
           if(fx->f_name){
             log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "destruction of named duplex %s", fx->f_name);
-            if(broadcast_pair_katcp(d, KATCP_CLIENT_DISCONNECT, fx->f_name, KATCP_FLAT_SEESADMIN) > 0){
+            if(broadcast_pair_group_katcp(d, KATCP_CLIENT_DISCONNECT, fx->f_name, KATCP_FLAT_SEESADMIN, fx->f_group) > 0){
               /* force select to return, as we have (now) added stuff to queues of clients after we check the queues */
               mark_busy_katcp(d);
             }
