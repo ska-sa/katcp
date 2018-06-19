@@ -4,7 +4,7 @@ PREFIX=/usr/local
 # where to find the KATCP library (change this in case katcp isn't included locally)
 KATCP ?= katcp
 
-# compiler flags, -Wall is just the right thing to do 
+# compiler flags, -Wall is just the right thing to do
 CFLAGS += -Wall
 #CFLAGS += -O2
 
@@ -13,8 +13,8 @@ CFLAGS += -Wall
 # all connections immediately in standard, otherwise local connection only
 CFLAGS += -DKATCP_STRICT_CONFORMANCE
 
-# how many messages to hold before forcing a flush, only useful 
-# on memory constrained systems. When this value is unset the 
+# how many messages to hold before forcing a flush, only useful
+# on memory constrained systems. When this value is unset the
 # system buffers as much as needed
 #CFLAGS += -DKATCP_FLUSH_THRESHOLD=4
 
@@ -30,13 +30,13 @@ CFLAGS += -DKATCP_CONSISTENCY_CHECKS
 # count the number of allocations - parse only thusfar
 CFLAGS += -DKATCP_MEMSTATS
 
-# log selected noncritical failures to stderr 
+# log selected noncritical failures to stderr
 CFLAGS += -DKATCP_STDERR_ERRORS
 
 # implement the katcp -T option
 #CFLAGS += -DKATCP_ENABLE_TAGS
 
-# log client messages 
+# log client messages
 CFLAGS += -DKATCP_LOG_REQUESTS
 
 # require unique client names - otherwise collisions are permitted
@@ -48,10 +48,10 @@ CFLAGS += -DKATCP_SUBPROCESS
 
 # enable newer code: contains the new flat/duplex logic to replace older interface
 CFLAGS += -DKATCP_EXPERIMENTAL
-# enable even more experimental code: switch to new duplex logic by default: will break users of job interface and nonsense 
+# enable even more experimental code: switch to new duplex logic by default: will break users of job interface and nonsense
 #CFLAGS += -DKATCP_EXPERIMENTAL=2
 
-# keep older code 
+# keep older code
 CFLAGS += -DKATCP_DEPRECATED
 
 # enable heap timers - for old code
@@ -62,19 +62,21 @@ CFLAGS += -DKATCP_TRAP_TERM
 
 # inhibit sensor-{value,list} prefix matching, unless it is on a . boundary
 #CFLAGS += -DKATCP_STRICT_SENSOR_MATCH
+# only match sensor-{value,list} if the names match exactly
+#CFLAGS += -DKATCP_STRICTER_SENSOR_MATCH
 
 # pick a protocol reversion from the list. Making up
-# your own major values doesn't work unless you also implement what 
+# your own major values doesn't work unless you also implement what
 # the protocol requires
 CFLAGS += -DKATCP_PROTOCOL_MAJOR_VERSION=5 -DKATCP_PROTOCOL_MINOR_VERSION=0
 #CFLAGS += -DKATCP_PROTOCOL_MAJOR_VERSION=4 -DKATCP_PROTOCOL_MINOR_VERSION=9
 
-# amount of debugging logic to enable 
+# amount of debugging logic to enable
 #CFLAGS += -DDEBUG=4
 #CFLAGS += -DDEBUG
 CFLAGS += -ggdb
 
-# what compiler to use 
+# what compiler to use
 CC = $(CROSS_COMPILE)gcc
 # C++ implements more finicky type checks... so this gives loads of warnings
 #CC = g++ -fpermissive
