@@ -521,6 +521,10 @@ int append_value_double_katcp(struct katcp_dispatch *d, int flags, struct katcp_
 
   ds = sn->s_more;
 
+  if(sn->s_format){
+    return append_args_katcp(d, (flags & (KATCP_FLAG_FIRST | KATCP_FLAG_LAST)), sn->s_format, ds->ds_current);
+  }
+
   return append_double_katcp(d, KATCP_FLAG_DOUBLE | (flags & (KATCP_FLAG_FIRST | KATCP_FLAG_LAST)), ds->ds_current);
 }
 
@@ -1392,6 +1396,10 @@ int append_value_intbool_katcp(struct katcp_dispatch *d, int flags, struct katcp
   }
 
   is = sn->s_more;
+
+  if(sn->s_format){
+    return append_args_katcp(d, (flags & (KATCP_FLAG_FIRST | KATCP_FLAG_LAST)), sn->s_format, is->is_current);
+  }
 
   return append_signed_long_katcp(d, KATCP_FLAG_SLONG | (flags & (KATCP_FLAG_FIRST | KATCP_FLAG_LAST)), (long)(is->is_current));
 }
@@ -2332,6 +2340,7 @@ static struct katcp_sensor *create_sensor_katcp(struct katcp_dispatch *d, char *
   sn->s_name = NULL;
   sn->s_description = NULL;
   sn->s_units = NULL;
+  sn->s_format = NULL;
 
   sn->s_preferred = preferred;
 
@@ -2460,8 +2469,79 @@ static void destroy_sensor_katcp(struct katcp_dispatch *d, struct katcp_sensor *
     free(sn->s_units);
     sn->s_units = NULL;
   }
+  if(sn->s_format){
+    free(sn->s_format);
+    sn->s_format = NULL;
+  }
 
   free(sn);
+}
+
+int set_format_sensor_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn, char *format)
+{
+#ifdef KATCP_CONSISTENCY_CHECKS
+  int len;
+#endif
+
+  if(sn->s_format){
+    free(sn->s_format);
+    sn->s_format = NULL;
+  }
+
+  if(format == NULL){
+    return 0;
+  }
+
+  sn->s_format = strdup(format);
+  if(sn->s_format == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to duplicate format string for sensor %s", sn->s_name ? sn->s_name : "UNKNOWN");
+    return -1;
+  }
+
+#ifdef KATCP_CONSISTENCY_CHECKS
+  if(sn->s_format == NULL){
+    return 0;
+  }
+  len = strlen(sn->s_format);
+  if(len == 0){
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "was given empty format string");
+    return -1;
+  }
+  if(sn->s_format[0] != '%'){
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "format strings should start with a percentage");
+    return 1;
+  }
+  switch(sn->s_type){
+#ifdef KATCP_USE_FLOATS
+    case KATCP_SENSOR_FLOAT :
+      switch(sn->s_format[len - 1]){
+        case 'e' :
+        case 'E' :
+        case 'f' :
+        case 'F' :
+        case 'g' :
+        case 'G' :
+        case 'a' :
+        case 'A' :
+          break;
+        default :
+          log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "format string %s appears inappropriate for floating point sensor");
+          return 1;
+      }
+      break;
+#endif
+    case KATCP_SENSOR_INTEGER :
+      break;
+    case KATCP_SENSOR_BOOLEAN :
+    case KATCP_SENSOR_DISCRETE :
+    case KATCP_SENSOR_LRU :
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "format string %s will be ignored for this sensor type");
+      return -1;
+  }
+
+#endif
+
+  return 0;
 }
 
 static int reload_sensor_katcp(struct katcp_dispatch *d, struct katcp_sensor *sz)
@@ -3345,7 +3425,7 @@ int sensor_value_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
   struct katcp_shared *s;
   struct katcp_sensor *sn;
-  unsigned int count, i; 
+  unsigned int count, i;
 #ifndef KATCP_STRICTER_SENSOR_MATCH
   unsigned int prefix;
 #endif

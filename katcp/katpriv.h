@@ -173,6 +173,8 @@ struct katcp_sensor{
   char *s_description;
   char *s_units;
 
+  char *s_format;
+
   int s_preferred;
 
   int s_status; /* WARNING, etc */

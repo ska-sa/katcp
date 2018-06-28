@@ -138,6 +138,7 @@ int subprocess_check_cmd(struct katcp_dispatch *d, int argc)
 int main(int argc, char **argv)
 {
   struct katcp_dispatch *d;
+  struct katcp_sensor *sn;
 #if 0
   struct cached_sensor_state local_data;
   struct fifo_sensor_state *fss;
@@ -164,6 +165,18 @@ int main(int argc, char **argv)
     fprintf(stderr, "server: unable to register sensors\n");
     return 1;
   }
+
+#if 1
+  /* custom output format for sensor */
+  sn = find_sensor_katcp(d, "check.integer.simple");
+  if(sn){
+    if(set_format_sensor_katcp(d, sn, "0x%04x") < 0){
+      fprintf(stderr, "server: unable to customise sensor output format\n");
+    }
+  } else {
+    fprintf(stderr, "server: unable to retrieve sensor which was just declared\n");
+  }
+#endif
 
   /* register example commands */
 

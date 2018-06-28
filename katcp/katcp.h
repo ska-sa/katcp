@@ -333,6 +333,7 @@ struct katcp_sensor *find_sensor_katcp(struct katcp_dispatch *d, char *name);
 
 int set_status_sensor_katcp(struct katcp_sensor *sn, int status);
 int set_status_group_sensor_katcp(struct katcp_dispatch *d, char *prefix, int status);
+int set_format_sensor_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn, char *format);
 
 void *get_local_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a);
 void generic_release_local_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a);
