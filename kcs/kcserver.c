@@ -180,11 +180,11 @@ int main(int argc, char **argv)
     lfd = open(lfile, O_WRONLY | O_APPEND | O_CREAT | O_NOCTTY, S_IWUSR | S_IRUSR | S_IRGRP | S_IWGRP);
       
     if (lfd < 0){
-      fprintf(stderr,"%s: unable to open %s: %s\n",argv[0], KCS_LOGFILE,strerror(errno));
+      fprintf(stderr,"%s: unable to open %s: %s\n", argv[0], lfile, strerror(errno));
       return 1;
     } else {
       fflush(stderr);
-      if (dup2(lfd,STDERR_FILENO) >= 0){
+      if (dup2(lfd, STDERR_FILENO) >= 0){
         now = time(NULL);
         fprintf(stderr,"Logging to file started at %s\n",ctime(&now));
       }
