@@ -92,7 +92,7 @@ static int deallocate_group_katcp(struct katcp_dispatch *d, struct katcp_group *
     fprintf(stderr, "group destruction: group still in use (%u elements)\n", g->g_count);
     abort();
 #endif
-    return -1; 
+    return -1;
   }
 
   if(g->g_region){
@@ -578,7 +578,7 @@ void shutdown_duplex_katcp(struct katcp_dispatch *d)
   if(d == NULL){
     return;
   }
-  
+
   s = d->d_shared;
   if(s == NULL){
     return;
@@ -599,7 +599,7 @@ int startup_duplex_katcp(struct katcp_dispatch *d, unsigned int stories)
 #define BUFFER 128
   struct katcp_shared *s;
   char buffer[BUFFER];
-  
+
   if(d == NULL){
     return -1;
   }
@@ -649,7 +649,7 @@ int startup_duplex_katcp(struct katcp_dispatch *d, unsigned int stories)
 #endif
 
   return 0;
-#undef BUFFER  
+#undef BUFFER
 }
 
 /********************************************************************/
@@ -810,7 +810,7 @@ static void destroy_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *f)
       /* have a destroy_group_call here if we decide to increment hold count for group on flat creation */
 #endif
     } else {
-      if(i > gx->g_count){ 
+      if(i > gx->g_count){
 #ifdef KATCP_CONSISTENCY_CHECKS
         fprintf(stderr, "dpx: logic problem: flat %p not found it group %p despite listing it as parent\n", f, gx);
         abort();
@@ -832,7 +832,7 @@ static void cancel_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx)
   struct katcp_response_handler *rh;
 
   /* WARNING: unclear if we need trigger the r_reply. Might be needed to clean up
-   * stuff in flight. Thusfar we only dereference the issuser 
+   * stuff in flight. Thusfar we only dereference the issuser
    */
 
 
@@ -943,7 +943,7 @@ int process_outstanding_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *
       log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "pause or yield for %s not supported while responding", fx->f_name);
       return -1;
 
-    default : 
+    default :
       return -1;
   }
 
@@ -1043,7 +1043,7 @@ int process_parse_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, st
       if(strcmp(rh->r_message, str + 1)){
         if(type == KATCP_REPLY){
           log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "received unexpected response %s, was expecting %s", str + 1, rh->r_message);
-        } 
+        }
       } else {
         result = (*(rh->r_reply))(d, argc);
         /* with a bit of care this switch could go ... */
@@ -1158,7 +1158,7 @@ static struct katcp_response_handler *find_handler_peer_flat_katcp(struct katcp_
       fprintf(stderr, "dpx[%p]: found handler callback[%u]=%p: match for %s\n", fx, i, rh->r_reply, rh->r_message);
 #endif
       return rh;
-    } 
+    }
   }
 
   return NULL;
@@ -1193,9 +1193,9 @@ int wake_endpoint_peer_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoin
 #endif
 
   switch(fx->f_state){
-    case FLAT_STATE_UP : 
-    case FLAT_STATE_FINISHING : 
-    case FLAT_STATE_ENDING : 
+    case FLAT_STATE_UP :
+    case FLAT_STATE_FINISHING :
+    case FLAT_STATE_ENDING :
       /* all ok, go on */
       break;
     case FLAT_STATE_CONNECTING :
@@ -1263,7 +1263,7 @@ int wake_endpoint_peer_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoin
       }
       break;
 
-    default : 
+    default :
 #ifdef KATCP_CONSISTENCY_CHECKS
       if(source != fx->f_remote){
         fprintf(stderr, "major usage problem: received an invalid internal message <%s>\n", str);
@@ -1280,12 +1280,12 @@ int wake_endpoint_peer_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoin
   set_current_flat(d, fx);
 #endif
 
-  /* before calling this we set up: 
+  /* before calling this we set up:
    * - current lookup map,
-   * - current endpoint (can be nothing) 
-   * - message issuer callback (can be null, not only for requests) 
+   * - current endpoint (can be nothing)
+   * - message issuer callback (can be null, not only for requests)
    * - the current flat (for this_flat)
-   * - the message received 
+   * - the message received
    */
 
   /* TODO: use return code of process_outstanding_flat_katcp */
@@ -1375,7 +1375,7 @@ int wake_endpoint_remote_flat_katcp(struct katcp_dispatch *d, struct katcp_endpo
 
   result = append_parse_katcl(fx->f_line, px);
   /* WARNING: do something with the return code */
-  
+
   if(request > 0){
 
     /* TODO: set timeout here ... */
@@ -1447,7 +1447,7 @@ int wake_endpoint_remote_flat_katcp(struct katcp_dispatch *d, struct katcp_endpo
   fprintf(stderr, "dpx[%p]: io result is %d\n", fx, KATCP_RESULT_OWN);
 #endif
 
-  return KATCP_RESULT_OWN; 
+  return KATCP_RESULT_OWN;
 }
 
 void release_endpoint_peer_flat_katcp(struct katcp_dispatch *d, void *data)
@@ -1511,6 +1511,27 @@ struct katcp_flat *create_exec_flat_katcp(struct katcp_dispatch *d, unsigned int
     }
 
     /* TODO: what about exit events ? */
+#if 0
+    /* WARNING: this is a bit awkward - there is no fixed time after we can be certain that a child process is ok. Also waiting here for too long blocks execution of kcs. So the best we can do is insert a brief delay ... */
+    /* So: there is an argument to be made that we ignore client-exec status messages and check by alternate means ? */
+
+    /* usleep(something) ... */
+
+    if(waitpid(pid, &status, WNOHANG) > 0){	/* got a child */
+      if(WIFEXITED(status)){
+        result = WEXITSTATUS(status);
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "child exited with code %d", result);
+      } else if(WIFSIGNALED(status)) {
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "child process killed by signal %d", WTERMSIG(status));
+        fflush(stderr);
+        result = EX_SOFTWARE;
+      }
+
+      destroy_flat_katcp(d, fx);
+
+      return NULL;
+    }
+#endif
 
     return fx;
 
@@ -1527,14 +1548,14 @@ struct katcp_flat *create_exec_flat_katcp(struct katcp_dispatch *d, unsigned int
   copies = 0;
   if(fds[0] != STDOUT_FILENO){
     if(dup2(fds[0], STDOUT_FILENO) != STDOUT_FILENO){
-      sync_message_katcl(xl, KATCP_LEVEL_ERROR, NULL, "unable to set up standard output for child task <%s> (%s)", name, strerror(errno)); 
+      sync_message_katcl(xl, KATCP_LEVEL_ERROR, NULL, "unable to set up standard output for child task <%s> (%s)", name, strerror(errno));
       exit(EX_OSERR);
     }
     copies++;
   }
   if(fds[0] != STDIN_FILENO){
     if(dup2(fds[0], STDIN_FILENO) != STDIN_FILENO){
-      sync_message_katcl(xl, KATCP_LEVEL_ERROR, NULL, "unable to set up standard input for child task <%s> (%s)", name, strerror(errno)); 
+      sync_message_katcl(xl, KATCP_LEVEL_ERROR, NULL, "unable to set up standard input for child task <%s> (%s)", name, strerror(errno));
       exit(EX_OSERR);
     }
     copies++;
@@ -1543,7 +1564,7 @@ struct katcp_flat *create_exec_flat_katcp(struct katcp_dispatch *d, unsigned int
     close(fds[0]);
   }
 
-#if 0 
+#if 0
   /* would be ifndef KATCP_STDERR_ERRORS, but may not be needed if all CLO_EXECs are done */
   efd = open("/dev/null", O_WRONLY);
   if(efd >= 0){
@@ -1563,7 +1584,7 @@ struct katcp_flat *create_exec_flat_katcp(struct katcp_dispatch *d, unsigned int
 
   fprintf(stderr, "dpx: unable to launch command <%s> (%s)\n", vector ? vector[0] : name, strerror(errno));
 
-  sync_message_katcl(xl, KATCP_LEVEL_ERROR, NULL, "unable to launch command <%s>", vector ? vector[0] : name, strerror(errno)); 
+  sync_message_katcl(xl, KATCP_LEVEL_ERROR, NULL, "unable to launch command <%s>", vector ? vector[0] : name, strerror(errno));
 
   destroy_katcl(xl, 0);
 
@@ -1753,7 +1774,7 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
 
 #if 0
   /* WARNING: use count is actually g_use+g_count */
-  hold_group_katcp(gx); 
+  hold_group_katcp(gx);
 #endif
 
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "created instance for %s", name ? name : "<anonymous");
@@ -2343,7 +2364,7 @@ int version_generic_callback_katcp(struct katcp_dispatch *d, void *state, char *
 
       return 0;
 
-    case KATCP_VRT_ARRAY : 
+    case KATCP_VRT_ARRAY :
       /* dumps the entire array - we assume there are only two elements in there */
 
     case KATCP_VRT_STRING :
@@ -2458,7 +2479,7 @@ int trigger_connect_flat(struct katcp_dispatch *d, struct katcp_flat *fx)
   struct katcp_group *gx;
 #endif
   struct katcp_endpoint *save;
-  
+
   if(fx == NULL){
     return -1;
   }
@@ -2542,11 +2563,11 @@ int terminate_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx)
 #endif
 
   switch(fx->f_state){
-    case FLAT_STATE_CONNECTING : 
+    case FLAT_STATE_CONNECTING :
       /* WARNING: at the moment we refuse to queue messages in this state. If this changes, then a termination has to happen more carefully here */
       fx->f_state = FLAT_STATE_CRASHING;
       return 0;
-    case FLAT_STATE_UP : 
+    case FLAT_STATE_UP :
       fx->f_state = FLAT_STATE_FINISHING;
       /* WARNING: at the moment, the terminated client doesn't see it, and it is marked admin, as the specs don't mention it, even though it is symetrical with #client-connected */
 #if 0
@@ -2769,7 +2790,7 @@ static int pop_flat(struct katcp_dispatch *d, struct katcp_flat *fx)
     if(s->s_this[s->s_level] != fx){
       return -1;
     }
-  } 
+  }
 
   s->s_this[s->s_level] = NULL;
   s->s_level--;
@@ -2866,7 +2887,7 @@ int set_output_flat_katcp(struct katcp_dispatch *d, unsigned int destination, un
 #if 0
 static int set_generic_flat_katcp(struct katcp_dispatch *d, int direction, int (*call)(struct katcp_dispatch *d, int argc), char *string, unsigned int flags)
 {
-  struct katcp_flat *fx; 
+  struct katcp_flat *fx;
   char *tmp, *ptr;
   unsigned int actual, len;
   struct katcp_response_handler *rh;
@@ -2879,7 +2900,7 @@ static int set_generic_flat_katcp(struct katcp_dispatch *d, int direction, int (
 #endif
 
   switch(direction){
-    case KATCP_DIRECTION_INNER  : 
+    case KATCP_DIRECTION_INNER  :
     case KATCP_DIRECTION_REMOTE :
       break;
     default :
@@ -2927,7 +2948,7 @@ static int set_generic_flat_katcp(struct katcp_dispatch *d, int direction, int (
     return -1;
   }
   rh->r_message = tmp;
-  
+
   memcpy(rh->r_message, ptr, len + 1);
 
   rh->r_flags   = actual;
@@ -2951,7 +2972,7 @@ int set_remote_flat_katcp(struct katcp_dispatch *d, int (*call)(struct katcp_dis
 
 int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer, struct katcl_parse *px, struct katcp_endpoint *recipient, int (*call)(struct katcp_dispatch *d, int argc), char *string, unsigned int flags)
 {
-  struct katcp_flat *fx; 
+  struct katcp_flat *fx;
   char *tmp, *ptr;
   unsigned int actual, len, i, slot;
   struct katcp_response_handler *rh;
@@ -3007,7 +3028,7 @@ int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer,
 #ifndef KATCP_CONSISTENCY_CHECKS
       i = KATCP_SIZE_REPLY;
       /* break out of loop */
-#else 
+#else
     } else {
       /* is somebody is sending something to this party ? */
       if(rh->r_recipient && (rh->r_recipient == recipient)){
@@ -3066,7 +3087,7 @@ int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer,
     return -1;
   }
   rh->r_message = tmp;
-  
+
   memcpy(rh->r_message, ptr, len + 1);
 
   rh->r_flags        = actual;
@@ -3079,7 +3100,7 @@ int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer,
   if(rh->r_issuer){
     reference_endpoint_katcp(d, rh->r_issuer);
   }
-  
+
   rh->r_recipient   = recipient;
   if(rh->r_recipient){
     reference_endpoint_katcp(d, rh->r_recipient);
@@ -3098,7 +3119,7 @@ int callback_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoint *issuer,
 
 int is_inner_flat_katcp(struct katcp_dispatch *d)
 {
-  struct katcp_flat *fx; 
+  struct katcp_flat *fx;
 
   fx = require_flat_katcp(d);
 
@@ -3119,7 +3140,7 @@ int is_inner_flat_katcp(struct katcp_dispatch *d)
 
 int is_remote_flat_katcp(struct katcp_dispatch *d)
 {
-  struct katcp_flat *fx; 
+  struct katcp_flat *fx;
 
   fx = require_flat_katcp(d);
 
@@ -3609,7 +3630,7 @@ int load_flat_katcp(struct katcp_dispatch *d)
 
   result = 0;
 
-#ifdef DEBUG 
+#ifdef DEBUG
   fprintf(stderr, "dpx[*]: loading %u groups\n", s->s_members);
 #endif
 
@@ -3644,24 +3665,24 @@ int load_flat_katcp(struct katcp_dispatch *d)
 
       switch(fx->f_state){
 
-        case FLAT_STATE_CONNECTING : 
+        case FLAT_STATE_CONNECTING :
           FD_SET(fd, &(s->s_write));
           if(fd > s->s_max){
             s->s_max = fd;
           }
           break;
 
-        case FLAT_STATE_UP : 
+        case FLAT_STATE_UP :
           FD_SET(fd, &(s->s_read));
           if(flushing_katcl(fx->f_line)){
             FD_SET(fd, &(s->s_write));
-          } 
+          }
           if(fd > s->s_max){
             s->s_max = fd;
           }
           break;
 
-        case FLAT_STATE_FINISHING : 
+        case FLAT_STATE_FINISHING :
 
           if(fx->f_peer){
             /* accept no further messages on input queue */
@@ -3686,7 +3707,7 @@ int load_flat_katcp(struct katcp_dispatch *d)
               s->s_max = fd;
             }
             break;
-          } 
+          }
 
           if(pending_endpoint_katcp(d, fx->f_peer) > 0){
             break;
@@ -3774,7 +3795,7 @@ int load_flat_katcp(struct katcp_dispatch *d)
 
     if((gx->g_autoremove > 0) && (gx->g_count == 0) && (gx->g_use == 0)){
       log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "about to remove group %s", gx->g_name);
-#ifdef DEBUG 
+#ifdef DEBUG
       fprintf(stderr, "group[%p]: %s about to be removed\n", gx, gx->g_name);
 #endif
 
@@ -3790,7 +3811,7 @@ int load_flat_katcp(struct katcp_dispatch *d)
 
       jnc = 0;
 
-#ifdef DEBUG 
+#ifdef DEBUG
       fprintf(stderr, "dpx[*]: reduced to %u groups\n", s->s_members);
 #endif
     }
