@@ -1,5 +1,5 @@
 # install location
-PREFIX=/usr/local
+PREFIX=$(DESTDIR)/$(or $(prefix),usr/local)
 
 # where to find the KATCP library (change this in case katcp isn't included locally)
 KATCP ?= katcp
@@ -87,5 +87,8 @@ INSTALL = install
 RM = rm -f
 AR = ar
 ECHO = echo
+LN = ln -s
+TAR = tar
 
 .PHONY: all clean install
+.SUFFIXES:
