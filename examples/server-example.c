@@ -21,6 +21,8 @@
 
 #include <katcp.h>
 
+#include <katpriv.h>
+
 /* simple sensor functions ***************************************************/
 /* these functions return the value immediately. This approach is acceptable */
 /* when it is cheap to query a sensor value                                  */
@@ -32,6 +34,80 @@ int simple_integer_check_sensor(struct katcp_dispatch *d, struct katcp_acquire *
 #endif
 
   return ((((int)time(NULL)) / 10) % 7) - 3;
+}
+
+/* more complex sensor function **********************************************/
+/* this code allows one to perform an expensive single operation and attach  */
+/* multiple sensors to it. The multiple_value_acquire() function here        */
+/* collects the data point, and the two extract functions transform it into  */
+/* something which ends up as the sensor value. Note that these function     */
+/* reach into the katcp data structures, hence the include of katpriv.h      */
+
+int multiple_value_acquire(struct katcp_dispatch *d, struct katcp_acquire *a)
+{
+  return ((int)time(NULL));
+}
+
+int extract_high_field(struct katcp_dispatch *d, struct katcp_sensor *sn)
+{
+  struct katcp_integer_acquire *ia;
+  struct katcp_integer_sensor *is;
+  struct katcp_acquire *a;
+  int high;
+
+  a = sn->s_acquire;
+
+  if(a->a_type != KATCP_SENSOR_INTEGER){
+    set_status_sensor_katcp(sn, KATCP_STATUS_UNKNOWN);
+    return 0;
+  }
+
+  ia = a->a_more;
+  is = sn->s_more;
+
+  if(ia == NULL){
+    set_status_sensor_katcp(sn, KATCP_STATUS_UNKNOWN);
+    return 0;
+  }
+
+  high = (ia->ia_current >> 16) & 0xffff;
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "extracting high field of 0x%08x as 0x%04x", ia->ia_current, high);
+
+  is->is_current = high;
+
+  return 0;
+}
+
+int extract_low_field(struct katcp_dispatch *d, struct katcp_sensor *sn)
+{
+  struct katcp_integer_acquire *ia;
+  struct katcp_integer_sensor *is;
+  struct katcp_acquire *a;
+  int low;
+
+  a = sn->s_acquire;
+
+  if(a->a_type != KATCP_SENSOR_INTEGER){
+    set_status_sensor_katcp(sn, KATCP_STATUS_UNKNOWN);
+    return 0;
+  }
+
+  ia = a->a_more;
+  is = sn->s_more;
+
+  if(ia == NULL){
+    set_status_sensor_katcp(sn, KATCP_STATUS_UNKNOWN);
+    return 0;
+  }
+
+  low = ia->ia_current & 0xffff;
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "extracting low field of 0x%08x as 0x%04x", ia->ia_current, low);
+
+  is->is_current = low;
+
+  return 0;
 }
 
 /* Several command functions to service a particular katcp request **********/
@@ -139,6 +215,7 @@ int main(int argc, char **argv)
 {
   struct katcp_dispatch *d;
   struct katcp_sensor *sn;
+  struct katcp_acquire *a;
 #if 0
   struct cached_sensor_state local_data;
   struct fifo_sensor_state *fss;
@@ -177,6 +254,23 @@ int main(int argc, char **argv)
     fprintf(stderr, "server: unable to retrieve sensor which was just declared\n");
   }
 #endif
+
+  /* a more complicated way of setting up sensors from one acquisition */
+
+  a = setup_integer_acquire_katcp(d, &multiple_value_acquire, NULL, NULL);
+  if(a == NULL){
+    fprintf(stderr, "server: unable to initialise acquire logic\n");
+    return 1;
+  }
+
+  if(declare_multi_integer_sensor_katcp(d, 0, "check.integer.multi.high", "high word", "none", 0, 16, 0, 32, a, &extract_high_field, NULL) < 0){
+    fprintf(stderr, "server: unable to create high word part of multi-sensor\n");
+    return 1;
+  }
+  if(declare_multi_integer_sensor_katcp(d, 0, "check.integer.multi.low", "low word", "none", 0, 16, 0, 32, a, &extract_low_field, NULL) < 0){
+    fprintf(stderr, "server: unable to create low word part of multi-sensor\n");
+    return 1;
+  }
 
   /* register example commands */
 
