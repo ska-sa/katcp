@@ -613,7 +613,7 @@ int scan_tree_vrbl_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct
       log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "scan of empty map");
       return 0;
     } else {
-      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "map requires a path for value insertion");
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "map requires a path for insertion of value %s", text);
       return -1;
     }
   }
