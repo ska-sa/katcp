@@ -347,6 +347,7 @@ int propagate_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a);
 
 /****************************************************************************/
 
+struct katcp_acquire *setup_integer_acquire_katcp(struct katcp_dispatch *d, int (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a));
 int declare_integer_sensor_katcp(struct katcp_dispatch *d, int mode, char *name, char *description, char *units, int (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a), int nom_min, int nom_max, int warn_min, int warn_max, int (*flush)(struct katcp_dispatch *d, struct katcp_sensor *sn));
 int register_integer_sensor_katcp(struct katcp_dispatch *d, int mode, char *name, char *description, char *units, int (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a), int min, int max, int (*flush)(struct katcp_dispatch *d, struct katcp_sensor *sn));
 
@@ -355,6 +356,7 @@ int register_multi_integer_sensor_katcp(struct katcp_dispatch *d, int mode, char
 
 struct katcp_acquire *setup_integer_acquire_katcp(struct katcp_dispatch *d, int (*get)(struct katcp_dispatch *d, struct katcp_acquire *), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a));
 int set_integer_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a, int value);
+struct katcp_integer_acquire *acquired_integer_value_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn);
 
 /****************************************************************************/
 
@@ -380,6 +382,7 @@ int register_multi_double_sensor_katcp(struct katcp_dispatch *d, int mode, char 
 
 struct katcp_acquire *setup_double_acquire_katcp(struct katcp_dispatch *d, double (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a));
 int set_double_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a, double value);
+struct katcp_double_acquire *acquired_double_value_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn);
 
 #endif
 
@@ -396,6 +399,7 @@ int register_multi_discrete_sensor_katcp(struct katcp_dispatch *d, int mode, cha
 struct katcp_acquire *setup_discrete_acquire_katcp(struct katcp_dispatch *d, int (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a));
 
 int set_discrete_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a, unsigned value);
+struct katcp_discrete_acquire *acquired_discrete_value_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn);
 
 /***************************************************************************/
 

@@ -212,6 +212,24 @@ int status_check_katcp(struct katcp_nonsense *ns)
 /* double routines *******************************************************/
 
 #ifdef KATCP_USE_FLOATS
+
+struct katcp_double_acquire *acquired_double_value_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn)
+{
+  struct katcp_acquire *a;
+  struct katcp_double_acquire *da;
+
+  a = sn->s_acquire;
+
+  if(a->a_type != KATCP_SENSOR_FLOAT){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "logic problem - double operation applied to type %d", sn->s_type);
+    return NULL;
+  }
+
+  da = a->a_more;
+
+  return da;
+}
+
 int extract_double_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn)
 {
   struct katcp_acquire *a;
@@ -659,6 +677,26 @@ int set_double_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a, 
 
 /* discrete type routines ************************************************/
 
+struct katcp_discrete_acquire *acquired_discrete_value_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn)
+{
+  struct katcp_acquire *a;
+  struct katcp_discrete_acquire *da;
+
+  a = sn->s_acquire;
+
+  switch(a->a_type){
+    case KATCP_SENSOR_DISCRETE :
+      break;
+    default :
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "logic problem - discrete sensor %s unable to acquire type %d", sn->s_name, a->a_type);
+      return NULL;
+  }
+
+  da = a->a_more;
+
+  return da;
+}
+
 int extract_discrete_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn)
 {
   struct katcp_acquire *a;
@@ -1068,6 +1106,27 @@ int set_discrete_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a
 }
 
 /* integer routines, intbool common to integer and boolean code *******************************/
+
+struct katcp_integer_acquire *acquired_integer_value_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn)
+{
+  struct katcp_acquire *a;
+  struct katcp_integer_acquire *ia;
+
+  a = sn->s_acquire;
+
+  switch(a->a_type){
+    case KATCP_SENSOR_INTEGER :
+    case KATCP_SENSOR_BOOLEAN :
+      break;
+    default :
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "logic problem - integer sensor %s unable to acquire type %d", sn->s_name, a->a_type);
+      return NULL;
+  }
+
+  ia = a->a_more;
+
+  return ia;
+}
 
 int extract_intbool_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn)
 {
@@ -1705,7 +1764,7 @@ static struct katcp_check_table type_lookup_table[] = {
         &force_check_katcp
       }
     },
-  [KATCP_SENSOR_LRU] = /* currently implemented */
+  [KATCP_SENSOR_LRU] = /* currently not implemented */
     {  NULL,
        NULL,
        NULL,
