@@ -1023,14 +1023,11 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   char *temp;
   int len;
 #endif
-  char **key_copy_array;
-  char *key_copy;
-  char *key_count;
-  char *location_to_replace;
-  //const char searching_for = ',';
-  //const char replace_with = '\0';
+  char *key_base;
+  char *key_start;
+  char *key_end;
+  int done = 0;  
   unsigned int index = 0;
-  int num_sensors = 0;
 
   if(argc <= 2){
     if(argc > 1){
@@ -1046,7 +1043,6 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   back = argc - 1;
-
   for(strategy = (-1); (strategy < 0) && (back > 1); back--){
     string = arg_string_katcp(d, back);
     if(string == NULL){
@@ -1084,44 +1080,22 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid sensor sampling strategy number %d", strategy);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
   }
-
-  //need to free key_copy & therefore perhaps key_count as well?
-  key_copy = arg_copy_string_katcp(d, 1);
-  key_count = key_copy;
-  while ((key_count = strchr(key_count, ',')) != NULL) {
-    num_sensors++;
-    key_count++;
-  }
-  num_sensors++;
-  key_copy_array = (char**)malloc(num_sensors*sizeof(char*));
-
-  for(i = 0; i < num_sensors; i++){
-    key_copy_array[i] = (char *)malloc(256*sizeof(char));
-  }
-  key_copy_array[0] = key_copy; 
-  /* replace with a while loop?? */
-  for(i = 0; i < num_sensors; i++){
-    location_to_replace = strchr(key_copy_array[i], ','); 
-    if(location_to_replace){
-      index = location_to_replace-key_copy_array[i];
-      key_copy_array[i][index] = '\0';//replace_with;
-      key_copy_array[i+1] = key_copy_array[i] + index + 1;
+  
+  key_base = arg_copy_string_katcp(d, 1);
+  key_start = key_base;
+  do{
+    i = 1;
+    key_end = strchr(key_start, ',');
+    if(key_end) {
+      index = key_end - key_start;
+      key_start[index] = '\0';
     } else {
-      break;
+      done = 1;
     }
-  }
-
-  for(i = 0; i < num_sensors; i++){
-    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "SENSOR %d : %s", i, key_copy_array[i]);
-  }
-
-  for(i = 1; i <= num_sensors; i++){
-    key = key_copy_array[i-1];//arg_string_katcp(d, i);
+    key = key_start; 
     if(key == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no useful sensor in parameter %d", i);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
-    }else{
-      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "SENSOR is %s", key);
     }
 
     vx = find_vrbl_katcp(d, key);
@@ -1199,8 +1173,8 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
           /* WARNING: a timer means that the flat can not be renamed */
           fx->f_rename_lock = 1;
 #else
-          log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no period sensor sampling support - rebuild with HEAP_TIMER to enable it");
-          return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no period sensor sampling support - rebuild with HEAP_TIMER to enable it");
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
 #endif
 
           break;
@@ -1213,8 +1187,14 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
           return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
       }
     }
-  }
 
+    if(key_end){
+      key_start = key_end + 1;
+    }  
+    i++;
+  } while (!done);
+
+  free(key_base);
   return KATCP_RESULT_OK;
 }
 
