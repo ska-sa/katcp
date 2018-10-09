@@ -83,6 +83,10 @@ struct katcp_vrbl_payload;
 #ifdef KATCP_USE_FLOATS
 #define KATCP_FLAG_DOUBLE 0x60
 #endif
+#ifdef KATCP_ENABLE_LLINT
+#define KATCP_FLAG_ULLONG 0x70
+#define KATCP_FLAG_SLLONG 0x80
+#endif
 
 #define KATCP_TYPE_FLAGS  0xf0
 #define KATCP_ORDER_FLAGS 0x0f
@@ -253,6 +257,12 @@ int append_string_katcp(struct katcp_dispatch *d, int flags, char *buffer);
 int append_unsigned_long_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
 int append_signed_long_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
 int append_hex_long_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
+
+#ifdef KATCP_ENABLE_LLINT
+int append_unsigned_llong_katcp(struct katcp_dispatch *d, int flags, unsigned long long v);
+int append_signed_llong_katcp(struct katcp_dispatch *d, int flags, unsigned long long v);
+#endif
+
 int append_buffer_katcp(struct katcp_dispatch *d, int flags, void *buffer, int len);
 int append_payload_vrbl_katcp(struct katcp_dispatch *d, int flags, struct katcp_vrbl *vx, struct katcp_vrbl_payload *py);
 int append_vargs_katcp(struct katcp_dispatch *d, int flags, char *fmt, va_list args);
@@ -751,6 +761,11 @@ int append_string_flat_katcp(struct katcp_dispatch *d, int flags, char *buffer);
 int append_unsigned_long_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
 int append_signed_long_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
 int append_hex_long_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
+
+#ifdef KATCP_ENABLE_LLINT
+int append_unsigned_llong_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long long v);
+int append_signed_llong_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long long v);
+#endif
 #ifdef KATCP_USE_FLOATS
 int append_double_flat_katcp(struct katcp_dispatch *d, int flags, double v);
 #endif

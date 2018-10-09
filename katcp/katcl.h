@@ -49,6 +49,10 @@ int append_string_katcl(struct katcl_line *l, int flags, char *buffer);
 int append_unsigned_long_katcl(struct katcl_line *l, int flags, unsigned long v);
 int append_signed_long_katcl(struct katcl_line *l, int flags, unsigned long v);
 int append_hex_long_katcl(struct katcl_line *l, int flags, unsigned long v);
+#ifdef KATCP_ENABLE_LLINT
+int append_unsigned_llong_katcl(struct katcl_line *l, int flags, unsigned long long v);
+int append_signed_llong_katcl(struct katcl_line *l, int flags, unsigned long long v);
+#endif
 int append_vargs_katcl(struct katcl_line *l, int flags, char *fmt, va_list args);
 int append_args_katcl(struct katcl_line *l, int flags, char *fmt, ...);
 #ifdef KATCP_USE_FLOATS

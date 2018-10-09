@@ -638,6 +638,38 @@ int append_hex_long_katcl(struct katcl_line *l, int flags, unsigned long v)
   return after_append_katcl(l, flags, result);
 }
 
+#ifdef KATCP_ENABLE_LLINT
+int append_unsigned_llong_katcl(struct katcl_line *l, int flags, unsigned long long v)
+{
+  struct katcl_parse *p;
+  int result;
+
+  p = before_append_katcl(l, flags);
+  if(p == NULL){
+    return -1;
+  }
+
+  result = add_unsigned_llong_parse_katcl(p, flags, v);
+
+  return after_append_katcl(l, flags, result);
+}
+
+int append_signed_llong_katcl(struct katcl_line *l, int flags, unsigned long long v)
+{
+  struct katcl_parse *p;
+  int result;
+
+  p = before_append_katcl(l, flags);
+  if(p == NULL){
+    return -1;
+  }
+
+  result = add_signed_llong_parse_katcl(p, flags, v);
+
+  return after_append_katcl(l, flags, result);
+}
+#endif
+
 #ifdef KATCP_USE_FLOATS
 int append_double_katcl(struct katcl_line *l, int flags, double v)
 {
@@ -784,6 +816,9 @@ int vsend_katcl(struct katcl_line *l, va_list args)
 #ifdef KATCP_USE_FLOATS
   double dvalue;
 #endif
+#ifdef KATCP_ENABLE_LLINT
+  unsigned long long lv;
+#endif
 
   check = KATCP_FLAG_FIRST;
   
@@ -804,6 +839,7 @@ int vsend_katcl(struct katcl_line *l, va_list args)
         result = append_string_katcl(l, flags & KATCP_ORDER_FLAGS, string);
         break;
       case KATCP_FLAG_SLONG :
+/* WARNING: taking liberties here ... */
         value = va_arg(args, unsigned long);
         result = append_signed_long_katcl(l, flags & KATCP_ORDER_FLAGS, value);
         break;
@@ -815,6 +851,17 @@ int vsend_katcl(struct katcl_line *l, va_list args)
         value = va_arg(args, unsigned long);
         result = append_hex_long_katcl(l, flags & KATCP_ORDER_FLAGS, value);
         break;
+#ifdef KATCP_ENABLE_LLINT
+      case KATCP_FLAG_SLLONG :
+/* WARNING: taking liberties here ... */
+        lv = va_arg(args, unsigned long long);
+        result = append_signed_long_katcl(l, flags & KATCP_ORDER_FLAGS, lv);
+        break;
+      case KATCP_FLAG_ULLONG :
+        lv = va_arg(args, unsigned long long);
+        result = append_unsigned_long_katcl(l, flags & KATCP_ORDER_FLAGS, lv);
+        break;
+#endif
       case KATCP_FLAG_BUFFER :
         buffer = va_arg(args, void *);
         len = va_arg(args, int);
