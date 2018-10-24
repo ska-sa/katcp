@@ -1665,6 +1665,12 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
 
   f->f_rename_lock = 0;
 
+  gettimeofday(&(f->f_last_read), NULL);
+  gettimeofday(&(f->f_last_write), NULL);
+
+  f->f_pending_limit = KATCP_DEFAULT_QUEUE_LIMIT;
+  f->f_stall_time = KATCP_DEFAULT_WRITE_STALL;
+
   /* for cases where connect() still has to succeed */
   f->f_state = (flags & KATCP_FLAT_CONNECTING) ? FLAT_STATE_CONNECTING : FLAT_STATE_UP;
 
@@ -3831,8 +3837,9 @@ int run_flat_katcp(struct katcp_dispatch *d)
   struct katcl_parse *px, *pt;
   struct katcp_group *gx;
   unsigned int i, j, len, size, limit;
-  int fd, result, code, reply, request;
+  int fd, result, code, reply, request, count;
   char *name, *ptr;
+  struct timeval now;
 
   s = d->d_shared;
 
@@ -3883,6 +3890,17 @@ int run_flat_katcp(struct katcp_dispatch *d)
             /* flush messages */
             if(write_katcl(fx->f_line) < 0){
               fx->f_state = FLAT_STATE_CRASHING;
+            } else {
+              gettimeofday(&(fx->f_last_write), NULL);
+            }
+          }
+        } else {
+          count = flushing_katcl(fx->f_line);
+          if(count > fx->f_pending_limit){
+            gettimeofday(&now, NULL);
+            if(now.tv_sec > (fx->f_last_write.tv_sec + fx->f_stall_time)){
+              log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "terminating client %s which has accumulated %d messages over %ds without draining", fx->f_name, count, fx->f_stall_time);
+              fx->f_state = FLAT_STATE_CRASHING;
             }
           }
         }
@@ -3891,6 +3909,8 @@ int run_flat_katcp(struct katcp_dispatch *d)
           /* acquire data */
           if(read_katcl(fx->f_line) != 0){
             fx->f_state = FLAT_STATE_CRASHING;
+          } else {
+            gettimeofday(&(fx->f_last_read), NULL);
           }
           /* load all data into request queue, all processing happens in the endpoint */
           while((result = parse_katcl(fx->f_line)) > 0){

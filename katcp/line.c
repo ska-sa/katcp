@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -1117,7 +1118,10 @@ int flushing_katcl(struct katcl_line *l)
   result = size_queue_katcl(l->l_queue);
 
   if(result > 0){
-    return 1;
+    if(result <= INT_MAX){
+      return result;
+    }
+    return INT_MAX;
   }
 
   if(l->l_pending > 0){

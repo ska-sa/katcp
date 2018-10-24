@@ -642,8 +642,11 @@ struct katcp_response_handler{
   struct timeval r_when;
 };
 
-#define KATCP_SIZE_REPLY         2
+#define KATCP_SIZE_REPLY            2
 
+/* accumulating more than 8192 messages without flush in 30s and the connection is considered dead */
+#define KATCP_DEFAULT_WRITE_STALL    30
+#define KATCP_DEFAULT_QUEUE_LIMIT  8192
 
 #define KATCP_DPX_SEND_INVALID   0x00
 
@@ -721,6 +724,12 @@ struct katcp_flat{
   time_t f_start;
 
   int f_rename_lock;
+
+  struct timeval f_last_read;
+  struct timeval f_last_write;
+
+  unsigned int f_pending_limit; /* how many writes outstanding before we worry */
+  unsigned int f_stall_time;    /* for how long can we go without being able to write */
 };
 #endif
 
