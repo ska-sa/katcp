@@ -83,6 +83,10 @@ struct katcp_vrbl_payload;
 #ifdef KATCP_USE_FLOATS
 #define KATCP_FLAG_DOUBLE 0x60
 #endif
+#ifdef KATCP_ENABLE_LLINT
+#define KATCP_FLAG_ULLONG 0x70
+#define KATCP_FLAG_SLLONG 0x80
+#endif
 
 #define KATCP_TYPE_FLAGS  0xf0
 #define KATCP_ORDER_FLAGS 0x0f
@@ -253,6 +257,12 @@ int append_string_katcp(struct katcp_dispatch *d, int flags, char *buffer);
 int append_unsigned_long_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
 int append_signed_long_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
 int append_hex_long_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
+
+#ifdef KATCP_ENABLE_LLINT
+int append_unsigned_llong_katcp(struct katcp_dispatch *d, int flags, unsigned long long v);
+int append_signed_llong_katcp(struct katcp_dispatch *d, int flags, unsigned long long v);
+#endif
+
 int append_buffer_katcp(struct katcp_dispatch *d, int flags, void *buffer, int len);
 int append_payload_vrbl_katcp(struct katcp_dispatch *d, int flags, struct katcp_vrbl *vx, struct katcp_vrbl_payload *py);
 int append_vargs_katcp(struct katcp_dispatch *d, int flags, char *fmt, va_list args);
@@ -347,6 +357,7 @@ int propagate_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a);
 
 /****************************************************************************/
 
+struct katcp_acquire *setup_integer_acquire_katcp(struct katcp_dispatch *d, int (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a));
 int declare_integer_sensor_katcp(struct katcp_dispatch *d, int mode, char *name, char *description, char *units, int (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a), int nom_min, int nom_max, int warn_min, int warn_max, int (*flush)(struct katcp_dispatch *d, struct katcp_sensor *sn));
 int register_integer_sensor_katcp(struct katcp_dispatch *d, int mode, char *name, char *description, char *units, int (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a), int min, int max, int (*flush)(struct katcp_dispatch *d, struct katcp_sensor *sn));
 
@@ -355,6 +366,7 @@ int register_multi_integer_sensor_katcp(struct katcp_dispatch *d, int mode, char
 
 struct katcp_acquire *setup_integer_acquire_katcp(struct katcp_dispatch *d, int (*get)(struct katcp_dispatch *d, struct katcp_acquire *), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a));
 int set_integer_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a, int value);
+struct katcp_integer_acquire *acquired_integer_value_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn);
 
 /****************************************************************************/
 
@@ -370,6 +382,9 @@ int set_boolean_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a,
 
 /****************************************************************************/
 
+#ifdef KATCP_ENABLE_LLINT
+#endif
+
 #ifdef KATCP_USE_FLOATS
 
 int declare_double_sensor_katcp(struct katcp_dispatch *d, int mode, char *name, char *description, char *units, double (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a), double nom_min, double nom_max, double warn_min, double warn_max, int (*flush)(struct katcp_dispatch *d, struct katcp_sensor *sn));
@@ -380,6 +395,7 @@ int register_multi_double_sensor_katcp(struct katcp_dispatch *d, int mode, char 
 
 struct katcp_acquire *setup_double_acquire_katcp(struct katcp_dispatch *d, double (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a));
 int set_double_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a, double value);
+struct katcp_double_acquire *acquired_double_value_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn);
 
 #endif
 
@@ -396,6 +412,7 @@ int register_multi_discrete_sensor_katcp(struct katcp_dispatch *d, int mode, cha
 struct katcp_acquire *setup_discrete_acquire_katcp(struct katcp_dispatch *d, int (*get)(struct katcp_dispatch *d, struct katcp_acquire *a), void *local, void (*release)(struct katcp_dispatch *d, struct katcp_acquire *a));
 
 int set_discrete_acquire_katcp(struct katcp_dispatch *d, struct katcp_acquire *a, unsigned value);
+struct katcp_discrete_acquire *acquired_discrete_value_katcp(struct katcp_dispatch *d, struct katcp_sensor *sn);
 
 /***************************************************************************/
 
@@ -747,6 +764,11 @@ int append_string_flat_katcp(struct katcp_dispatch *d, int flags, char *buffer);
 int append_unsigned_long_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
 int append_signed_long_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
 int append_hex_long_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long v);
+
+#ifdef KATCP_ENABLE_LLINT
+int append_unsigned_llong_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long long v);
+int append_signed_llong_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long long v);
+#endif
 #ifdef KATCP_USE_FLOATS
 int append_double_flat_katcp(struct katcp_dispatch *d, int flags, double v);
 #endif

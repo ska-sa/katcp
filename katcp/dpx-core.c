@@ -3400,6 +3400,51 @@ int append_hex_long_flat_katcp(struct katcp_dispatch *d, int flags, unsigned lon
   return finish_append_flat_katcp(d, flags, result);
 }
 
+
+#ifdef KATCP_ENABLE_LLINT
+int append_unsigned_llong_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long long v)
+{
+  struct katcl_parse *px;
+  struct katcp_flat *fx;
+  int result;
+
+  fx = require_flat_katcp(d);
+  if(fx == NULL){
+    return -1;
+  }
+
+  px = prepare_append_flat_katcp(fx, flags);
+  if(px == NULL){
+    return -1;
+  }
+
+  result = add_unsigned_long_parse_katcl(px, flags, v);
+
+  return finish_append_flat_katcp(d, flags, result);
+}
+
+int append_signed_llong_flat_katcp(struct katcp_dispatch *d, int flags, unsigned long long v)
+{
+  struct katcl_parse *px;
+  struct katcp_flat *fx;
+  int result;
+
+  fx = require_flat_katcp(d);
+  if(fx == NULL){
+    return -1;
+  }
+
+  px = prepare_append_flat_katcp(fx, flags);
+  if(px == NULL){
+    return -1;
+  }
+
+  result = add_signed_llong_parse_katcl(px, flags, v);
+
+  return finish_append_flat_katcp(d, flags, result);
+}
+#endif
+
 #ifdef KATCP_USE_FLOATS
 int append_double_flat_katcp(struct katcp_dispatch *d, int flags, double v)
 {
