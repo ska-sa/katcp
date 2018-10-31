@@ -36,6 +36,26 @@ int simple_integer_check_sensor(struct katcp_dispatch *d, struct katcp_acquire *
   return ((((int)time(NULL)) / 10) % 7) - 3;
 }
 
+/* simple sensor functions ***************************************************/
+/* these functions return the value immediately. This approach is acceptable */
+/* when it is cheap to query a sensor value                                  */
+
+#ifdef KATCP_ENABLE_LLINT
+long long big_integer_check_sensor(struct katcp_dispatch *d, struct katcp_acquire *a)
+{
+  long long r;
+#if 0
+  set_status_sensor_katcp(s, KATCP_STATUS_NOMINAL);
+#endif
+
+  r = time(NULL);
+
+  r *= 64;
+
+  return r;
+}
+#endif
+
 /* more complex sensor function **********************************************/
 /* this code allows one to perform an expensive single operation and attach  */
 /* multiple sensors to it. The multiple_value_acquire() function here        */
@@ -242,6 +262,14 @@ int main(int argc, char **argv)
     fprintf(stderr, "server: unable to register sensors\n");
     return 1;
   }
+
+#ifdef KATCP_ENABLE_LLINT
+  /* big value example sensor */
+  if(declare_bigint_sensor_katcp(d, 0, "check.integer.big", "large integer counter (time * 64)", "none", &big_integer_check_sensor, NULL, NULL, LLONG_MAX, LLONG_MIN, LLONG_MAX, LLONG_MIN, NULL)){
+    fprintf(stderr, "server: unable to register sensors\n");
+    return 1;
+  }
+#endif
 
 #if 1
   /* custom output format for sensor */

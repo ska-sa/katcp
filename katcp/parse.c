@@ -713,6 +713,56 @@ int add_hex_long_parse_katcl(struct katcl_parse *p, int flags, unsigned long v)
 #undef TMP_BUFFER
 }
 
+#ifdef KATCP_ENABLE_LLINT
+int add_unsigned_llong_parse_katcl(struct katcl_parse *p, int flags, unsigned long long v)
+{
+#define TMP_BUFFER 32
+  int result;
+  char *ptr;
+
+  if(before_add_parse_katcl(p, flags) < 0){
+    return -1;
+  }
+
+  ptr = request_space_parse_katcl(p, TMP_BUFFER);
+  if(ptr == NULL){
+    return -1;
+  }
+
+  result = snprintf(ptr, TMP_BUFFER, "%llu", v);
+  if((result <= 0) || (result >= TMP_BUFFER)){
+    return -1;
+  }
+
+  return after_add_parse_katcl(p, result, 0, flags);
+#undef TMP_BUFFER
+}
+
+int add_signed_llong_parse_katcl(struct katcl_parse *p, int flags, unsigned long long v)
+{
+#define TMP_BUFFER 32
+  int result;
+  char *ptr;
+
+  if(before_add_parse_katcl(p, flags) < 0){
+    return -1;
+  }
+
+  ptr = request_space_parse_katcl(p, TMP_BUFFER);
+  if(ptr == NULL){
+    return -1;
+  }
+
+  result = snprintf(ptr, TMP_BUFFER, "%lld", v);
+  if((result <= 0) || (result >= TMP_BUFFER)){
+    return -1;
+  }
+
+  return after_add_parse_katcl(p, result, 0, flags);
+#undef TMP_BUFFER
+}
+#endif
+
 #ifdef KATCP_USE_FLOATS
 int add_double_parse_katcl(struct katcl_parse *p, int flags, double v)
 {

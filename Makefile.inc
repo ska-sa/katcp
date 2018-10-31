@@ -22,6 +22,9 @@ CFLAGS += -DKATCP_STRICT_CONFORMANCE
 # unless you don't want to use your fpu (or don't have one) enable this
 CFLAGS += -DKATCP_USE_FLOATS
 
+# enable support for KATCP_SENSOR_BIGINT (aka long long type)
+CFLAGS += -DKATCP_ENABLE_LLINT
+
 # perform redundant checks, abort if things don't look alright
 # enabling this reduces performance and makes the system less
 # resistant to failures, but will also notice failures sooner

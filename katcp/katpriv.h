@@ -117,11 +117,20 @@ struct katcp_cmd{
 #define KATCP_SENSOR_LRU      3
 
 #ifdef KATCP_USE_FLOATS
-#define KATCP_SENSOR_FLOAT    4
-#define KATCP_SENSORS_COUNT   5
+#define KATCP_SENSOR_FLOAT       (KATCP_SENSOR_LRU+1)
+#define KATCP_SENSORS_PLUS_FLOATS 1
 #else
-#define KATCP_SENSORS_COUNT   4
+#define KATCP_SENSORS_PLUS_FLOATS 0
 #endif
+
+#ifdef KATCP_ENABLE_LLINT
+#define KATCP_SENSOR_BIGINT      (KATCP_SENSOR_LRU+KATCP_SENSORS_PLUS_FLOATS+1)
+#define KATCP_SENSORS_PLUS_LLINT  1
+#else
+#define KATCP_SENSORS_PLUS_LLINT  0
+#endif
+
+#define KATCP_SENSORS_COUNT      (KATCP_SENSOR_LRU+KATCP_SENSORS_PLUS_FLOATS+KATCP_SENSORS_PLUS_LLINT+1)
 
 struct katcp_sensor;
 struct katcp_nonsense;
@@ -131,6 +140,13 @@ struct katcp_acquire;
 struct katcp_double_acquire{
   double da_current;
   double (*da_get)(struct katcp_dispatch *d, struct katcp_acquire *a);
+};
+#endif
+
+#ifdef KATCP_ENABLE_LLINT
+struct katcp_bigint_acquire{
+  long long ba_current;
+  long long (*ba_get)(struct katcp_dispatch *d, struct katcp_acquire *a);
 };
 #endif
 
@@ -208,6 +224,20 @@ struct katcp_double_sensor{
 };
 #endif
 
+#ifdef KATCP_ENABLE_LLINT
+struct katcp_bigint_sensor{
+  long long bs_current;
+
+  int bs_checks;
+
+  long long bs_nominal_min;
+  long long bs_nominal_max;
+
+  long long bs_warning_min;
+  long long bs_warning_max;
+};
+#endif
+
 struct katcp_integer_sensor{
   int is_current;
 
@@ -243,6 +273,13 @@ struct katcp_nonsense{
 struct katcp_double_nonsense{
   double dn_previous;
   double dn_delta;
+};
+#endif
+
+#ifdef KATCP_ENABLE_LLINT
+struct katcp_bigint_nonsense{
+  long long bn_previous;
+  long long bn_delta;
 };
 #endif
 
@@ -642,8 +679,11 @@ struct katcp_response_handler{
   struct timeval r_when;
 };
 
-#define KATCP_SIZE_REPLY         2
+#define KATCP_SIZE_REPLY            2
 
+/* accumulating more than 8192 messages without flush in 30s and the connection is considered dead */
+#define KATCP_DEFAULT_WRITE_STALL    30
+#define KATCP_DEFAULT_QUEUE_LIMIT  8192
 
 #define KATCP_DPX_SEND_INVALID   0x00
 
@@ -721,6 +761,12 @@ struct katcp_flat{
   time_t f_start;
 
   int f_rename_lock;
+
+  struct timeval f_last_read;
+  struct timeval f_last_write;
+
+  unsigned int f_pending_limit; /* how many writes outstanding before we worry */
+  unsigned int f_stall_time;    /* for how long can we go without being able to write */
 };
 #endif
 
@@ -1106,6 +1152,10 @@ int add_string_parse_katcl(struct katcl_parse *p, int flags, char *buffer);
 int add_unsigned_long_parse_katcl(struct katcl_parse *p, int flags, unsigned long v);
 int add_signed_long_parse_katcl(struct katcl_parse *p, int flags, unsigned long v);
 int add_hex_long_parse_katcl(struct katcl_parse *p, int flags, unsigned long v);
+#ifdef KATCP_ENABLE_LLINT
+int add_unsigned_llong_parse_katcl(struct katcl_parse *p, int flags, unsigned long long v);
+int add_signed_llong_parse_katcl(struct katcl_parse *p, int flags, unsigned long long v);
+#endif
 #ifdef KATCP_USE_FLOATS
 int add_double_parse_katcl(struct katcl_parse *p, int flags, double v);
 #endif
