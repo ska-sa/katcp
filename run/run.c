@@ -28,6 +28,11 @@ struct totalstate{
   int t_verbose;
   int t_infer;
   char *t_system;
+  struct sensor *t_head;
+  struct sensor *t_current;
+  unsigned int t_sensor_list;
+  unsigned int t_sensor_added;
+  unsigned int t_subscribed;
 };
 
 struct iostate{
@@ -40,151 +45,16 @@ struct iostate{
   int i_level;
 };
 
-struct netcon{
+struct netstate{
   int n_fd;
   struct katcl_line *n_line;
-  unsigned int n_size;
 };
 
-struct sensor_list{
+struct sensor{
   char *s_name;
-  struct sensor_list *s_next;
+  unsigned int s_subscribed;
+  struct sensor *s_next;
 };
-
-struct sensor_list *add_sensor(struct sensor_list *current, char *sensor)
-{
-  struct sensor_list *link;
-
-  link = NULL;
-
-  if (current == NULL){
-    fprintf(stderr, "current link with null pointer\n");
-    return NULL;
-  }
-
-  link = current;
-  link->s_next = malloc(sizeof(struct sensor_list));
-  if (link->s_next == NULL){
-    fprintf(stderr, "unable to malloc link for sensor list\n");
-    return NULL;
-  }
-  
-  link->s_next->s_name = sensor;
-  link->s_next->s_next = NULL;
-
-  return link->s_next;
-}
-
-int delete_sensor(struct sensor_list *head)
-{
-  struct sensor_list *link;
- 
-  /* check if head empty? */
-
-  while (head != NULL){
-    link = head;
-    head = head->s_next;
-    free(link->s_name);
-    free(link);
-  }    
-  
-  return 0;
-}
-
-int initiate_connection(char *server, char* name, int verbose)
-{
-  int fd, flags;
-
-  if(verbose > 0){
-    flags = NETC_VERBOSE_ERRORS;
-    if(verbose > 1){
-      flags = NETC_VERBOSE_STATS;
-    }
-  }
-
-  fd = net_connect(server, 0, flags);
-  if(fd < 0){
-    if(verbose > 0){
-      fprintf(stderr, "%s: unable to initiate connection to %s\n", name, server);
-    }
-  }
-
-  return fd;
-}
-
-void destroy_netcon(struct netcon *nc)
-{
-  if(nc == NULL){
-    return;
-  }
-
-  if(nc->n_line){
-    destroy_katcl(nc->n_line, 0);
-    nc->n_line = NULL;
-  }
-  if(nc->n_fd >= 0){
-    close(nc->n_fd);
-    nc->n_fd = (-1);
-  }
-
-  free(nc);
-}
-
-/**
- * \brief Subscribe to a sensor
- * \param l Reference to katcl_line structure
- * \param sensor Specifies the sensor name
- * \return 0 as success or -1 as failure
- */
-int subscribe_sensor(struct katcl_line *l, struct sensor_list *sensors, char *sensor)
-{
-  struct sensor_list *item;
-
-  if (sensors == NULL){
-    fprintf(stderr, "invalid sensor list\n");
-    return -1;
-  }
-
-  item = sensors;
-  while (item != NULL){
-    append_string_katcl(l, KATCP_FLAG_FIRST | KATCP_FLAG_STRING, "?sensor-sampling");
-    append_string_katcl(l, KATCP_FLAG_STRING, item->s_name);
-    append_string_katcl(l, KATCP_FLAG_STRING | KATCP_FLAG_LAST, "event");
-    item = item->s_next;
-  }
-
-  /* flush requests in bulk or each (with await results)? */
-
-  return 0;
-}
-
-int sensor_list(struct katcl_line *l)
-{
-  append_string_katcl(l, KATCP_FLAG_STRING | KATCP_FLAG_LAST, "?sensor-list");
-
-  return 0;
-}
-
-struct netcon *create_netcon(int fd)
-{
-  struct netcon *net;
-
-  net = malloc(sizeof(struct netcon));
-  if(net == NULL){
-    return NULL;
-  }
-
-  net->n_fd = fd;
-  net->n_line = NULL;
-
-  net->n_line = create_katcl(fd);
-  if(net->n_line == NULL){
-    destroy_netcon(net);
-    return NULL;
-  }
-
-  return net;
-}
 
 void destroy_iostate(struct iostate *io)
 {
@@ -463,7 +333,6 @@ static int collect_child(struct katcl_line *k, char *task, char *system, int ver
     return 1;
   } 
   
-  
   /* process stopped ? continued ? other weirdness */
 
   log_message_katcl(k, tweaklevel(verbose, KATCP_LEVEL_WARN), system, "task %s in rather unusual status 0x%x", task, status);
@@ -477,25 +346,474 @@ void handle_timeout(int signal)
   saw_timeout++;
 }
 
+/**
+  * \brief Check if sensor already added in linked list
+  * \param l Reference to katcl_line structure
+  * \param ts Reference to totalstate structure
+  * \param sensor Reference to sensor name
+  * \return 0  as success or -1 as failure
+  */
+int is_sensor_in_list(struct katcl_line *l, struct totalstate *ts, char *sensor)
+{
+  struct sensor *link;
+
+  if (ts->t_head == NULL){
+    sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "empty sensor list");
+    return -1;
+  }
+  if (sensor == NULL){
+    sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "invalid sensor name");
+    return -1;
+  }
+
+  link = ts->t_head;
+  while (link){
+    if (!strcmp(link->s_name, sensor)){
+      sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "sensor %s already in list", sensor);
+      return 1;
+    }
+    link = link->s_next;
+  }
+
+  return 0;
+}
+
+/**
+  * \brief Print list of all sensors
+  * \param l Reference to katcl_line strucuture
+  * \param ts Reference to totalstate structure
+  * \return 0 as success or -1 as failure
+  */
+int print_list(struct katcl_line *l, struct totalstate *ts)
+{
+  struct sensor *link;
+  int i;
+
+  i = 0;
+  if (ts == NULL){
+  log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "total state invalid");
+    return -1;
+  }
+
+  link = ts->t_head;
+  while (link != NULL){
+    log_message_katcl(l, KATCP_LEVEL_INFO, ts->t_system, "in list:%d: %s", i, link->s_name);
+    link = link->s_next;
+    i++;
+  }
+  
+  return 0;
+}
+
+/**
+  * \brief Add sensor to linked list
+  * \param l Reference to katcl_line structure
+  * \param ts Reference to totalstate structure
+  * \param sensor Reference to sensor name
+  * \return 0 as success or -1 as failure
+  */
+int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
+{
+  struct sensor *link, *temp;
+
+  if (sensor == NULL){
+    sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "invalid sensor name provided");
+    return -1;
+  }
+
+  if (ts->t_head == NULL){
+    ts->t_head = malloc(sizeof(struct sensor)); 
+    if (ts->t_head == NULL){
+      sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to malloc link for sensor list");
+      return -1;
+    }
+    ts->t_head->s_subscribed = 0; 
+    ts->t_head->s_name = strdup(sensor);
+    ts->t_head->s_next = NULL;
+    ts->t_current = ts->t_head;
+    ts->t_sensor_added++;
+
+    return 0;
+  }
+
+  if (ts->t_current == NULL){
+    sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "current link with null pointer");
+    return -1;
+  }
+
+  if (is_sensor_in_list(l, ts, sensor) == 0){
+    link = malloc(sizeof(struct sensor));
+    if (link == NULL){
+      sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to malloc link for sensor list");
+      return -1;
+    }
+
+    link->s_subscribed = 0;
+    link->s_name = strdup(sensor);
+    link->s_next = NULL;
+    temp = ts->t_current;
+    while(temp->s_next != NULL)
+    {
+      temp = temp->s_next;
+    }
+    temp->s_next = link;
+    ts->t_sensor_added++;
+  } else {
+    return 1;
+  }
+
+  return 0;
+}
+
+/**
+  * \brief Destroy sensors
+  * \param ts Reference to totalstate structure
+  * \return void
+  */
+void destroy_sensors(struct totalstate *ts)
+{
+  struct sensor *link;
+
+  while (ts->t_head != NULL){
+    link = ts->t_head;
+    ts->t_head = ts->t_head->s_next;
+    free(link->s_name);
+    free(link);
+  }    
+
+}
+
+/**
+  * \brief Establish connection to server
+  * \param l Reference to katcl_line structure
+  * \param ts Reference to totalstate structure
+  * \param server Reference to server IP:PORT
+  * \return
+*/
+int initiate_connection(struct katcl_line *l, struct totalstate *ts, char *server)
+{
+  int fd, flags;
+
+  if (ts->t_verbose > 0){
+    flags = NETC_VERBOSE_ERRORS;
+    if (ts->t_verbose > 1){
+      flags = NETC_VERBOSE_STATS;
+    }
+  }
+
+  fd = net_connect(server, 0, flags);
+  if(fd < 0){
+    if(ts->t_verbose > 0){
+      log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to initiate connection to %s", server);
+    }
+  }
+
+  return fd;
+}
+
+/**
+  * \brief Destroy netstate
+  * \param net Reference to netstate structure
+  * \return void
+  */
+void destroy_netstate(struct netstate *net)
+{
+  if(net == NULL){
+    return;
+  }
+
+  if(net->n_line){
+    destroy_katcl(net->n_line, 0);
+    net->n_line = NULL;
+  }
+  if(net->n_fd >= 0){
+    close(net->n_fd);
+    net->n_fd = (-1);
+  }
+
+  free(net);
+}
+
+/**
+ * \brief Build sensor subscribe message
+ * \param n_line Reference to katcl_line structure
+ * \param l Reference to katcl_line structure
+ * \param ts Reference to totalstate structure
+ * \return 0 as success or -1 as failure
+ */
+int subscribe_sensor(struct katcl_line *n_line, struct katcl_line *l, struct totalstate *ts)
+{
+  struct sensor *link;
+  int loop;
+
+  loop = 1;
+  if (ts->t_head == NULL){
+    log_message_katcl(l, KATCP_LEVEL_DEBUG, ts->t_system, "attempt to subscribe empty sensor list");
+    return -1;
+  }
+
+  link = ts->t_head;
+  while (loop && link != NULL){
+    if(link->s_subscribed == 0){
+      append_string_katcl(n_line, KATCP_FLAG_FIRST | KATCP_FLAG_STRING, "?sensor-sampling");
+      append_string_katcl(n_line, KATCP_FLAG_STRING, link->s_name);
+      append_string_katcl(n_line, KATCP_FLAG_STRING | KATCP_FLAG_LAST, "event");
+      loop = 0;
+    }
+    link = link->s_next;
+  }
+
+  return 0;
+}
+
+/**
+  * \brief Check if sensor is subcribed
+  * \param l Reference to katcl_line structure
+  * \param ts Reference to totalstate structure
+  * \return 0 as success or -1 as failure
+  */
+int check_sensor_subscribe(struct katcl_line *l, struct totalstate *ts)
+{
+  struct sensor *link;
+
+  if (ts->t_head == NULL){
+    log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "invalid sensor list");
+    return -1;
+  }
+
+  link = ts->t_head;
+  while (link != NULL){
+    if (!link->s_subscribed){
+      sync_message_katcl(l, KATCP_LEVEL_WARN, ts->t_system, "%s not subscribed", link->s_name);
+    }
+    link = link->s_next;
+  }
+
+  return 0;
+}
+
+/**
+  * \brief Mark sensor as subscribed
+  * \param l Reference to katcl_line structure
+  * \param ts Reference to totalstate structure
+  * \param sensor Reference to sensor name
+  * \return 0 as success or -1 as failure 
+  */
+int set_sensor_subscribe(struct katcl_line *l, struct totalstate *ts, char *sensor)
+{
+  struct sensor *link;
+  int loop;
+
+  loop = 1;
+  if (ts->t_head == NULL){
+    log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "invalid sensor list");
+    return -1;
+  }
+
+  if (sensor == NULL){
+    log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "invalid sensor list");
+    return -1;
+  }
+
+  link = ts->t_head;
+  while (loop && link != NULL){
+    if (!strcmp(link->s_name, sensor) && !link->s_subscribed){
+      link->s_subscribed = 1;
+      log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "%s subscribed", link->s_name);
+      ts->t_subscribed++;
+      loop = 0;
+    } else {
+      link = link->s_next;
+    }
+  }
+
+  return 0;
+}
+
+/**
+  * \brief Build sensor list message
+  * \param l Reference to katcl_line structure
+  * \return 0 as success
+  */
+int sensor_list(struct katcl_line *l)
+{
+  append_string_katcl(l, KATCP_FLAG_FIRST | KATCP_FLAG_LAST | KATCP_FLAG_STRING , "?sensor-list");
+  return 0;
+}
+
+/**
+  * \brief Create netstate structure
+  * \param l Reference to katcl_line structure
+  * \param ts Reference to totalstate structure
+  * \param server Reference to sensor name
+  * \return 0 as success or NULL as failure
+  */
+struct netstate *create_netstate(struct katcl_line *l, struct totalstate *ts, char *server)
+{
+  int fd;
+  struct netstate *net;
+
+  if (server == NULL){
+  log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "invalid server name provided");
+    return NULL;
+  }
+
+  fd = initiate_connection(l, ts, server);
+
+  if(fd < 0){
+    log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to initiate connection to %s", server);
+
+    return NULL;
+  }
+
+  net = malloc(sizeof(struct netstate));
+  if(net == NULL){
+    return NULL;
+  }
+
+  net->n_fd = fd;
+  net->n_line = NULL;
+
+  net->n_line = create_katcl(fd);
+  if(net->n_line == NULL){
+    destroy_netstate(net);
+    return NULL;
+  }
+
+  return net;
+}
+
+/**
+  * \brief Handle netstate i/o
+  * \param n_line Reference to katcl_line structure
+  * \param l Reference to katcl_line structure
+  * \param ts Reference to totalstate structure
+  * \return 0 as success or -1 as failure
+  */
+int await_netstate_result(struct katcl_line *n_line, struct katcl_line *l, struct totalstate *ts)
+{
+  char *name, *ptr;
+  fd_set fsr_net, fsw_net;
+  int fd, result;
+  struct katcl_parse *sniff;
+  struct timeval wait;
+
+  wait.tv_sec = 0;
+  wait.tv_usec = 1000000;
+
+  fd = fileno_katcl(n_line);
+
+  FD_ZERO(&fsr_net);
+  FD_ZERO(&fsw_net);
+
+  FD_SET(fd, &fsr_net);
+
+  if(flushing_katcl(n_line)){ /* only write data if we have some */
+    FD_SET(fd, &fsw_net);
+  }
+  /* TODO: set timeout time */
+  result = select(fd + 1, &fsr_net, &fsw_net, NULL, &wait);
+  switch(result){
+    case -1 :
+      switch(errno){
+        case EAGAIN :
+        case EINTR  :
+          return 0;
+        default  :
+          return -1;
+      }
+      break;
+    case 0 :
+      return 0;
+  }
+
+  if(FD_ISSET(fd, &fsw_net)){
+    result = write_katcl(n_line);
+    if(result < 0){
+      sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "write failed: %s", strerror(error_katcl(n_line)));
+      return -1;
+    }
+  }
+
+  if(FD_ISSET(fd, &fsr_net)){
+    result = read_katcl(n_line);
+    if(result){
+      sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "read failed: %s\n", (result < 0) ? strerror(error_katcl(n_line)) : "connection terminated");
+      return -1;
+    }
+  }
+
+  while (parse_katcl(n_line) > 0){
+    sniff = ready_katcl(n_line);
+    if (sniff){
+      ptr = get_string_parse_katcl(sniff, 0);
+      switch (ptr[0]){
+        case KATCP_INFORM :
+          if (!strcmp(ptr, "#sensor-status")){
+            append_parse_katcl(l, sniff);
+          }
+          if (!strcmp(ptr, "#sensor-list")){
+            add_sensor(l, ts, get_string_parse_katcl(sniff, 1));
+          }
+          break;
+
+        case KATCP_REPLY : 
+          if (!strcmp(ptr, "!sensor-sampling")){
+            ptr = get_string_parse_katcl(sniff, 1);
+            name = get_string_parse_katcl(sniff, 2);
+            if ((ptr == NULL) || strcmp(ptr, KATCP_OK)){
+              log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to monitor sensor %s", name);
+              clear_katcl(n_line);
+              return -1;
+            }
+            set_sensor_subscribe(n_line, ts, name);
+          } else if (!strcmp(ptr, "!sensor-list")){
+            ptr = get_string_parse_katcl(sniff, 1);
+            if ((ptr == NULL) || strcmp(ptr, KATCP_OK)){
+              log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to get sensor list");
+              clear_katcl(n_line);
+              return -1;
+            }
+            ts->t_sensor_list = get_unsigned_long_parse_katcl(sniff, 2);
+            log_message_katcl(l, KATCP_LEVEL_INFO, ts->t_system, "server has %s sensors", get_string_parse_katcl(sniff, 2));
+          } else {
+            log_message_katcl(l, KATCP_LEVEL_WARN, ts->t_system, "response %s is unexpected", ptr);
+          }
+          break;
+
+        case KATCP_REQUEST : 
+          log_message_katcl(l, KATCP_LEVEL_WARN, ts->t_system, "encountered an unanswerable request %s", ptr);
+          break;
+
+        default :
+          log_message_katcl(l, KATCP_LEVEL_WARN, ts->t_system, "read malformed message %s", ptr);
+          break;
+      }
+    clear_katcl(n_line);
+    }
+  }
+
+  return 0;
+}
+
 int main(int argc, char **argv)
 {
 #define BUFFER 128
   int terminate, code, childgone, parentgone, exitrelay, checkinput, limit;
   int levels[2], index, efds[2], ofds[2];
-  int i, j, c, offset, result, rr, l_fd;
+  int i, j, c, offset, result, rr;
   struct katcl_line *k;
   char *app;
   char *tmp, *value, *server;
   pid_t pid;
   struct totalstate total, *ts;
   struct iostate *erp, *orp;
+  struct netstate *lnet;
   fd_set fsr, fsw;
   int mfd, fd;
   unsigned char buffer[BUFFER];
   struct timeval timeout;
   struct sigaction sag;
-  struct netcon *lnet;
-  struct sensor_list *sn_head, *sn_curr;
 
   sag.sa_handler = &handle_timeout;
   sag.sa_flags = 0;
@@ -519,20 +837,16 @@ int main(int argc, char **argv)
   ts->t_system = getenv("KATCP_LABEL");
   ts->t_verbose = 1;
   ts->t_infer = 0;
-
-  sn_head = malloc(sizeof(struct sensor_list));
-  if (sn_head == NULL){
-    fprintf(stderr, "unable to malloc sensor list head\n"); 
-    return EX_OSERR;
-  }
-
-  sn_head->s_next = NULL;
-  sn_curr = sn_head;
+  ts->t_head = ts->t_current = NULL;
+  ts->t_sensor_list = 0;
+  ts->t_sensor_added = 0; 
+  ts->t_subscribed = 0;
 
   if(ts->t_system == NULL){
     ts->t_system = "run";
   }
 
+  lnet = NULL;
   server = NULL;
   app = argv[0];
 
@@ -604,7 +918,6 @@ int main(int argc, char **argv)
           switch(c){
             case 'c' :
               server = argv[i] + j;
-              fprintf(stderr, "detected networking request to %s\n", server);
               break;
             case 'e' :
               index++;
@@ -749,29 +1062,14 @@ int main(int argc, char **argv)
   close(ofds[1]);
   close(efds[1]);
 
-  /*check if connection argument set and initialise accordingly */
   if (server != NULL){
-    l_fd = initiate_connection(server, ts->t_system, ts->t_verbose);
-
-    if(l_fd < 0){
-      sync_message_katcl(k, tweaklevel(ts->t_verbose, KATCP_LEVEL_ERROR), ts->t_system, "unable to initiate connection to %s", server);
-
+    lnet = create_netstate(k, ts, server);
+    if (lnet == NULL){
+      sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unable to allocate state for net handler");
       return EX_OSERR;
-    }
-  }
-
-  lnet = create_netcon(l_fd);
-  if (lnet == NULL){
-    sync_message_katcl(k, tweaklevel(ts->t_verbose, KATCP_LEVEL_ERROR), ts->t_system, "unable to allocate state for net handler");
-    return EX_OSERR;
+    } 
+    sensor_list(lnet->n_line);
   } 
-  /* build sensor subscription message */ 
-  sensor_list(lnet->n_line);
-  /* await results and collect sensor list */
-
-  /* build subscription messages */
-  subscribe_sensor(lnet->n_line, sensor);
-  /* await results and check OK returns */
 
   orp = create_iostate(ofds[0], levels[0]);
   erp = create_iostate(efds[0], levels[1]);
@@ -788,6 +1086,14 @@ int main(int argc, char **argv)
   parentgone = 0;
 
   do{
+    if (lnet != NULL){
+      await_netstate_result(lnet->n_line, k, ts);
+      if (ts->t_subscribed < ts->t_sensor_list) {
+        /* check_sensor_subscribe(k, ts); */
+        subscribe_sensor(lnet->n_line, k, ts);
+      }
+    }
+
     FD_ZERO(&fsr);
     FD_ZERO(&fsw);
 
@@ -840,7 +1146,6 @@ int main(int argc, char **argv)
 #ifdef DEBUG
         fprintf(stderr, "invoking flush logic\n");
 #endif
-        fprintf(stderr, "writing out/flushing out");
         write_katcl(k);
       }
 
@@ -926,7 +1231,8 @@ int main(int argc, char **argv)
   destroy_iostate(erp);
 
   destroy_katcl(k, 0);
-  destroy_netcon(lnet);
+  destroy_netstate(lnet);
+  destroy_sensors(ts);
 
   return code;
 #undef BUFFER
