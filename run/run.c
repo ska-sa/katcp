@@ -23,6 +23,7 @@
 
 #define DEFAULT_LEVEL "info"
 #define IO_INITIAL     1024
+#define SOCKET_ATTEMPTS 3
 
 struct totalstate{
   int t_verbose;
@@ -461,7 +462,7 @@ int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
   } else {
     return 1;
   }
-
+  
   return 0;
 }
 
@@ -469,7 +470,7 @@ int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
   * \brief Destroy sensors
   * \param ts Reference to totalstate structure
   * \return void
-  */
+ */
 void destroy_sensors(struct totalstate *ts)
 {
   struct sensor *link;
@@ -480,7 +481,6 @@ void destroy_sensors(struct totalstate *ts)
     free(link->s_name);
     free(link);
   }    
-
 }
 
 /**
@@ -492,7 +492,10 @@ void destroy_sensors(struct totalstate *ts)
 */
 int initiate_connection(struct katcl_line *l, struct totalstate *ts, char *server)
 {
-  int fd, flags;
+  int fd, flags, attempts;
+
+  fd = -1;
+  attempts = SOCKET_ATTEMPTS;
 
   if (ts->t_verbose > 0){
     flags = NETC_VERBOSE_ERRORS;
@@ -501,7 +504,12 @@ int initiate_connection(struct katcl_line *l, struct totalstate *ts, char *serve
     }
   }
 
-  fd = net_connect(server, 0, flags);
+  /* await for child process to initialise server */
+  while((attempts-- > 0) && (fd < 0)){
+    fd = net_connect(server, 0, flags);
+    sleep(1);
+  }
+
   if(fd < 0){
     if(ts->t_verbose > 0){
       log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to initiate connection to %s", server);
@@ -548,7 +556,7 @@ int subscribe_sensor(struct katcl_line *n_line, struct katcl_line *l, struct tot
 
   loop = 1;
   if (ts->t_head == NULL){
-    log_message_katcl(l, KATCP_LEVEL_DEBUG, ts->t_system, "attempt to subscribe empty sensor list");
+    log_message_katcl(l, KATCP_LEVEL_INFO, ts->t_system, "attempt to subscribe empty sensor list");
     return -1;
   }
 
@@ -654,7 +662,7 @@ struct netstate *create_netstate(struct katcl_line *l, struct totalstate *ts, ch
   struct netstate *net;
 
   if (server == NULL){
-  log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "invalid server name provided");
+    log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "invalid server name provided");
     return NULL;
   }
 
@@ -662,12 +670,12 @@ struct netstate *create_netstate(struct katcl_line *l, struct totalstate *ts, ch
 
   if(fd < 0){
     log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to initiate connection to %s", server);
-
     return NULL;
   }
 
   net = malloc(sizeof(struct netstate));
   if(net == NULL){
+    log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to create netstate");
     return NULL;
   }
 
@@ -711,7 +719,7 @@ int await_netstate_result(struct katcl_line *n_line, struct katcl_line *l, struc
   if(flushing_katcl(n_line)){ /* only write data if we have some */
     FD_SET(fd, &fsw_net);
   }
-  /* TODO: set timeout time */
+  
   result = select(fd + 1, &fsr_net, &fsw_net, NULL, &wait);
   switch(result){
     case -1 :
@@ -1062,15 +1070,6 @@ int main(int argc, char **argv)
   close(ofds[1]);
   close(efds[1]);
 
-  if (server != NULL){
-    lnet = create_netstate(k, ts, server);
-    if (lnet == NULL){
-      sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unable to allocate state for net handler");
-      return EX_OSERR;
-    } 
-    sensor_list(lnet->n_line);
-  } 
-
   orp = create_iostate(ofds[0], levels[0]);
   erp = create_iostate(efds[0], levels[1]);
 
@@ -1084,6 +1083,15 @@ int main(int argc, char **argv)
 
   childgone = 0;
   parentgone = 0;
+
+  if (server != NULL){
+    lnet = create_netstate(k, ts, server);
+    if (lnet == NULL){
+      sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unable to allocate state for net handler");
+      return EX_OSERR;
+    } 
+    sensor_list(lnet->n_line);
+  }
 
   do{
     if (lnet != NULL){
