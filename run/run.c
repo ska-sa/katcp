@@ -174,7 +174,7 @@ int run_iostate(struct totalstate *ts, struct iostate *io, struct katcl_line *k)
         io->i_buffer[io->i_have] = '\n';
         io->i_have++;
         end = 1;
-      } 
+      }
     }
 
     io->i_have += rr;
@@ -311,10 +311,10 @@ static int collect_child(struct katcl_line *k, char *task, char *system, int ver
     } else {
       log_message_katcl(k, tweaklevel(verbose, KATCP_LEVEL_INFO), system, "task %s exited normally", task);
     }
-  
+
     return (code > 0) ? code: 0;
-  } 
-  
+  }
+
   if(WIFSIGNALED(status)){
     sig = WTERMSIG(status);
     switch(sig){
@@ -332,8 +332,8 @@ static int collect_child(struct katcl_line *k, char *task, char *system, int ver
     log_message_katcl(k, tweaklevel(verbose, level), system, "task %s exited with signal %d", task, sig);
 
     return 1;
-  } 
-  
+  }
+
   /* process stopped ? continued ? other weirdness */
 
   log_message_katcl(k, tweaklevel(verbose, KATCP_LEVEL_WARN), system, "task %s in rather unusual status 0x%x", task, status);
@@ -402,7 +402,7 @@ int print_list(struct katcl_line *l, struct totalstate *ts)
     link = link->s_next;
     i++;
   }
-  
+
   return 0;
 }
 
@@ -423,12 +423,12 @@ int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
   }
 
   if (ts->t_head == NULL){
-    ts->t_head = malloc(sizeof(struct sensor)); 
+    ts->t_head = malloc(sizeof(struct sensor));
     if (ts->t_head == NULL){
       sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to malloc link for sensor list");
       return -1;
     }
-    ts->t_head->s_subscribed = 0; 
+    ts->t_head->s_subscribed = 0;
     ts->t_head->s_name = strdup(sensor);
     ts->t_head->s_next = NULL;
     ts->t_current = ts->t_head;
@@ -462,7 +462,7 @@ int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
   } else {
     return 1;
   }
-  
+
   return 0;
 }
 
@@ -480,7 +480,7 @@ void destroy_sensors(struct totalstate *ts)
     ts->t_head = ts->t_head->s_next;
     free(link->s_name);
     free(link);
-  }    
+  }
 }
 
 /**
@@ -605,7 +605,7 @@ int check_sensor_subscribe(struct katcl_line *l, struct totalstate *ts)
   * \param l Reference to katcl_line structure
   * \param ts Reference to totalstate structure
   * \param sensor Reference to sensor name
-  * \return 0 as success or -1 as failure 
+  * \return 0 as success or -1 as failure
   */
 int set_sensor_subscribe(struct katcl_line *l, struct totalstate *ts, char *sensor)
 {
@@ -719,7 +719,7 @@ int await_netstate_result(struct katcl_line *n_line, struct katcl_line *l, struc
   if(flushing_katcl(n_line)){ /* only write data if we have some */
     FD_SET(fd, &fsw_net);
   }
-  
+
   result = select(fd + 1, &fsr_net, &fsw_net, NULL, &wait);
   switch(result){
     case -1 :
@@ -765,7 +765,7 @@ int await_netstate_result(struct katcl_line *n_line, struct katcl_line *l, struc
           }
           break;
 
-        case KATCP_REPLY : 
+        case KATCP_REPLY :
           if (!strcmp(ptr, "!sensor-sampling")){
             ptr = get_string_parse_katcl(sniff, 1);
             name = get_string_parse_katcl(sniff, 2);
@@ -789,7 +789,7 @@ int await_netstate_result(struct katcl_line *n_line, struct katcl_line *l, struc
           }
           break;
 
-        case KATCP_REQUEST : 
+        case KATCP_REQUEST :
           log_message_katcl(l, KATCP_LEVEL_WARN, ts->t_system, "encountered an unanswerable request %s", ptr);
           break;
 
@@ -828,7 +828,7 @@ int main(int argc, char **argv)
   sigemptyset(&sag.sa_mask);
 
   sigaction(SIGALRM, &sag, NULL);
-  
+
   ts = &total;
 
   terminate = 1;
@@ -847,7 +847,7 @@ int main(int argc, char **argv)
   ts->t_infer = 0;
   ts->t_head = ts->t_current = NULL;
   ts->t_sensor_list = 0;
-  ts->t_sensor_added = 0; 
+  ts->t_sensor_added = 0;
   ts->t_subscribed = 0;
 
   if(ts->t_system == NULL){
@@ -873,32 +873,32 @@ int main(int argc, char **argv)
           usage(app);
           return 0;
 
-        case 'x' : 
+        case 'x' :
           exitrelay = 1;
           j++;
           break;
 
-        case 'i' : 
+        case 'i' :
           terminate = 0;
           j++;
           break;
 
-        case 'j' : 
+        case 'j' :
           checkinput = 0;
           j++;
           break;
 
-        case 'r' : 
+        case 'r' :
           ts->t_infer = 1;
           j++;
           break;
 
-        case 'q' : 
+        case 'q' :
           ts->t_verbose = 0;
           j++;
           break;
 
-        case 'v' : 
+        case 'v' :
           ts->t_verbose++;
           j++;
           break;
@@ -1089,7 +1089,7 @@ int main(int argc, char **argv)
     if (lnet == NULL){
       sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unable to allocate state for net handler");
       return EX_OSERR;
-    } 
+    }
     sensor_list(lnet->n_line);
   }
 
@@ -1231,7 +1231,7 @@ int main(int argc, char **argv)
 
   if(exitrelay == 0){
     code = 0;
-  } 
+  }
 
   while((result = write_katcl(k)) == 0);
 
