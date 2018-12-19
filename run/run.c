@@ -23,7 +23,7 @@
 
 #define DEFAULT_LEVEL "info"
 #define IO_INITIAL     1024
-#define SOCKET_ATTEMPTS 3
+#define SOCKET_ATTEMPTS 10 
 
 struct totalstate{
   int t_verbose;
@@ -46,14 +46,10 @@ struct iostate{
   int i_level;
 };
 
-struct netstate{
-  int n_fd;
-  struct katcl_line *n_line;
-};
-
 struct sensor{
   char *s_name;
   unsigned int s_subscribed;
+  unsigned int s_is_msgbuilt;
   struct sensor *s_next;
 };
 
@@ -235,7 +231,7 @@ void usage(char *app)
   printf("-h                 this help\n");
   printf("-q                 run quietly\n");
   printf("-v                 increase verbosity\n");
-  printf("-c server:port     connect to the server address on the given port\n");
+  printf("-p server:port     connect to the server address on the given port\n");
   printf("-e level           specify the level for messages from standard error\n");
   printf("-o level           specify the level for messages from standard output\n");
   printf("-s subsystem       specify the subsystem (overrides KATCP_LABEL)\n");
@@ -429,6 +425,7 @@ int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
       return -1;
     }
     ts->t_head->s_subscribed = 0;
+    ts->t_head->s_is_msgbuilt = 0;
     ts->t_head->s_name = strdup(sensor);
     ts->t_head->s_next = NULL;
     ts->t_current = ts->t_head;
@@ -442,6 +439,7 @@ int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
     return -1;
   }
 
+  /* TODO: optimise */
   if (is_sensor_in_list(l, ts, sensor) == 0){
     link = malloc(sizeof(struct sensor));
     if (link == NULL){
@@ -450,6 +448,7 @@ int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
     }
 
     link->s_subscribed = 0;
+    link->s_is_msgbuilt = 0;
     link->s_name = strdup(sensor);
     link->s_next = NULL;
     temp = ts->t_current;
@@ -520,36 +519,13 @@ int initiate_connection(struct katcl_line *l, struct totalstate *ts, char *serve
 }
 
 /**
-  * \brief Destroy netstate
-  * \param net Reference to netstate structure
-  * \return void
-  */
-void destroy_netstate(struct netstate *net)
-{
-  if(net == NULL){
-    return;
-  }
-
-  if(net->n_line){
-    destroy_katcl(net->n_line, 0);
-    net->n_line = NULL;
-  }
-  if(net->n_fd >= 0){
-    close(net->n_fd);
-    net->n_fd = (-1);
-  }
-
-  free(net);
-}
-
-/**
  * \brief Build sensor subscribe message
- * \param n_line Reference to katcl_line structure
+ * \param p Reference to katcl_line structure
  * \param l Reference to katcl_line structure
  * \param ts Reference to totalstate structure
  * \return 0 as success or -1 as failure
  */
-int subscribe_sensor(struct katcl_line *n_line, struct katcl_line *l, struct totalstate *ts)
+int subscribe_sensor(struct katcl_line *p, struct katcl_line *l, struct totalstate *ts)
 {
   struct sensor *link;
   int loop;
@@ -561,11 +537,12 @@ int subscribe_sensor(struct katcl_line *n_line, struct katcl_line *l, struct tot
   }
 
   link = ts->t_head;
-  while (loop && link != NULL){
-    if(link->s_subscribed == 0){
-      append_string_katcl(n_line, KATCP_FLAG_FIRST | KATCP_FLAG_STRING, "?sensor-sampling");
-      append_string_katcl(n_line, KATCP_FLAG_STRING, link->s_name);
-      append_string_katcl(n_line, KATCP_FLAG_STRING | KATCP_FLAG_LAST, "event");
+  while (loop && (link != NULL)){
+    if(link->s_subscribed == 0 && (link->s_is_msgbuilt == 0)){
+      append_string_katcl(p, KATCP_FLAG_FIRST | KATCP_FLAG_STRING, "?sensor-sampling");
+      append_string_katcl(p, KATCP_FLAG_STRING, link->s_name);
+      append_string_katcl(p, KATCP_FLAG_STRING | KATCP_FLAG_LAST, "event");
+      link->s_is_msgbuilt = 1;
       loop = 0;
     }
     link = link->s_next;
@@ -654,12 +631,12 @@ int sensor_list(struct katcl_line *l)
   * \param l Reference to katcl_line structure
   * \param ts Reference to totalstate structure
   * \param server Reference to sensor name
-  * \return 0 as success or NULL as failure
+  * \return katcl_line structure as success or NULL as failure
   */
-struct netstate *create_netstate(struct katcl_line *l, struct totalstate *ts, char *server)
+struct katcl_line *create_netstate(struct katcl_line *l, struct totalstate *ts, char *server)
 {
   int fd;
-  struct netstate *net;
+  struct katcl_line *p;
 
   if (server == NULL){
     log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "invalid server name provided");
@@ -673,86 +650,29 @@ struct netstate *create_netstate(struct katcl_line *l, struct totalstate *ts, ch
     return NULL;
   }
 
-  net = malloc(sizeof(struct netstate));
-  if(net == NULL){
-    log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to create netstate");
+  p = create_katcl(fd);
+  if(p == NULL){
     return NULL;
   }
 
-  net->n_fd = fd;
-  net->n_line = NULL;
-
-  net->n_line = create_katcl(fd);
-  if(net->n_line == NULL){
-    destroy_netstate(net);
-    return NULL;
-  }
-
-  return net;
+  return p;
 }
 
 /**
   * \brief Handle netstate i/o
-  * \param n_line Reference to katcl_line structure
+  * \param p Reference to katcl_line structure
   * \param l Reference to katcl_line structure
   * \param ts Reference to totalstate structure
   * \return 0 as success or -1 as failure
   */
-int await_netstate_result(struct katcl_line *n_line, struct katcl_line *l, struct totalstate *ts)
+int parse_netstate(struct katcl_line *p, struct katcl_line *l, struct totalstate *ts)
 {
+  /* Remove parts that are now in main */
   char *name, *ptr;
-  fd_set fsr_net, fsw_net;
-  int fd, result;
   struct katcl_parse *sniff;
-  struct timeval wait;
 
-  wait.tv_sec = 0;
-  wait.tv_usec = 1000000;
-
-  fd = fileno_katcl(n_line);
-
-  FD_ZERO(&fsr_net);
-  FD_ZERO(&fsw_net);
-
-  FD_SET(fd, &fsr_net);
-
-  if(flushing_katcl(n_line)){ /* only write data if we have some */
-    FD_SET(fd, &fsw_net);
-  }
-
-  result = select(fd + 1, &fsr_net, &fsw_net, NULL, &wait);
-  switch(result){
-    case -1 :
-      switch(errno){
-        case EAGAIN :
-        case EINTR  :
-          return 0;
-        default  :
-          return -1;
-      }
-      break;
-    case 0 :
-      return 0;
-  }
-
-  if(FD_ISSET(fd, &fsw_net)){
-    result = write_katcl(n_line);
-    if(result < 0){
-      sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "write failed: %s", strerror(error_katcl(n_line)));
-      return -1;
-    }
-  }
-
-  if(FD_ISSET(fd, &fsr_net)){
-    result = read_katcl(n_line);
-    if(result){
-      sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "read failed: %s\n", (result < 0) ? strerror(error_katcl(n_line)) : "connection terminated");
-      return -1;
-    }
-  }
-
-  while (parse_katcl(n_line) > 0){
-    sniff = ready_katcl(n_line);
+  while (parse_katcl(p) > 0){
+    sniff = ready_katcl(p);
     if (sniff){
       ptr = get_string_parse_katcl(sniff, 0);
       switch (ptr[0]){
@@ -771,15 +691,15 @@ int await_netstate_result(struct katcl_line *n_line, struct katcl_line *l, struc
             name = get_string_parse_katcl(sniff, 2);
             if ((ptr == NULL) || strcmp(ptr, KATCP_OK)){
               log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to monitor sensor %s", name);
-              clear_katcl(n_line);
+              clear_katcl(p);
               return -1;
             }
-            set_sensor_subscribe(n_line, ts, name);
+            set_sensor_subscribe(p, ts, name);
           } else if (!strcmp(ptr, "!sensor-list")){
             ptr = get_string_parse_katcl(sniff, 1);
             if ((ptr == NULL) || strcmp(ptr, KATCP_OK)){
               log_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to get sensor list");
-              clear_katcl(n_line);
+              clear_katcl(p);
               return -1;
             }
             ts->t_sensor_list = get_unsigned_long_parse_katcl(sniff, 2);
@@ -797,7 +717,7 @@ int await_netstate_result(struct katcl_line *n_line, struct katcl_line *l, struc
           log_message_katcl(l, KATCP_LEVEL_WARN, ts->t_system, "read malformed message %s", ptr);
           break;
       }
-    clear_katcl(n_line);
+    clear_katcl(p);
     }
   }
 
@@ -810,14 +730,13 @@ int main(int argc, char **argv)
   int terminate, code, childgone, parentgone, exitrelay, checkinput, limit;
   int levels[2], index, efds[2], ofds[2];
   int i, j, c, offset, result, rr;
-  struct katcl_line *k;
+  struct katcl_line *k, *p;
   char *app;
   char *tmp, *value, *server;
   pid_t pid;
   struct totalstate total, *ts;
   struct iostate *erp, *orp;
-  struct netstate *lnet;
-  fd_set fsr, fsw;
+  fd_set fsr, fsw; /* fsr_net, fsw_net; */
   int mfd, fd;
   unsigned char buffer[BUFFER];
   struct timeval timeout;
@@ -854,7 +773,6 @@ int main(int argc, char **argv)
     ts->t_system = "run";
   }
 
-  lnet = NULL;
   server = NULL;
   app = argv[0];
 
@@ -903,10 +821,10 @@ int main(int argc, char **argv)
           j++;
           break;
 
-        case 'c' :
         case 'e' :
         case 'n' :
         case 'o' :
+        case 'p' :
         case 's' :
         case 't' :
 
@@ -924,9 +842,6 @@ int main(int argc, char **argv)
           index = 0;
 
           switch(c){
-            case 'c' :
-              server = argv[i] + j;
-              break;
             case 'e' :
               index++;
               /* fall */
@@ -973,6 +888,9 @@ int main(int argc, char **argv)
               } else {
                 sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unable to retrieve environment variable");
               }
+              break;
+            case 'p' :
+              server = argv[i] + j;
               break;
             case 't' :
               limit = atoi(argv[i] + j);
@@ -1085,27 +1003,54 @@ int main(int argc, char **argv)
   parentgone = 0;
 
   if (server != NULL){
-    lnet = create_netstate(k, ts, server);
-    if (lnet == NULL){
+    p = create_netstate(k, ts, server);
+    if (p == NULL){
       sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unable to allocate state for net handler");
       return EX_OSERR;
     }
-    sensor_list(lnet->n_line);
+    sensor_list(p);
   }
 
   do{
-    if (lnet != NULL){
-      await_netstate_result(lnet->n_line, k, ts);
-      if (ts->t_subscribed < ts->t_sensor_list) {
-        /* check_sensor_subscribe(k, ts); */
-        subscribe_sensor(lnet->n_line, k, ts);
-      }
-    }
-
     FD_ZERO(&fsr);
     FD_ZERO(&fsw);
 
     mfd = 0;
+
+    if (p != NULL){
+      fd = fileno_katcl(p);
+      FD_SET(fd, &fsr);
+      if(fd > mfd){
+        mfd = fd;
+      }
+
+      if(flushing_katcl(p)){
+        fd = fileno_katcl(p);
+        FD_SET(fd, &fsw);
+      }  
+      
+      fd = fileno_katcl(p);
+      if(FD_ISSET(fd, &fsw)){
+        result =  write_katcl(p);
+        if(result < 0){
+          sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "write failed: %s", strerror(error_katcl(p)));
+          return -1;
+        }
+      }
+      
+      if(FD_ISSET(fd, &fsr)){
+        result = read_katcl(p);
+        if(result){
+          sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "read failed: %s\n", (result < 0) ? strerror(error_katcl(p)) : "connection terminated");
+          return -1;
+        }
+      }
+      parse_netstate(p, k, ts);
+      if (ts->t_subscribed < ts->t_sensor_list) {
+        /* check_sensor_subscribe(k, ts); */
+        subscribe_sensor(p, k, ts);
+      }
+    }
 
     if(checkinput){
       fd = STDIN_FILENO;
@@ -1239,7 +1184,7 @@ int main(int argc, char **argv)
   destroy_iostate(erp);
 
   destroy_katcl(k, 0);
-  destroy_netstate(lnet);
+  destroy_katcl(p, 0);
   destroy_sensors(ts);
 
   return code;
