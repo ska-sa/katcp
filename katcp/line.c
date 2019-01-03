@@ -1162,20 +1162,25 @@ int flushing_katcl(struct katcl_line *l)
 {
   unsigned int result;
 
-  result = size_queue_katcl(l->l_queue);
-
-  if(result > 0){
-    if(result <= INT_MAX){
-      return result;
-    }
-    return INT_MAX;
-  }
-
   if(l->l_pending > 0){
     return 1;
   }
 
+  if(size_queue_katcl(l->l_queue) > 0){
+    return 1;
+  }
+
   return 0;
+}
+
+unsigned int flushing_bytes_katcl(struct katcl_line *l)
+{
+  return l->l_pending;
+}
+
+unsigned int flushing_queue_katcl(struct katcl_line *l)
+{
+  return size_queue_katcl(l->l_queue);
 }
 
 /***************************/

@@ -487,11 +487,12 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   }
 
   if(flushing_katcl(fx->f_line)){
-    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has output pending", fx->f_name);
-  }
+    count = flushing_queue_katcl(fx->f_line);
+    log_message_katcp(d, ((count > 1) ? KATCP_LEVEL_WARN : KATCP_LEVEL_INFO) | KATCP_LEVEL_LOCAL, NULL, "client %s has %u messages of %u limit in output queue", fx->f_name, count, fx->f_pending_limit);
 
-  count = size_queue_katcl(fx->f_line->l_queue);
-  log_message_katcp(d, ((count > 1) ? KATCP_LEVEL_WARN : KATCP_LEVEL_INFO) | KATCP_LEVEL_LOCAL, NULL, "client %s has %u messages of %u limit in output queue", fx->f_name, count, fx->f_pending_limit);
+    count = flushing_bytes_katcl(fx->f_line);
+    log_message_katcp(d, ((count > KATCL_IO_SIZE) ? KATCP_LEVEL_WARN : KATCP_LEVEL_INFO) | KATCP_LEVEL_LOCAL, NULL, "client %s has %u bytes of %u limit stalled in output buffer", fx->f_name, count, fx->f_pending_limit);
+  }
 
   gx = fx->f_group;
   if(gx && gx->g_name){
