@@ -30,7 +30,7 @@ struct totalstate{
   int t_infer;
   char *t_system;
   struct sensor *t_head;
-  struct sensor *t_current;
+  struct sensor *t_current; /* TODO: need this? */
   unsigned int t_sensor_list;
   unsigned int t_sensor_added;
   unsigned int t_subscribed;
@@ -403,15 +403,43 @@ int print_list(struct katcl_line *l, struct totalstate *ts)
 }
 
 /**
-  * \brief Add sensor to linked list
-  * \param l Reference to katcl_line structure
-  * \param ts Reference to totalstate structure
-  * \param sensor Reference to sensor name
-  * \return 0 as success or -1 as failure
-  */
+ * \brief Create linked list node
+ * \param l Reference to katcl_line structure
+ * \param sys Reference to application name 
+ * \param sensor Reference to sensor name
+ * \return pointer as success or NULL as failure
+ */
+struct sensor *create_link(struct katcl_line *l, char *sys, char *sensor)
+{
+  struct sensor *link;
+  
+  link = NULL;
+
+  link = malloc(sizeof(struct sensor));
+  if (link == NULL){
+    sync_message_katcl(l, KATCP_LEVEL_ERROR, sys, "unable to malloc link for sensor list");
+    return link;
+  }
+  link->s_subscribed = 0;
+  link->s_is_msgbuilt = 0;
+  link->s_name = strdup(sensor);
+  link->s_next = NULL;
+
+  return link;
+}
+
+/**
+ * \brief Add sensor to linked list
+ * \param l Reference to katcl_line structure
+ * \param ts Reference to totalstate structure
+ * \param sensor Reference to sensor name
+ * \return 0 as success or -1 as failure
+ */
 int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
 {
-  struct sensor *link, *temp;
+  struct sensor *temp;
+  
+  temp = NULL;
 
   if (sensor == NULL){
     sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "invalid sensor name provided");
@@ -419,44 +447,26 @@ int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
   }
 
   if (ts->t_head == NULL){
-    ts->t_head = malloc(sizeof(struct sensor));
+    ts->t_head = create_link(l, ts->t_system, sensor);
     if (ts->t_head == NULL){
       sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to malloc link for sensor list");
       return -1;
     }
-    ts->t_head->s_subscribed = 0;
-    ts->t_head->s_is_msgbuilt = 0;
-    ts->t_head->s_name = strdup(sensor);
-    ts->t_head->s_next = NULL;
     ts->t_current = ts->t_head;
     ts->t_sensor_added++;
 
     return 0;
   }
 
-  if (ts->t_current == NULL){
-    sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "current link with null pointer");
-    return -1;
-  }
-
-  /* TODO: optimise */
   if (is_sensor_in_list(l, ts, sensor) == 0){
-    link = malloc(sizeof(struct sensor));
-    if (link == NULL){
+    temp = create_link(l, ts->t_system, sensor);
+    if (temp == NULL){
       sync_message_katcl(l, KATCP_LEVEL_ERROR, ts->t_system, "unable to malloc link for sensor list");
       return -1;
     }
+    ts->t_current->s_next = temp;
+    ts->t_current = temp; 
 
-    link->s_subscribed = 0;
-    link->s_is_msgbuilt = 0;
-    link->s_name = strdup(sensor);
-    link->s_next = NULL;
-    temp = ts->t_current;
-    while(temp->s_next != NULL)
-    {
-      temp = temp->s_next;
-    }
-    temp->s_next = link;
     ts->t_sensor_added++;
   } else {
     return 1;
