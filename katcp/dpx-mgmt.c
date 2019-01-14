@@ -265,6 +265,121 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 }
 
+int tcp_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
+{
+  char *option, *client;
+  unsigned int number;
+  struct katcp_flat *fx, *fy;
+
+  fy = this_flat_katcp(d);
+  if(fy == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no client scope available");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+  }
+
+  if(argc < 2){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a tcp option");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
+  }
+
+  option = arg_string_katcp(d, 1);
+  if(option == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire a flag");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+  }
+
+  if(argc > 2){
+    client = arg_string_katcp(d, 2);
+    if(client == NULL){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire client name");
+      return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+    }
+    fx = scope_name_full_katcp(d, NULL, NULL, client);
+    if(fx == NULL){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate client %s", client);
+      return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+    }
+  } else {
+    fx = fy;
+  }
+
+#if 0
+  set  = 0;
+  mask = 0;
+
+  if(!strcmp(option, "duplex")){
+    set   = KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT;
+  } else if(!strcmp(option, "server")){
+    mask   = KATCP_FLAT_TOSERVER;
+    set    = KATCP_FLAT_TOCLIENT;
+  } else if(!strcmp(option, "client")){
+    mask   = KATCP_FLAT_TOCLIENT;
+    set    = KATCP_FLAT_TOSERVER;
+  } else if(!strcmp(option, "hidden")){
+    set    = KATCP_FLAT_HIDDEN;
+  } else if(!strcmp(option, "visible")){
+    mask   = KATCP_FLAT_HIDDEN;
+  } else if(!strcmp(option, "prefixed")){
+    set    = KATCP_FLAT_PREFIXED;
+  } else if(!strcmp(option, "fixed")){
+    mask   = KATCP_FLAT_PREFIXED;
+
+  } else if(!strcmp(option, "stop-info")){
+    mask   = KATCP_FLAT_INSTALLINFO;
+  } else if(!strcmp(option, "relay-info")){
+    set    = KATCP_FLAT_INSTALLINFO;
+  } else if(!strcmp(option, "translate")){
+    mask   = KATCP_FLAT_RETAINFO;
+  } else if(!strcmp(option, "native")){
+    set    = KATCP_FLAT_RETAINFO;
+  } else if(!strcmp(option, "log-prefix")){
+    set    = KATCP_FLAT_LOGPREFIX;
+  } else if(!strcmp(option, "log-plain")){
+    mask   = KATCP_FLAT_LOGPREFIX;
+#if 0
+  } else if(!strcmp(option, "map-fallback")){
+    mask   = KATCP_FLAT_RUNMAPTOO;
+  } else if(!strcmp(option, "map-always")){
+    set    = KATCP_FLAT_RUNMAPTOO;
+#endif
+
+  } else if(!strcmp(option, "version-prepend")){
+    set    = KATCP_FLAT_PREPEND;
+  } else if(!strcmp(option, "version-unchanged")){
+    mask   = KATCP_FLAT_PREPEND;
+
+  } else if(!strcmp(option, "info-none")){
+    mask   = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO;
+  } else if(!strcmp(option, "info-katcp")){
+    set    = KATCP_FLAT_SEESKATCP;
+    mask   = KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER;
+  } else if(!strcmp(option, "info-user")){
+    set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESUSER;
+    mask   = KATCP_FLAT_SEESADMIN;
+  } else if(!strcmp(option, "info-admin")){
+    set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN;
+    mask   = KATCP_FLAT_SEESUSER;
+  } else if(!strcmp(option, "extra-relay")){
+    set    = KATCP_FLAT_SEESMAPINFO;
+  } else if(!strcmp(option, "extra-drop")){
+    mask   = KATCP_FLAT_SEESMAPINFO;
+  } else if(!strcmp(option, "info-all")){
+    set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO;
+  } else {
+    /* WARNING: does not error out in an effort to be forward compatible */
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unknown configuration option %s", option);
+    return KATCP_RESULT_OK;
+  }
+
+  if(reconfigure_flat_katcp(d, fx, (fx->f_flags & (~mask)) | set) < 0){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to change flags on client %s", fx->f_name);
+    return KATCP_RESULT_FAIL;
+  }
+#endif
+
+  return KATCP_RESULT_OK;
+}
+
 int client_halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
   char *client, *group;
