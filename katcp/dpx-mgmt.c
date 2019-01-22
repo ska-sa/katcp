@@ -21,6 +21,10 @@
 #include <katpriv.h>
 #include <katcl.h>
 
+#define DEFAULT_KEEPIDLE 7200
+#define DEFAULT_KEEPCNT 9
+#define DEFAULT_KEEPINTVL 75
+
 /* client stuff *******************************************************************/
 
 int client_exec_group_cmd_katcp(struct katcp_dispatch *d, int argc)
@@ -265,117 +269,181 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 }
 
+int tcp_sockopt_error_handle(struct katcp_dispatch *d, int error)
+{
+  switch(error) {
+    case EBADF:
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "not a valid file descriptor");
+      break;
+    case EFAULT:
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "address pointed to by optval is not in a valid part of the process address space");
+      break;
+    case EINVAL:
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "optlen invalid in setsockopt");
+      break;
+    case ENOPROTOOPT:
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "option is unknown at the level indicated");
+      break;
+    case ENOTSOCK:
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "file descriptor does not refer to a socket");
+      break;
+    default:
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "error in manipulating options for the socket");
+      break;
+  }
+
+  return KATCP_RESULT_FAIL;
+}
+
 int tcp_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
-  char *option, *client;
-  unsigned int number;
+  char *opt, *optval_str, *client;
+  char *ptr, *end;
   struct katcp_flat *fx, *fy;
+  int optval, fd;
+  socklen_t optlen = sizeof(int);
 
-  fy = this_flat_katcp(d);
-  if(fy == NULL){
+  optval = 0;
+  optval_str = client = NULL;
+  opt = ptr = end = NULL;
+
+#if !defined(TCP_KEEPCNT)
+  log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "tcp configuration parameter TCP_KEEPCNT is not supported");
+  return KATCP_RESULT_OK;
+#endif
+
+#if !defined(TCP_KEEPIDLE)
+  log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "tcp configuration parameter TCP_KEEPIDLE is not supported");
+  return KATCP_RESULT_OK;
+#endif
+
+#if !defined(TCP_KEEPINTVL)
+  log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "tcp configuration parameter TCP_KEEPINTVL is not supported");
+  return KATCP_RESULT_OK;
+#endif
+
+  fx = this_flat_katcp(d);
+  if (fx == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no client scope available");
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
   }
 
-  if(argc < 2){
+  if (argc < 2){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a tcp option");
     return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
   }
 
-  option = arg_string_katcp(d, 1);
-  if(option == NULL){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire a flag");
-    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+  /* option */
+  opt = arg_string_katcp(d, 1);
+  if(opt == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire a tcp option");
+    return KATCP_RESULT_FAIL;
   }
 
-  if(argc > 2){
-    client = arg_string_katcp(d, 2);
-    if(client == NULL){
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire client name");
-      return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+  /* check for settings */
+  if (strcmp(opt, "info") == 0){
+    if (argc > 2){
+      fy = scope_name_full_katcp(d, NULL, NULL, arg_string_katcp(d, 2));
+      if (fy == NULL){ 
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate client %s", client);
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+      }
+      fx = fy;
+    } 
+    fd = fileno_katcl(fx->f_line);
+    if(getsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &optval, &optlen) < 0){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire SO_KEEPALIVE setting");
+      return tcp_sockopt_error_handle(d, errno);
     }
-    fx = scope_name_full_katcp(d, NULL, NULL, client);
-    if(fx == NULL){
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate client %s", client);
-      return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "SO_KEEPALIVE is %s", optval ? "enabled" : "disabled");
+
+    if(getsockopt(fd, SOL_TCP, TCP_KEEPIDLE, &optval, &optlen) < 0){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire TCP_KEEPIDLE setting");
+      return tcp_sockopt_error_handle(d, errno);
     }
-  } else {
-    fx = fy;
-  }
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPIDLE is set to %d seconds", optval);
 
-#if 0
-  set  = 0;
-  mask = 0;
+    if(getsockopt(fd, SOL_TCP, TCP_KEEPCNT, &optval, &optlen) < 0){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire TCP_KEEPCNT setting");
+      return tcp_sockopt_error_handle(d, errno);
+    }
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPCNT is set to %d probes", optval);
 
-  if(!strcmp(option, "duplex")){
-    set   = KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT;
-  } else if(!strcmp(option, "server")){
-    mask   = KATCP_FLAT_TOSERVER;
-    set    = KATCP_FLAT_TOCLIENT;
-  } else if(!strcmp(option, "client")){
-    mask   = KATCP_FLAT_TOCLIENT;
-    set    = KATCP_FLAT_TOSERVER;
-  } else if(!strcmp(option, "hidden")){
-    set    = KATCP_FLAT_HIDDEN;
-  } else if(!strcmp(option, "visible")){
-    mask   = KATCP_FLAT_HIDDEN;
-  } else if(!strcmp(option, "prefixed")){
-    set    = KATCP_FLAT_PREFIXED;
-  } else if(!strcmp(option, "fixed")){
-    mask   = KATCP_FLAT_PREFIXED;
+    if(getsockopt(fd, SOL_TCP, TCP_KEEPINTVL, &optval, &optlen) < 0){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire TCP_KEEPINTVL setting");
+      return tcp_sockopt_error_handle(d, errno);
+    }
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPINTVL is set to %d seconds", optval);
 
-  } else if(!strcmp(option, "stop-info")){
-    mask   = KATCP_FLAT_INSTALLINFO;
-  } else if(!strcmp(option, "relay-info")){
-    set    = KATCP_FLAT_INSTALLINFO;
-  } else if(!strcmp(option, "translate")){
-    mask   = KATCP_FLAT_RETAINFO;
-  } else if(!strcmp(option, "native")){
-    set    = KATCP_FLAT_RETAINFO;
-  } else if(!strcmp(option, "log-prefix")){
-    set    = KATCP_FLAT_LOGPREFIX;
-  } else if(!strcmp(option, "log-plain")){
-    mask   = KATCP_FLAT_LOGPREFIX;
-#if 0
-  } else if(!strcmp(option, "map-fallback")){
-    mask   = KATCP_FLAT_RUNMAPTOO;
-  } else if(!strcmp(option, "map-always")){
-    set    = KATCP_FLAT_RUNMAPTOO;
-#endif
-
-  } else if(!strcmp(option, "version-prepend")){
-    set    = KATCP_FLAT_PREPEND;
-  } else if(!strcmp(option, "version-unchanged")){
-    mask   = KATCP_FLAT_PREPEND;
-
-  } else if(!strcmp(option, "info-none")){
-    mask   = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO;
-  } else if(!strcmp(option, "info-katcp")){
-    set    = KATCP_FLAT_SEESKATCP;
-    mask   = KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER;
-  } else if(!strcmp(option, "info-user")){
-    set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESUSER;
-    mask   = KATCP_FLAT_SEESADMIN;
-  } else if(!strcmp(option, "info-admin")){
-    set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN;
-    mask   = KATCP_FLAT_SEESUSER;
-  } else if(!strcmp(option, "extra-relay")){
-    set    = KATCP_FLAT_SEESMAPINFO;
-  } else if(!strcmp(option, "extra-drop")){
-    mask   = KATCP_FLAT_SEESMAPINFO;
-  } else if(!strcmp(option, "info-all")){
-    set    = KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO;
-  } else {
-    /* WARNING: does not error out in an effort to be forward compatible */
-    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unknown configuration option %s", option);
     return KATCP_RESULT_OK;
   }
 
-  if(reconfigure_flat_katcp(d, fx, (fx->f_flags & (~mask)) | set) < 0){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to change flags on client %s", fx->f_name);
-    return KATCP_RESULT_FAIL;
+  /* value & client arguments */
+  if (argc > 2){
+    /* option val */
+    ptr = optval_str = arg_string_katcp(d, 2);
+    strtoul(ptr, &end, 10);
+    if(optval_str == NULL){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire tcp value");
+      return KATCP_RESULT_FAIL;
+    } else if (strcmp(optval_str, "default") == 0){
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "using default tcp-config setting");
+      optval = 0;
+    } else if ((*ptr != '\0') && (*end == '\0')){
+      /* value arg */
+      optval = arg_unsigned_long_katcp(d, 2);
+    } else if (argc < 4){
+      /* value arg now assumed to be client arg */
+      client = arg_string_katcp(d, 2);
+      fy = scope_name_full_katcp(d, NULL, NULL, client); 
+      if(fy == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate client %s", client);
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+      } else {
+        fx = fy;
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "using default tcp-config setting");
+      }
+    }
+
+    if (argc > 3){
+      client = arg_string_katcp(d, 3);
+      fy = scope_name_full_katcp(d, NULL, NULL, client); 
+      if(fy == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate client %s", client);
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+      }
+      fx = fy;
+    }
+
+    fd = fileno_katcl(fx->f_line);
+    if (strcmp(opt, "idle") == 0){
+      optval = optval ? optval : DEFAULT_KEEPIDLE;
+      if (setsockopt(fd, SOL_TCP, TCP_KEEPIDLE, (void *)&optval, sizeof(optval))) {
+        return tcp_sockopt_error_handle(d, errno);
+      }
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPIDLE set on socket");
+    } else if (strcmp(opt, "cnt") == 0){
+      optval = optval ? optval : DEFAULT_KEEPCNT;
+      if (setsockopt(fd, SOL_TCP, TCP_KEEPCNT, (void *)&optval, sizeof(optval))) {
+        return tcp_sockopt_error_handle(d, errno);
+      }
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPCNT set on socket");
+    } else if (strcmp(opt, "intvl") == 0){
+      optval = optval ? optval : DEFAULT_KEEPINTVL;
+      if (setsockopt(fd, SOL_TCP, TCP_KEEPINTVL, (void *)&optval, sizeof(optval))) {
+        return tcp_sockopt_error_handle(d, errno);
+      }
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPINTVL set on socket");
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid tcp-config option");
+      return KATCP_RESULT_FAIL;
+    }
+    /* enable SO_KEEPALIVE */
+    if(setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(int))) {
+      return tcp_sockopt_error_handle(d, errno);
+    }
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "SO_KEEPALIVE set on socket");
   }
-#endif
 
   return KATCP_RESULT_OK;
 }
