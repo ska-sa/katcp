@@ -4150,6 +4150,8 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config (duplex|server|client|hidden|visible|prefixed|fixed|translate|native|[no-]named-log) [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-switch", "switch a client's group (?client-switch group [client])", 0, &client_switch_group_cmd_katcp, NULL, NULL);
 
+    add_full_cmd_map_katcp(m, "tcp-config", "set client tcp keepalive parameters (?tcp-config [info|idle|cnt|intvl] (client|value) [client])", 0, &tcp_config_group_cmd_katcp, NULL, NULL);
+
     add_full_cmd_map_katcp(m, "group-create", "create a new group (?group-create name [group])", 0, &group_create_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "group-list", "list groups (?group-list)", 0, &group_list_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "group-halt", "halt a group (?group-halt [group])", 0, &group_halt_group_cmd_katcp, NULL, NULL);
