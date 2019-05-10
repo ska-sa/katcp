@@ -538,7 +538,14 @@ int is_vrbl_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx)
 /* order has to match the values of KATCP_SENSOR_* */
 static char *sensor_type_table[SENSOR_TYPE_TABLE_SIZE] = { "integer", "boolean", "discrete", "lru"
 #ifdef KATCP_USE_FLOATS
+#if (SENSOR_TYPE_TABLE_SIZE != 5)
+#error sensor type table not 5 in size
+#endif
   , "float"
+#else
+#if (SENSOR_TYPE_TABLE_SIZE != 4)
+#error sensor type table not 4 in size
+#endif
 #endif
 };
 
