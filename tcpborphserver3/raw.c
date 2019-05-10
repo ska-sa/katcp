@@ -102,7 +102,7 @@ void print_meta_entry(struct katcp_dispatch *d, char *key, void *data)
       for(i = 0; i < middle; i++){
         if(me->m[i]){
           append_string_katcp(d, KATCP_FLAG_STRING, me->m[i]);
-        } 
+        }
       }
       append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, me->m[i]);
     } else {
@@ -258,7 +258,7 @@ int display_dir_cmd(struct katcp_dispatch *d, char *directory)
       append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, de->d_name);
 #if 0
       send_katcp(d,
-          KATCP_FLAG_FIRST | KATCP_FLAG_STRING | KATCP_FLAG_MORE, "#", 
+          KATCP_FLAG_FIRST | KATCP_FLAG_STRING | KATCP_FLAG_MORE, "#",
           KATCP_FLAG_STRING, label + 1,
           KATCP_FLAG_LAST | KATCP_FLAG_STRING, de->d_name);
 #endif
@@ -275,9 +275,9 @@ int display_dir_cmd(struct katcp_dispatch *d, char *directory)
 
 #if 0
   send_katcp(d,
-      KATCP_FLAG_FIRST | KATCP_FLAG_STRING | KATCP_FLAG_MORE, "!", 
+      KATCP_FLAG_FIRST | KATCP_FLAG_STRING | KATCP_FLAG_MORE, "!",
       KATCP_FLAG_STRING, label + 1,
-      KATCP_FLAG_STRING, KATCP_OK, 
+      KATCP_FLAG_STRING, KATCP_OK,
       KATCP_FLAG_LAST | KATCP_FLAG_ULONG, count);
 #endif
 
@@ -408,7 +408,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     size_t len;
     uint16_t wordcount=0;
     uint8_t port_addr;
-    
+
     char *mezz, *phy, *buffer;
     char *name;
     char *filename = DEFAULT_FILENAME;
@@ -427,7 +427,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
 
     struct tbs_raw *tr;
     struct tbs_entry *te = NULL;
-    
+
     tr = get_mode_katcp(d, TBS_MODE_RAW);
     if(tr == NULL){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire raw mode state");
@@ -446,7 +446,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
 
     mezz = arg_string_katcp(d, 1);
     phy = arg_string_katcp(d, 2);
-    
+ 
     if ( strcmp(mezz, "0") && strcmp(mezz, "1") ){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "not a valid mezzanine card number");
         return KATCP_RESULT_INVALID;
@@ -506,7 +506,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
 
     /*Try to open the file*/
     if ( (fptr = fopen(buffer, "rb")) == NULL ){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not open or find firmware file: %s", buffer); 
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not open or find firmware file: %s", buffer);
         /*fprintf(stderr, "cannot open PHY firmware file: %s\n", buffer);*/
         free(buffer);
         return KATCP_RESULT_FAIL;
@@ -524,13 +524,13 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
         }
         fpga_reg_addr_init_by_index(i,  (uint32_t *)(tr->r_map + te->e_pos_base)  );
     }
-   
+
     //configure the fpga registers to enable MDIO
     fpga_mdio_sw_config();
 
 
     //select mezzanine card
-    mezz_select(mezz_num);     
+    mezz_select(mezz_num);
 
     switch(phy_num){
         case 0:
@@ -604,35 +604,35 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     write_katcp(d);
 
     //Write data to appropriate PHY-RAM
-   
+ 
     while( fread(&word, 1, 2, fptr) != 0 ){     //read a word of two bytes until end of file
-        
-        
+ 
+ 
         tmp1 = word;
         tmp1 = tmp1 << 8;
         word = word >> 8;
         Lword = tmp1 + word;
         word = 0;
 
-        fread(&word, 1, 2, fptr); 
+        fread(&word, 1, 2, fptr);
         tmp1 = word;
         tmp1 = tmp1 << 8;
         word = word >> 8;
         Uword = tmp1 + word;
-        
+ 
         word = 0;
 
         phy_write_op(port_addr, DEVADDR_RAM, wordcount, Uword);
         //printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, wordcount) );
         wordcount++;
-        
+ 
         phy_write_op(port_addr, DEVADDR_RAM, wordcount, Lword);
         //printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, wordcount) );
         wordcount++;
     }
 
     fclose(fptr);
-    
+ 
     //Release PHY-MCU from sw reset
     phy_write_op(port_addr, DEVADDR_MCU, 0x0002, 0x00);
 
@@ -673,7 +673,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     }
 
     log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "phy %s on mezzanine %s - firmware loaded successfully", phy, mezz);
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "mezz[%s]phy[%s] watchdog counters:  0x%x  0x%x", mezz, phy, watchdog1, watchdog2); 
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "mezz[%s]phy[%s] watchdog counters:  0x%x  0x%x", mezz, phy, watchdog1, watchdog2);
     return KATCP_RESULT_OK;
 }
 
@@ -841,10 +841,10 @@ int word_write_cmd(struct katcp_dispatch *d, int argc)
     update = prev | (value >> shift);
 
     log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "writing 0x%x to position 0x%x", update, j);
-    
+ 
     if(((unsigned int)tr->r_map + j) > (unsigned int)tr->r_map + tr->r_map_size){
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, 
-        "register %s is outside mapped range 0x%08x", name, 
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL,
+        "register %s is outside mapped range 0x%08x", name,
          (unsigned int)tr->r_map + j);
       return KATCP_RESULT_FAIL;
     }
@@ -868,7 +868,7 @@ int word_write_cmd(struct katcp_dispatch *d, int argc)
 
   if(check_bus_error(d) < 0){
     return KATCP_RESULT_FAIL;
-  }  
+  }
 
   return KATCP_RESULT_OK;
 }
@@ -929,7 +929,7 @@ int write_cmd(struct katcp_dispatch *d, int argc)
   word_normalise(&off);
 #endif
 
-  blen = arg_buffer_katcp(d, 3, NULL, 0); 
+  blen = arg_buffer_katcp(d, 3, NULL, 0);
   if (blen < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "cannot read buffer");
     return KATCP_RESULT_FAIL;
@@ -955,7 +955,7 @@ int write_cmd(struct katcp_dispatch *d, int argc)
   register_bits     = (te->e_len_base * 8) + te->e_len_offset;
   start_bits         = (off.b_byte * 8) + off.b_bit;
 
-  if (arg_bb_katcp(d, 4, &len) < 0){ 
+  if (arg_bb_katcp(d, 4, &len) < 0){
     /* no length given, assume all data given is data  */
 
     len.b_bit = 0;
@@ -994,7 +994,7 @@ int write_cmd(struct katcp_dispatch *d, int argc)
   }
 
 #ifdef DEBUG
-  fprintf(stderr, "raw write: bytes-in-buffer=%d register offset (0x%lx:%d) len(0x%lx:%d)\n", blen,  off.b_byte, off.b_bit, len.b_byte, len.b_bit); 
+  fprintf(stderr, "raw write: bytes-in-buffer=%d register offset (0x%lx:%d) len(0x%lx:%d)\n", blen,  off.b_byte, off.b_bit, len.b_byte, len.b_bit);
 #endif
 
   off.b_byte += te->e_pos_base;
@@ -1045,7 +1045,7 @@ int write_cmd(struct katcp_dispatch *d, int argc)
 
   if(copy_words_floor > 0){
     remaining_bits = ptr_offset + copy_bits - (copy_words_floor * 32);
-    prefix_bits = 0; 
+    prefix_bits = 0;
   } else {
     /* no full word writes completed is special, we have to account for leading bits from fpga when we write out final word */
     remaining_bits = copy_bits;
@@ -1084,11 +1084,11 @@ int write_cmd(struct katcp_dispatch *d, int argc)
     if(remaining_bits > 0){
 
       if(((unsigned int)tr->r_map + ptr_base) > (unsigned int)tr->r_map + tr->r_map_size){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, 
-            "register %s is outside mapped range 0x%08x", name, 
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL,
+            "register %s is outside mapped range 0x%08x", name,
              (unsigned int)tr->r_map + ptr_base);
         return KATCP_RESULT_FAIL;
-      } 
+      }
 
       current = *((uint32_t *)(tr->r_map + ptr_base));
 
@@ -1110,7 +1110,7 @@ int write_cmd(struct katcp_dispatch *d, int argc)
 #if 0
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "you are using extended features of a temp hack. Don't");
     return KATCP_RESULT_FAIL;
-#else 
+#else
 
 
 
@@ -1143,8 +1143,8 @@ int write_cmd(struct katcp_dispatch *d, int argc)
           update = prev | current;
           log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "writing final, partial 0x%x to position 0x%x", update, ptr_base);
           *((uint8_t *)(tr->r_map + ptr_base)) = update;
-        } 
-      } 
+        }
+      }
     }
   } else if (ptr_offset > 0 && (ptr_base < te->e_pos_base + te->e_len_base)){
 
@@ -1159,7 +1159,7 @@ int write_cmd(struct katcp_dispatch *d, int argc)
     *((uint8_t *)(tr->r_map + ptr_base)) = update;
 
 #endif
-  } 
+  }
 #endif
 
   msync(tr->r_map, tr->r_map_size, MS_SYNC);
@@ -1170,7 +1170,7 @@ int write_cmd(struct katcp_dispatch *d, int argc)
 
   if(check_bus_error(d) < 0){
     return KATCP_RESULT_FAIL;
-  }  
+  }
 
   return KATCP_RESULT_OK;
 }
@@ -1440,7 +1440,7 @@ int read_register(struct katcp_dispatch *d, struct tbs_entry *te, struct katcl_b
     } else {
       memcpy(buffer, tr->r_map + combined.start.b_byte, transfer);
     }
-#else 
+#else
     /* WTF moments right here: FPGA 32 bit issues */
     for(i = 0; i < amount->b_byte; i += 4){
       current = *((uint32_t *)(tr->r_map + combined_start.b_byte + i));
@@ -1682,7 +1682,7 @@ int read_cmd(struct katcp_dispatch *d, int argc)
 
   ptr = tr->r_map;
 
-  if((combined_start.b_bit == 0) && (want.b_bit == 0)){ 
+  if((combined_start.b_bit == 0) && (want.b_bit == 0)){
     log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "fast read, start at 0x%x, read %u complete bytes", combined_start.b_byte, want.b_byte);
     /* FAST: no bit offset (start at byte, read complete bytes) => no shifts => no alloc, no copy */
 
@@ -1713,7 +1713,7 @@ int read_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
-  if(combined_offset == 0){ 
+  if(combined_offset == 0){
     log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "medium read, start at %u, read %u complete bytes and %u bits", combined_base, want_base, want_offset);
     /* MEDIUM: start at byte, read incomplete bytes => alloc, copy and clear but no shift  */
 #ifdef DEBUG
@@ -1821,13 +1821,21 @@ int finalise_cmd(struct katcp_dispatch *d, int argc)
   }
 
   switch(tr->r_fpga){
+    case TBS_FPGA_PROGRAMMED :
+      if(map_raw_tbs(d) < 0){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to map %s", TBS_FPGA_MEM);
+        return KATCP_RESULT_FAIL;
+      }
+      status_fpga_tbs(d, TBS_FPGA_MAPPED);
+      /* fall */
     case TBS_FPGA_MAPPED:
       status_fpga_tbs(d, TBS_FPGA_READY);
       /* fall */
-    case TBS_FPGA_READY : 
+    case TBS_FPGA_READY :
       return KATCP_RESULT_OK;
+    /* case TBS_FPGA_DOWN : */
     default :
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to finish programming, as fpga not mapped");
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to finalise fpga setup as fpga not programmed");
       return KATCP_RESULT_FAIL;
   }
 }
@@ -2197,7 +2205,7 @@ int meta_cmd(struct katcp_dispatch *d, int argc)
     log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "about to fill %d fields for key %s", count, key);
 
     for(i = 2; i < argc; i++){
-      me->m[me->m_size] = arg_copy_string_katcp(d, i);  
+      me->m[me->m_size] = arg_copy_string_katcp(d, i);
       if(me->m[me->m_size] == NULL){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "encountered an unsupported null meta argument");
         free_meta_entry(me);
@@ -2258,7 +2266,7 @@ int register_cmd(struct katcp_dispatch *d, int argc)
 {
   char *name, *position, *end, *extra, *length;
   struct tbs_entry entry, *te;
-  unsigned int mod, div;
+  unsigned int mod, div, final, bits;
   struct tbs_raw *tr;
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
@@ -2267,11 +2275,15 @@ int register_cmd(struct katcp_dispatch *d, int argc)
   }
 
   switch(tr->r_fpga){
-    case TBS_FPGA_MAPPED:
-    case TBS_FPGA_READY:
+    case TBS_FPGA_PROGRAMMED :
+      final = 0;
+      break;
+    case TBS_FPGA_MAPPED     :
+    case TBS_FPGA_READY      :
+      final = 1;
       break;
     default:
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "fpga not programmed");
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "fpga not programmed so not ready to accept register definitions");
       return KATCP_RESULT_FAIL;
   }
 
@@ -2349,9 +2361,30 @@ int register_cmd(struct katcp_dispatch *d, int argc)
   }
   if((entry.e_len_base > 0) && (entry.e_len_offset > 0)){
     log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unsual size of register %s with %u bytes and %d bits", name, entry.e_pos_base, entry.e_pos_offset);
-  } 
+  }
+
 
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "start of %s at 0x%x and bit %d with size of %u bytes and %u bits", name, entry.e_pos_base, entry.e_pos_offset, entry.e_len_base, entry.e_len_offset);
+
+  bits = (entry.e_pos_offset + entry.e_len_offset + 7) / 8;
+  if(final){ /* post finalisation, we need to check if things fit in existing mapping, and fixup */
+    if(entry.e_pos_base < tr->r_map_offset){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unable to define register %s as it falls below lowest mapped address 0x%x", tr->r_map_offset);
+      return KATCP_RESULT_FAIL;
+    }
+    if((entry.e_pos_base + entry.e_len_base + bits) > (tr->r_map_offset + tr->r_map_size)){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unable to define register %s as it falls above mapped window ending at 0x%x", tr->r_map_offset + tr->r_map_size);
+      return KATCP_RESULT_FAIL;
+    }
+    entry.e_pos_base -= tr->r_map_offset;
+  } else { /* still to be finalised, need to record min and max extent so that mapping can be minimal */
+    if(tr->r_bot_register > entry.e_pos_base){
+      tr->r_bot_register = entry.e_pos_base;
+    }
+    if(tr->r_top_register < (entry.e_pos_base + entry.e_len_base + bits)){
+      tr->r_top_register = entry.e_pos_base + entry.e_len_base + bits;
+    }
+  }
 
   te = malloc(sizeof(struct tbs_entry));
   if(te == NULL){
@@ -2375,7 +2408,7 @@ int status_fpga_tbs(struct katcp_dispatch *d, int status)
 {
   struct tbs_raw *tr;
   int actual;
-#if TBS_STATES_FPGA != 4 
+#if TBS_STATES_FPGA != 4
 #error "fpga state variable set inconsistent"
 #endif
   char *fpga_states[TBS_STATES_FPGA] = { "down", "loaded", "mapped", "ready" };
@@ -2415,7 +2448,7 @@ int unmap_raw_tbs(struct katcp_dispatch *d)
 
   switch(tr->r_fpga){
     case TBS_FPGA_MAPPED:
-    case TBS_FPGA_READY : 
+    case TBS_FPGA_READY :
       break;
     default :
       log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "nothing mapped");
@@ -2425,6 +2458,7 @@ int unmap_raw_tbs(struct katcp_dispatch *d)
   munmap(tr->r_map, tr->r_map_size);
   status_fpga_tbs(d, TBS_FPGA_PROGRAMMED);
 
+  tr->r_map_offset = 0;
   tr->r_map_size = 0;
   tr->r_map = NULL;
 
@@ -2444,19 +2478,51 @@ unsigned int infer_fpga_range(struct katcp_dispatch *d)
   }
 }
 
+
+int fixup_offset_tbs(struct katcp_dispatch *d, void *global, char *key, void *data)
+{
+  struct tbs_raw *tr;
+  struct tbs_entry *te;
+
+  tr = global;
+  te = data;
+
+  if(te->e_pos_base < tr->r_map_offset){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to fixup register %s as it appears at address 0x%08x below minimum of 0x%08x", key, te->e_pos_base, tr->r_map_offset);
+    te->e_pos_base = 0; /* suppose better than a segmentation fault ? */
+  } else {
+    te->e_pos_base -= tr->r_map_offset;
+  }
+
+  return 0;
+}
+
 int map_raw_tbs(struct katcp_dispatch *d)
 {
   struct tbs_raw *tr;
+  unsigned int page;
+#ifdef __PPC__
   unsigned int power, window;
+#endif
   int fd;
+
+#ifdef PAGE_SIZE
+  page = PAGE_SIZE;
+#else
+  page = 4096;
+#endif
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
   if(tr == NULL){
     return -1;
   }
 
-  if(tr->r_fpga == TBS_FPGA_READY){
-    unmap_raw_tbs(d);
+  switch(tr->r_fpga){
+    case TBS_FPGA_PROGRAMMED  :
+      break;
+    default :
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unwilling to map fpga as device does not appear programmed");
+      return -1;
   }
 
   if(tr->r_top_register <= 0){
@@ -2464,16 +2530,28 @@ int map_raw_tbs(struct katcp_dispatch *d)
     return -1;
   }
 
-  power = 4096;
+  if(tr->r_bot_register >= tr->r_top_register){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unreasonable register range");
+    return -1;
+  }
+
+  /* WARNING: on PPC we from 0 to biggest register in powers of 2 */
+  /*          on RP  we map from lowest register to largest in multiples of
+              page size *AAAAND* patch up the addresses to match */
+
+#ifdef __PPC__
+
+  power = page;
   while(power < tr->r_top_register){
     power *= 2;
   }
 
   tr->r_map_size = power;
+  tr->r_map_offset   = 0; /* so no fixup needed here */
 
   window = infer_fpga_range(d);
 
-  if(tr->r_map_size > window){ 
+  if(tr->r_map_size > window){
     if(window < TBS_ROACH_PARTIAL_MAP){
       log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "mapping more than 0x%x fpga space requires a different kernel", window);
     } else {
@@ -2483,13 +2561,27 @@ int map_raw_tbs(struct katcp_dispatch *d)
     log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "map request 0x%x is within limit 0x%x", tr->r_map_size, window);
   }
 
+#else /* redpitaya */
+
+  tr->r_bot_register = tr->r_bot_register &              (~(page - 1));
+  tr->r_top_register = (tr->r_top_register + page - 1) & (~(page - 1));
+
+  tr->r_map_size = tr->r_top_register - tr->r_bot_register;
+  tr->r_map_offset = tr->r_bot_register;
+
+  log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "mapping area 0x%08x at 0x%x", tr->r_map_size, tr->r_map_offset);
+
+  complex_inorder_traverse_avltree(d, tr->r_registers->t_root, tr, &fixup_offset_tbs);
+
+#endif
+
   fd = open(TBS_FPGA_MEM, O_RDWR);
   if(fd < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to open file %s: %s", TBS_FPGA_MEM, strerror(errno));
     return -1;
   }
 
-  tr->r_map = mmap(NULL, tr->r_map_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  tr->r_map = mmap(NULL, tr->r_map_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, tr->r_map_offset);
 
   if(tr->r_map == MAP_FAILED){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to map file %s: %s", TBS_FPGA_MEM, strerror(errno));
@@ -2498,7 +2590,6 @@ int map_raw_tbs(struct katcp_dispatch *d)
   }
 
   close(fd); /* TODO: maybe retain file descriptor ? */
-  status_fpga_tbs(d, TBS_FPGA_MAPPED);
 
   return 0;
 }
@@ -2563,6 +2654,9 @@ int stop_fpga_tbs(struct katcp_dispatch *d)
     tr->r_meta = NULL;
   }
 
+  tr->r_top_register = 0;
+  tr->r_bot_register = 0;
+
   return result;
 }
 
@@ -2593,12 +2687,17 @@ int start_fpg_tbs(struct katcp_dispatch *d)
     return -1;
   }
 
+  tr->r_top_register = 0;
+  tr->r_bot_register = SIZE_MAX;
+
+#if 0
   tr->r_top_register = infer_fpga_range(d);
 
   if(map_raw_tbs(d) < 0){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "Unable to map /dev/roach/mem");
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to map %s", TBS_FPGA_MEM);
     return -1;
   }
+#endif
 
 #if 0
   tr->r_fpga = TBS_FPGA_MAPPED;
@@ -2607,7 +2706,7 @@ int start_fpg_tbs(struct katcp_dispatch *d)
 #endif
 
   /* CHANGE REQUIRED */
-  /* A program bin function that passes /dev/roach/config to be opened and writeen */
+  /* A program bin function that passes /dev/roach/config to be opened and written */
 
 #if 0
   if(program_bof(d, bs, TBS_FPGA_CONFIG) < 0){
@@ -2667,6 +2766,7 @@ int start_bof_tbs(struct katcp_dispatch *d, struct bof_state *bs)
     return -1;
   }
 
+  status_fpga_tbs(d, TBS_FPGA_MAPPED);
   status_fpga_tbs(d, TBS_FPGA_READY);
 
   return 0;
@@ -2726,8 +2826,8 @@ void destroy_raw_tbs(struct katcp_dispatch *d, struct tbs_raw *tr)
   }
 
   if (tr->r_lkey){
-      free(tr->r_lkey);
-      tr->r_lkey = NULL;
+    free(tr->r_lkey);
+    tr->r_lkey = NULL;
   }
 
   free(tr);
@@ -2768,7 +2868,7 @@ int make_bofdir_tbs(struct katcp_dispatch *d, struct tbs_raw *tr, char *bofdir)
       return -1;
     }
     return 0;
-  } 
+  }
 
   /* try and guess */
 
@@ -2812,6 +2912,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
   tr->r_bof_dir = NULL;
 
   tr->r_top_register = 0;
+  tr->r_bot_register = SIZE_MAX;
 
   tr->r_argc = argc;
   tr->r_argv = argv;
@@ -2823,7 +2924,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
 
   tr->r_meta = NULL;
   /* clear out further structure elements */
-  
+ 
   tr->r_lkey = NULL;
 
   /* allocate structure elements */
@@ -2879,7 +2980,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
   result += register_flag_mode_katcp(d, "?finalise",     "mark register definitions as complete (?finalise)", &finalise_cmd, 0, TBS_MODE_RAW);
 
   result += register_flag_mode_katcp(d, "?phyprog",      "programs firmware onto phy chip on mezzanine card (?phyprog mezzanine_card phy_number [file <filename>] [force])", &phy_prog_cmd, 0, TBS_MODE_RAW);
-  
+ 
   result += register_flag_mode_katcp(d, "?phywatch",     "returns the watchdog counter value of phy chip on mezzanine card (?phywatch mezzanine_card phy_number)", &phy_watchdog_cmd, 0, TBS_MODE_RAW);
 
   /* upload, not program */
