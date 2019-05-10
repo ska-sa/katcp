@@ -23,7 +23,7 @@
 
 #define DEFAULT_LEVEL "info"
 #define IO_INITIAL     1024
-#define SOCKET_ATTEMPTS 10 
+#define SOCKET_ATTEMPTS 10
 
 struct totalstate{
   int t_verbose;
@@ -405,14 +405,14 @@ int print_list(struct katcl_line *l, struct totalstate *ts)
 /**
  * \brief Create linked list node
  * \param l Reference to katcl_line structure
- * \param sys Reference to application name 
+ * \param sys Reference to application name
  * \param sensor Reference to sensor name
  * \return pointer as success or NULL as failure
  */
 struct sensor *create_link(struct katcl_line *l, char *sys, char *sensor)
 {
   struct sensor *link;
-  
+
   link = NULL;
 
   link = malloc(sizeof(struct sensor));
@@ -438,7 +438,7 @@ struct sensor *create_link(struct katcl_line *l, char *sys, char *sensor)
 int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
 {
   struct sensor *temp;
-  
+
   temp = NULL;
 
   if (sensor == NULL){
@@ -465,7 +465,7 @@ int add_sensor(struct katcl_line *l, struct totalstate *ts, char *sensor)
       return -1;
     }
     ts->t_current->s_next = temp;
-    ts->t_current = temp; 
+    ts->t_current = temp;
 
     ts->t_sensor_added++;
   } else {
@@ -1037,8 +1037,8 @@ int main(int argc, char **argv)
       if(flushing_katcl(p)){
         fd = fileno_katcl(p);
         FD_SET(fd, &fsw);
-      }  
-      
+      }
+
       fd = fileno_katcl(p);
       if(FD_ISSET(fd, &fsw)){
         result =  write_katcl(p);
@@ -1047,7 +1047,7 @@ int main(int argc, char **argv)
           return -1;
         }
       }
-      
+
       if(FD_ISSET(fd, &fsr)){
         result = read_katcl(p);
         if(result){
