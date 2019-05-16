@@ -290,6 +290,18 @@ struct tbs_port_data {
 #endif
 };
 
+struct read_bram_info
+{
+  char *name;    /* name of BRAM to read*/
+  char *ip_addr; /* IP address to send the data to*/
+};
+
+int capture_start_cmd(struct katcp_dispatch *d, int argc);
+void destroy_read_bram_info(struct katcp_dispatch *d, struct read_bram_info *bram);
+int capture_stop_cmd(struct katcp_dispatch *d, int argc);
+struct read_bram_info *create_read_bram_info(struct katcp_dispatch *d, char *bram_name, char *ip);
+int run_capture_timer(struct katcp_dispatch *d, void *data);
+ 
 int upload_generic_resume_tbs(struct katcp_dispatch *d, struct katcp_notice *n, void *data);
 int detect_file_tbs(struct katcp_dispatch *d, char *name, int fd);
 
