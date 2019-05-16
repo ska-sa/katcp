@@ -825,6 +825,19 @@ static int cmp_heap_timers_katcp(void *xts, void *yts){
   return (i == (-1) ? 1 : 0);
 }
 
+void *find_data_by_name_heap_timer_katcp(struct katcp_dispatch *d, char *name)
+{
+  struct katcp_time *ts;
+
+  ts = find_by_name_heap_timer_katcp(d, name, NULL);
+
+  if(ts == NULL){
+    return NULL;
+  }
+
+  return ts->t_data;
+}
+
 static struct katcp_time *find_by_name_heap_timer_katcp(struct katcp_dispatch *d, char *name, int *index){
   struct katcp_shared *s;
   struct katcp_time *ts;
