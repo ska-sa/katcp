@@ -30,13 +30,18 @@ void replace_argv(struct katcp_dispatch *d, char *str)
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
 
-  if (tr == NULL)
+  if (tr == NULL){
     return;
+  }
+
+  if(tr->r_argv == NULL){
+    return;
+  }
 
   argc = tr->r_argc;
   argv = tr->r_argv;
   
-  for (i=0; i<argc; i++){
+  for (i = 0; i < argc; i++){
     bzero(argv[i], strlen(argv[i]));
   }
 

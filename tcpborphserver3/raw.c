@@ -2690,6 +2690,8 @@ int start_fpg_tbs(struct katcp_dispatch *d)
   tr->r_top_register = 0;
   tr->r_bot_register = SIZE_MAX;
 
+  status_fpga_tbs(d, TBS_FPGA_PROGRAMMED);
+
 #if 0
   tr->r_top_register = infer_fpga_range(d);
 
