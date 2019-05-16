@@ -202,10 +202,12 @@ struct tbs_raw
 
   void *r_map;
   unsigned int r_map_size;
+  unsigned int r_map_offset;
 
   char *r_image;
   char *r_bof_dir;
   unsigned int r_top_register;
+  unsigned int r_bot_register;
 
   int r_argc;
   char **r_argv;

@@ -571,7 +571,7 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
   struct katcp_vrbl *vx;
   char *name, *stamp, *value, *status, *ptr, *tmp;
   char buffer[TIMESTAMP_BUFFER];
-  int unhide;
+  int unhide, count;
 
 #ifdef DEBUG
   fprintf(stderr, "log: encountered a sensor-status message\n");
@@ -587,6 +587,8 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
     return -1;
   }
 
+  count = get_count_parse_katcl(px);
+
   origin = sender_to_flat_katcp(d, fx);
   remote = remote_of_flat_katcp(d, fx);
   self = handler_of_flat_katcp(d, fx);
@@ -596,7 +598,9 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
   if(origin == remote){
     /* comes in from fd, process it */
 
+    /* status: 0 */
     stamp = get_string_parse_katcl(px, 1);
+    /* 1: 2 */
     name = get_string_parse_katcl(px, 3);
     status = get_string_parse_katcl(px, 4);
     value = get_string_parse_katcl(px, 5);
@@ -610,7 +614,7 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
         } else {
           tmp = "value";
         }
-        log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "encountered sensor update for %s which lacks a valid %s field", name, tmp);
+        log_message_katcp(d, (count < 6) ? KATCP_LEVEL_WARN : KATCP_LEVEL_INFO, NULL, "encountered sensor update for %s which lacks a valid %s field", name, tmp);
       } else {
         log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "encountered sensor update without a valid name");
       }

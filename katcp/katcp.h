@@ -466,6 +466,8 @@ int hook_commands_katcp(struct katcp_dispatch *d, unsigned int type, int (*hook)
 int discharge_timer_katcp(struct katcp_dispatch *d, void *data);
 int discharge_named_timer_katcp(struct katcp_dispatch *d, char *name);
 
+void *find_data_by_name_heap_timer_katcp(struct katcp_dispatch *d, char *name);
+
 int unwarp_timers_katcp(struct katcp_dispatch *d);
 int register_every_ms_katcp(struct katcp_dispatch *d, unsigned int milli, int (*call)(struct katcp_dispatch *d, void *data), void *data);
 int register_every_tv_katcp(struct katcp_dispatch *d, struct timeval *tv, int (*call)(struct katcp_dispatch *d, void *data), void *data);
@@ -810,6 +812,8 @@ int client_rename_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int client_halt_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int client_switch_group_cmd_katcp(struct katcp_dispatch *d, int argc);
+
+int tcp_config_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 
 int group_create_group_cmd_katcp(struct katcp_dispatch *d, int argc);
 int group_list_group_cmd_katcp(struct katcp_dispatch *d, int argc);

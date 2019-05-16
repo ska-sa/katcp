@@ -877,6 +877,19 @@ static struct katcp_time *find_by_name_heap_timer_katcp(struct katcp_dispatch *d
   return NULL;
 }
 
+void *find_data_by_name_heap_timer_katcp(struct katcp_dispatch *d, char *name)
+{
+  struct katcp_time *ts;
+
+  ts = find_by_name_heap_timer_katcp(d, name, NULL);
+
+  if(ts == NULL){
+    return NULL;
+  }
+
+  return ts->t_data;
+}
+
 /*static*/ struct katcp_time *find_by_data_ref_heap_timer_katcp(struct katcp_dispatch *d, void *data, int *index){
 
   /* WARNING: Returns first match of data lookup - assumes data reference is unique.

@@ -3881,8 +3881,8 @@ int run_flat_katcp(struct katcp_dispatch *d)
   struct katcp_shared *s;
   struct katcl_parse *px, *pt;
   struct katcp_group *gx;
-  unsigned int i, j, len, size, limit;
-  int fd, result, code, reply, request, count;
+  unsigned int i, j, len, size, limit, count;
+  int fd, result, code, reply, request;
   char *name, *ptr;
   struct timeval now;
 
@@ -3940,12 +3940,21 @@ int run_flat_katcp(struct katcp_dispatch *d)
             }
           }
         } else {
-          count = flushing_katcl(fx->f_line);
-          if(count > fx->f_pending_limit){
+          if(flushing_katcl(fx->f_line) > 0){
             gettimeofday(&now, NULL);
             if(now.tv_sec > (fx->f_last_write.tv_sec + fx->f_stall_time)){
-              log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "terminating client %s which has accumulated %d messages over %ds without draining", fx->f_name, count, fx->f_stall_time);
-              fx->f_state = FLAT_STATE_CRASHING;
+
+              count = flushing_bytes_katcl(fx->f_line);
+              if(count > fx->f_pending_limit){
+                log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "terminating client %s which has %d bytes blocked in output over %ds", fx->f_name, count, fx->f_stall_time);
+                fx->f_state = FLAT_STATE_CRASHING;
+              }
+
+              count = flushing_queue_katcl(fx->f_line);
+              if(count > fx->f_pending_limit){
+                log_message_katcp(d, KATCP_LEVEL_FATAL, NULL, "terminating client %s which has accumulated %d messages over %ds without draining", fx->f_name, count, fx->f_stall_time);
+                fx->f_state = FLAT_STATE_CRASHING;
+              }
             }
           }
         }
@@ -4140,6 +4149,8 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "?client-exec", "create a client to a local process (?client-exec label [group [binary [args]*])", 0, &client_exec_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config (duplex|server|client|hidden|visible|prefixed|fixed|translate|native|[no-]named-log) [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-switch", "switch a client's group (?client-switch group [client])", 0, &client_switch_group_cmd_katcp, NULL, NULL);
+
+    add_full_cmd_map_katcp(m, "tcp-config", "set client tcp keepalive parameters (?tcp-config [info|idle|cnt|intvl] (client|value) [client])", 0, &tcp_config_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "group-create", "create a new group (?group-create name [group])", 0, &group_create_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "group-list", "list groups (?group-list)", 0, &group_list_group_cmd_katcp, NULL, NULL);

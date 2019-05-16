@@ -542,6 +542,10 @@ int index_bof(struct katcp_dispatch *d, struct bof_state *bs)
       tr->r_top_register = top;
     }
 
+    if(tr->r_bot_register < br.loc){
+      tr->r_bot_register = br.loc;
+    }
+
     switch(br.mode){
       case IORM_READ : 
         te->e_mode = TBS_READABLE;

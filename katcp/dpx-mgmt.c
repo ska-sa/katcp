@@ -21,6 +21,10 @@
 #include <katpriv.h>
 #include <katcl.h>
 
+#define DEFAULT_KEEPIDLE 7200
+#define DEFAULT_KEEPCNT 9
+#define DEFAULT_KEEPINTVL 75
+
 /* client stuff *******************************************************************/
 
 int client_exec_group_cmd_katcp(struct katcp_dispatch *d, int argc)
@@ -260,6 +264,162 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   if(reconfigure_flat_katcp(d, fx, (fx->f_flags & (~mask)) | set) < 0){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to change flags on client %s", fx->f_name);
     return KATCP_RESULT_FAIL;
+  }
+
+  return KATCP_RESULT_OK;
+}
+
+int tcp_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
+{
+  char *opt, *optval_str, *client;
+  char *ptr, *end;
+  struct katcp_flat *fx, *fy;
+  int optval, fd;
+  socklen_t optlen = sizeof(int);
+
+  optval = 0;
+  optval_str = client = NULL;
+  opt = ptr = end = NULL;
+
+#if !defined(TCP_KEEPCNT)
+  log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "tcp configuration parameter TCP_KEEPCNT is not supported");
+  return KATCP_RESULT_OK;
+#endif
+
+#if !defined(TCP_KEEPIDLE)
+  log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "tcp configuration parameter TCP_KEEPIDLE is not supported");
+  return KATCP_RESULT_OK;
+#endif
+
+#if !defined(TCP_KEEPINTVL)
+  log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "tcp configuration parameter TCP_KEEPINTVL is not supported");
+  return KATCP_RESULT_OK;
+#endif
+
+  fx = this_flat_katcp(d);
+  if (fx == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no client scope available");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+  }
+
+  if (argc < 2){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a tcp option");
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
+  }
+
+  /* option */
+  opt = arg_string_katcp(d, 1);
+  if(opt == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire a tcp option");
+    return KATCP_RESULT_FAIL;
+  }
+
+  /* check for settings */
+  if (strcmp(opt, "info") == 0){
+    if (argc > 2){
+      fy = scope_name_full_katcp(d, NULL, NULL, arg_string_katcp(d, 2));
+      if (fy == NULL){ 
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate client %s", client);
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+      }
+      fx = fy;
+    } 
+    fd = fileno_katcl(fx->f_line);
+    if(getsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &optval, &optlen) < 0){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to get SO_KEEPALIVE %s", strerror(errno));
+      return KATCP_RESULT_FAIL;
+    }
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "SO_KEEPALIVE is %s", optval ? "enabled" : "disabled");
+
+    if(getsockopt(fd, SOL_TCP, TCP_KEEPIDLE, &optval, &optlen) < 0){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to get TCP_KEEPIDLE %s", strerror(errno));
+      return KATCP_RESULT_FAIL;
+    }
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPIDLE is set to %d seconds", optval);
+
+    if(getsockopt(fd, SOL_TCP, TCP_KEEPCNT, &optval, &optlen) < 0){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to get TCP_KEEPCNT %s", strerror(errno));
+      return KATCP_RESULT_FAIL;
+    }
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPCNT is set to %d probes", optval);
+
+    if(getsockopt(fd, SOL_TCP, TCP_KEEPINTVL, &optval, &optlen) < 0){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to get TCP_KEEPINTVL %s", strerror(errno));
+      return KATCP_RESULT_FAIL;
+    }
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPINTVL is set to %d seconds", optval);
+
+    return KATCP_RESULT_OK;
+  }
+
+  if (argc > 2){
+    /* option argument */
+    ptr = optval_str = arg_string_katcp(d, 2);
+    strtoul(ptr, &end, 10);
+    if(optval_str == NULL){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to get tcp option value");
+      return KATCP_RESULT_FAIL;
+    } else if (strcmp(optval_str, "default") == 0){
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "using default setting");
+      optval = 0;
+    } else if ((*ptr != '\0') && (*end == '\0')){
+      /* value argument */
+      optval = arg_unsigned_long_katcp(d, 2);
+    } else if (argc < 4){
+      /* value argument assumed to be client argument */
+      client = arg_string_katcp(d, 2);
+      fy = scope_name_full_katcp(d, NULL, NULL, client); 
+      if(fy == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate client %s", client);
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+      } else {
+        fx = fy;
+        log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "using default setting");
+      }
+    }
+
+    if (argc > 3){
+      client = arg_string_katcp(d, 3);
+      fy = scope_name_full_katcp(d, NULL, NULL, client); 
+      if(fy == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate client %s", client);
+        return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_NOT_FOUND);
+      }
+      fx = fy;
+    }
+
+    fd = fileno_katcl(fx->f_line);
+    if (strcmp(opt, "idle") == 0){
+      optval = optval ? optval : DEFAULT_KEEPIDLE;
+      if (setsockopt(fd, SOL_TCP, TCP_KEEPIDLE, (void *)&optval, sizeof(optval))) {
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to set TCP_KEEPIDLE to %d seconds %s", optval, strerror(errno));
+        return KATCP_RESULT_FAIL;
+      }
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPIDLE set to %d seconds", optval);
+    } else if (strcmp(opt, "cnt") == 0){
+      optval = optval ? optval : DEFAULT_KEEPCNT;
+      if (setsockopt(fd, SOL_TCP, TCP_KEEPCNT, (void *)&optval, sizeof(optval))) {
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to set TCP_KEEPCNT to %d probes %s", optval, strerror(errno));
+        return KATCP_RESULT_FAIL;
+      }
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPCNT set to %d probes", optval);
+    } else if (strcmp(opt, "intvl") == 0){
+      optval = optval ? optval : DEFAULT_KEEPINTVL;
+      if (setsockopt(fd, SOL_TCP, TCP_KEEPINTVL, (void *)&optval, sizeof(optval))) {
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to set TCP_KEEPINTVL to %d seconds %s", optval, strerror(errno));
+        return KATCP_RESULT_FAIL;
+      }
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "TCP_KEEPINTVL set to %d seconds", optval);
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid tcp-config option");
+      return KATCP_RESULT_FAIL;
+    }
+    /* enable SO_KEEPALIVE */
+    if(setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval))) {
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to set SO_KEEPALIVE to %d %s", optval, strerror(errno));
+      return KATCP_RESULT_FAIL;
+    }
+    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "SO_KEEPALIVE is enabled");
   }
 
   return KATCP_RESULT_OK;

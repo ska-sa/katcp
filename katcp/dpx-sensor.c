@@ -533,10 +533,19 @@ int is_vrbl_sensor_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx)
 
 /*************************************************************************/
 
+#define SENSOR_TYPE_TABLE_SIZE (KATCP_SENSOR_LRU + KATCP_SENSORS_PLUS_FLOATS + 1)
+
 /* order has to match the values of KATCP_SENSOR_* */
-static char *sensor_type_table[KATCP_SENSORS_COUNT] = { "integer", "boolean", "discrete", "lru"
+static char *sensor_type_table[SENSOR_TYPE_TABLE_SIZE] = { "integer", "boolean", "discrete", "lru"
 #ifdef KATCP_USE_FLOATS
+#if (SENSOR_TYPE_TABLE_SIZE != 5)
+#error sensor type table not 5 in size
+#endif
   , "float"
+#else
+#if (SENSOR_TYPE_TABLE_SIZE != 4)
+#error sensor type table not 4 in size
+#endif
 #endif
 };
 
@@ -557,7 +566,7 @@ int type_from_string_sensor_katcp(struct katcp_dispatch *d, char *name)
     return -1;
   }
 
-  for(i = 0; i < KATCP_SENSORS_COUNT; i++){
+  for(i = 0; i < SENSOR_TYPE_TABLE_SIZE; i++){
     if(!strcmp(name, sensor_type_table[i])){
       return i;
     }

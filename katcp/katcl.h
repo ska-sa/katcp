@@ -75,6 +75,9 @@ int print_katcl(struct katcl_line *l, int full, char *fmt, ...);
 
 int relay_katcl(struct katcl_line *lx, struct katcl_line *ly);
 
+unsigned int flushing_bytes_katcl(struct katcl_line *l);
+unsigned int flushing_queue_katcl(struct katcl_line *l);
+
 int flushing_katcl(struct katcl_line *l);
 int write_katcl(struct katcl_line *l);
 
