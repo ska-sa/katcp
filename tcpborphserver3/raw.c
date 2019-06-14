@@ -2166,8 +2166,9 @@ int meta_cmd(struct katcp_dispatch *d, int argc)
   }
 
   switch(tr->r_fpga){
-    case TBS_FPGA_MAPPED:
-    case TBS_FPGA_READY:
+    case TBS_FPGA_MAPPED :
+    case TBS_FPGA_READY :
+    case TBS_FPGA_PROGRAMMED :
       break;
     default:
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "fpga not programmed");
