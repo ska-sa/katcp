@@ -1993,7 +1993,7 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
       log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "assuming new fpg format for %s", file);
       dl = template_shared_katcp(d);
       if(dl){
-        create_notice_katcp(d, TBS_KCPFPG_PATH, 0);
+        nx = create_notice_katcp(d, TBS_KCPFPG_PATH, 0);
         if(nx){
           if(add_notice_katcp(d, nx, &upload_generic_resume_tbs, NULL) == 0){
 
