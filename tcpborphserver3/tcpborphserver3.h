@@ -200,6 +200,7 @@ struct tbs_raw
   struct avl_tree *r_registers;
   struct avl_tree *r_hwmon; /* only used if INTERNAL_HWMON set */
   int r_fpga;
+  int r_clobber;
 
   void *r_map;
   unsigned int r_map_size;
