@@ -28,6 +28,9 @@
 
 #define ARRAY_SIZE 12
 #define DEFAULT_FILENAME    "vsc848x_EDC_FW_1_14.bin"
+
+#define flip32(a)     ((0xff & ((a) >> 24)) | (0xff00 & ((a) >> 8)) | (0xff0000 & ((a) << 8)) | (0xff000000 & ((a) << 24)))
+
 /*********************************************************************/
 
 static volatile int bus_error_happened;
@@ -780,6 +783,9 @@ int word_write_cmd(struct katcp_dispatch *d, int argc)
   unsigned int i, start, shift, j;
   uint32_t value, prev, update, current;
   char *name;
+#ifndef __PPC__
+  uint32_t flip;
+#endif
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
   if(tr == NULL){
@@ -838,7 +844,15 @@ int word_write_cmd(struct katcp_dispatch *d, int argc)
     }
 
     value = arg_unsigned_long_katcp(d, i);
+
+#ifdef __PPC__
     update = prev | (value >> shift);
+#else
+    /* this hack is on the request of Wes to do endianess hacking in tcpborphserver for the redpitaya */
+    /* it will mangle registers not on the word boundary, and words not 32bits in size. Be warned */
+    flip = flip32(value);
+    update = prev | (flip >> shift);
+#endif
 
     log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "writing 0x%x to position 0x%x", update, j);
 
@@ -1182,6 +1196,9 @@ int word_read_cmd(struct katcp_dispatch *d, int argc)
   char *name;
   uint32_t value, prev, current;
   unsigned int length, start, i, j, shift, flags;
+#ifndef __PPC__
+  uint32_t flip;
+#endif
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
   if(tr == NULL){
@@ -1272,7 +1289,12 @@ int word_read_cmd(struct katcp_dispatch *d, int argc)
       flags |= KATCP_FLAG_LAST;
     }
 
+#ifdef __PPC__
     append_hex_long_katcp(d, flags, value);
+#else
+    flip = flip32(value);
+    append_hex_long_katcp(d, flags, flip);
+#endif
   }
 
 #if 0
