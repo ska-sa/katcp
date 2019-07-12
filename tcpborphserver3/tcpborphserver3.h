@@ -18,9 +18,11 @@
 #endif
 
 #ifdef __PPC__ /* roach */
+#define TBS_DO_FLIP        0
 #define TBS_FPGA_CONFIG    "/dev/roach/config"
 #define TBS_FPGA_MEM       "/dev/roach/mem"
 #else /* redpitaya - should be a check for arm actually ... */
+#define TBS_DO_FLIP        1
 #define TBS_FPGA_CONFIG    "/dev/xdevcfg"
 #define TBS_FPGA_MEM       "/dev/mem"
 
