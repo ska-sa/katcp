@@ -17,12 +17,20 @@
 #define TBS_LOGFILE        "/var/log/tcpborphserver3.log"
 #endif
 
-#ifdef __PPC__
+#ifdef __PPC__ /* check for PPC roach */
+#define TBS_DO_FLIP        0
 #define TBS_FPGA_CONFIG    "/dev/roach/config"
 #define TBS_FPGA_MEM       "/dev/roach/mem"
-#else
-#define TBS_FPGA_CONFIG    "dev-roach-config"
-#define TBS_FPGA_MEM       "dev-roach-mem"
+#elif __ARM_ARCH_7A__ /* check for arm 7 (red pitaya board zync soc)  */
+#define TBS_DO_FLIP        1
+#define TBS_FPGA_CONFIG    "/dev/xdevcfg"
+#define TBS_FPGA_MEM       "/dev/mem"
+#elif __ARM_ARCH_8A /* check for arm 8 (zynq ultrascal mpsoc)*/
+#define TBS_DO_FLIP        0
+#define TBS_FPGA_CONFIG    "/lib/firmware/tcpborphserver.bin"
+#define TBS_FPGA_MEM       "/dev/mem"
+#define FPGA_MANAGER_FLAG  "/sys/class/fpga_manager/fpga0/flags"
+#define FPGA_MANAGER_FW    "/sys/class/fpga_manager/fpga0/firmware"
 #endif
 
 #define TBS_KCPFPG_PATH    "/bin/kcpfpg"
@@ -199,6 +207,7 @@ struct tbs_raw
   struct avl_tree *r_registers;
   struct avl_tree *r_hwmon; /* only used if INTERNAL_HWMON set */
   int r_fpga;
+  int r_clobber;
 
   void *r_map;
   unsigned int r_map_size;
