@@ -783,7 +783,7 @@ int word_write_cmd(struct katcp_dispatch *d, int argc)
   unsigned int i, start, shift, j;
   uint32_t value, prev, update, current;
   char *name;
-#ifndef __PPC__
+#if TBS_DO_FLIP
   uint32_t flip;
 #endif
 
@@ -845,13 +845,13 @@ int word_write_cmd(struct katcp_dispatch *d, int argc)
 
     value = arg_unsigned_long_katcp(d, i);
 
-#ifdef __PPC__
-    update = prev | (value >> shift);
-#else
+#if TBS_DO_FLIP
     /* this hack is on the request of Wes to do endianess hacking in tcpborphserver for the redpitaya */
     /* it will mangle registers not on the word boundary, and words not 32bits in size. Be warned */
     flip = flip32(value);
     update = prev | (flip >> shift);
+#else
+    update = prev | (value >> shift);
 #endif
 
     log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "writing 0x%x to position 0x%x", update, j);
@@ -1196,7 +1196,7 @@ int word_read_cmd(struct katcp_dispatch *d, int argc)
   char *name;
   uint32_t value, prev, current;
   unsigned int length, start, i, j, shift, flags;
-#ifndef __PPC__
+#if TBS_DO_FLIP
   uint32_t flip;
 #endif
 
@@ -1289,11 +1289,11 @@ int word_read_cmd(struct katcp_dispatch *d, int argc)
       flags |= KATCP_FLAG_LAST;
     }
 
-#ifdef __PPC__
-    append_hex_long_katcp(d, flags, value);
-#else
+#if TBS_DO_FLIP
     flip = flip32(value);
     append_hex_long_katcp(d, flags, flip);
+#else
+    append_hex_long_katcp(d, flags, value);
 #endif
   }
 
@@ -2622,7 +2622,7 @@ int map_raw_tbs(struct katcp_dispatch *d)
     log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "map request 0x%x is within limit 0x%x", tr->r_map_size, window);
   }
 
-#else /* redpitaya */
+#else /* !< non ROACH's (non PPCs) */
 
   tr->r_bot_register = tr->r_bot_register &              (~(page - 1));
   tr->r_top_register = (tr->r_top_register + page - 1) & (~(page - 1));
