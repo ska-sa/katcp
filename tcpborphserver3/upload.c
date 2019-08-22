@@ -137,6 +137,9 @@ int subprocess_upload_tbs(struct katcl_line *l, void *data)
   unsigned char buf[MTU];
   unsigned int count;
   gzFile gfd;
+#ifdef __ARM_ARCH_8A
+  FILE *fpga_man;
+#endif
 
   pd = data;
 
@@ -231,6 +234,29 @@ int subprocess_upload_tbs(struct katcl_line *l, void *data)
       return -1;
     }
   }
+
+#ifdef __ARM_ARCH_8A
+  /* Close file that we just finished writing to */
+  close(pd->t_fd);
+
+  if(pd->t_program) {
+    fpga_man = fopen(FPGA_MANAGER_FLAG, "w");
+    if(fpga_man == NULL){
+      sync_message_katcl(l, KATCP_LEVEL_ERROR, NULL, "unable to open fpga manager flags");
+      return -1;
+    }
+    fprintf(fpga_man, "0\n");
+    fclose(fpga_man);
+
+    fpga_man = fopen(FPGA_MANAGER_FW, "w");
+    if(fpga_man == NULL){
+      sync_message_katcl(l, KATCP_LEVEL_ERROR, NULL, "unable to open firmware file to write bitstream name");
+      return -1;
+    }
+    fprintf(fpga_man, "tcpborphserver.bin\n");
+    fclose(fpga_man);
+  }
+#endif
 
   alarm(0);
 
@@ -1178,6 +1204,7 @@ int upload_complete_tbs(struct katcp_dispatch *d, struct katcp_notice *n, void *
   return 0;
 }
 
+/* !< this doesn't seem to be called */
 int upload_cmd(struct katcp_dispatch *d, int argc)
 {
   struct katcp_dispatch *dl;

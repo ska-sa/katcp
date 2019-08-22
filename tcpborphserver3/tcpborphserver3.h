@@ -17,13 +17,20 @@
 #define TBS_LOGFILE        "/var/log/tcpborphserver3.log"
 #endif
 
-#ifdef __PPC__ /* roach */
+#ifdef __PPC__ /* check for PPC roach */
+#define TBS_DO_FLIP        0
 #define TBS_FPGA_CONFIG    "/dev/roach/config"
 #define TBS_FPGA_MEM       "/dev/roach/mem"
-#else /* redpitaya - should be a check for arm actually ... */
+#elif __ARM_ARCH_7A__ /* check for arm 7 (red pitaya board zync soc)  */
+#define TBS_DO_FLIP        1
 #define TBS_FPGA_CONFIG    "/dev/xdevcfg"
 #define TBS_FPGA_MEM       "/dev/mem"
-
+#elif __ARM_ARCH_8A /* check for arm 8 (zynq ultrascal mpsoc)*/
+#define TBS_DO_FLIP        0
+#define TBS_FPGA_CONFIG    "/lib/firmware/tcpborphserver.bin"
+#define TBS_FPGA_MEM       "/dev/mem"
+#define FPGA_MANAGER_FLAG  "/sys/class/fpga_manager/fpga0/flags"
+#define FPGA_MANAGER_FW    "/sys/class/fpga_manager/fpga0/firmware"
 #endif
 
 #define TBS_KCPFPG_PATH    "/bin/kcpfpg"
@@ -292,6 +299,18 @@ struct tbs_port_data {
 #endif
 };
 
+struct read_bram_info
+{
+  char *name;    /* name of BRAM to read*/
+  char *ip_addr; /* IP address to send the data to*/
+};
+
+int capture_start_cmd(struct katcp_dispatch *d, int argc);
+void destroy_read_bram_info(struct katcp_dispatch *d, struct read_bram_info *bram);
+int capture_stop_cmd(struct katcp_dispatch *d, int argc);
+struct read_bram_info *create_read_bram_info(struct katcp_dispatch *d, char *bram_name, char *ip);
+int run_capture_timer(struct katcp_dispatch *d, void *data);
+ 
 int upload_generic_resume_tbs(struct katcp_dispatch *d, struct katcp_notice *n, void *data);
 int detect_file_tbs(struct katcp_dispatch *d, char *name, int fd);
 
