@@ -28,6 +28,9 @@
 
 #define ARRAY_SIZE 12
 #define DEFAULT_FILENAME    "vsc848x_EDC_FW_1_14.bin"
+
+#define flip32(a)     ((0xff & ((a) >> 24)) | (0xff00 & ((a) >> 8)) | (0xff0000 & ((a) << 8)) | (0xff000000 & ((a) << 24)))
+
 /*********************************************************************/
 
 static volatile int bus_error_happened;
@@ -446,7 +449,7 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
 
     mezz = arg_string_katcp(d, 1);
     phy = arg_string_katcp(d, 2);
- 
+
     if ( strcmp(mezz, "0") && strcmp(mezz, "1") ){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "not a valid mezzanine card number");
         return KATCP_RESULT_INVALID;
@@ -604,10 +607,10 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
     write_katcp(d);
 
     //Write data to appropriate PHY-RAM
- 
+
     while( fread(&word, 1, 2, fptr) != 0 ){     //read a word of two bytes until end of file
- 
- 
+
+
         tmp1 = word;
         tmp1 = tmp1 << 8;
         word = word >> 8;
@@ -619,20 +622,20 @@ int phy_prog_cmd(struct katcp_dispatch *d, int argc)
         tmp1 = tmp1 << 8;
         word = word >> 8;
         Uword = tmp1 + word;
- 
+
         word = 0;
 
         phy_write_op(port_addr, DEVADDR_RAM, wordcount, Uword);
         //printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, wordcount) );
         wordcount++;
- 
+
         phy_write_op(port_addr, DEVADDR_RAM, wordcount, Lword);
         //printf("DEBUG::: word %d is 0x%x\n", wordcount, phy_read_op(port_addr, DEVADDR_RAM, wordcount) );
         wordcount++;
     }
 
     fclose(fptr);
- 
+
     //Release PHY-MCU from sw reset
     phy_write_op(port_addr, DEVADDR_MCU, 0x0002, 0x00);
 
@@ -780,6 +783,9 @@ int word_write_cmd(struct katcp_dispatch *d, int argc)
   unsigned int i, start, shift, j;
   uint32_t value, prev, update, current;
   char *name;
+#ifndef __PPC__
+  uint32_t flip;
+#endif
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
   if(tr == NULL){
@@ -838,10 +844,18 @@ int word_write_cmd(struct katcp_dispatch *d, int argc)
     }
 
     value = arg_unsigned_long_katcp(d, i);
+
+#ifdef __PPC__
     update = prev | (value >> shift);
+#else
+    /* this hack is on the request of Wes to do endianess hacking in tcpborphserver for the redpitaya */
+    /* it will mangle registers not on the word boundary, and words not 32bits in size. Be warned */
+    flip = flip32(value);
+    update = prev | (flip >> shift);
+#endif
 
     log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "writing 0x%x to position 0x%x", update, j);
- 
+
     if(((unsigned int)tr->r_map + j) > (unsigned int)tr->r_map + tr->r_map_size){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL,
         "register %s is outside mapped range 0x%08x", name,
@@ -1182,6 +1196,9 @@ int word_read_cmd(struct katcp_dispatch *d, int argc)
   char *name;
   uint32_t value, prev, current;
   unsigned int length, start, i, j, shift, flags;
+#ifndef __PPC__
+  uint32_t flip;
+#endif
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
   if(tr == NULL){
@@ -1272,7 +1289,12 @@ int word_read_cmd(struct katcp_dispatch *d, int argc)
       flags |= KATCP_FLAG_LAST;
     }
 
+#ifdef __PPC__
     append_hex_long_katcp(d, flags, value);
+#else
+    flip = flip32(value);
+    append_hex_long_katcp(d, flags, flip);
+#endif
   }
 
 #if 0
@@ -1993,7 +2015,7 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
       log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "assuming new fpg format for %s", file);
       dl = template_shared_katcp(d);
       if(dl){
-        create_notice_katcp(d, TBS_KCPFPG_PATH, 0);
+        nx = create_notice_katcp(d, TBS_KCPFPG_PATH, 0);
         if(nx){
           if(add_notice_katcp(d, nx, &upload_generic_resume_tbs, NULL) == 0){
 
@@ -2166,8 +2188,9 @@ int meta_cmd(struct katcp_dispatch *d, int argc)
   }
 
   switch(tr->r_fpga){
-    case TBS_FPGA_MAPPED:
-    case TBS_FPGA_READY:
+    case TBS_FPGA_MAPPED :
+    case TBS_FPGA_READY :
+    case TBS_FPGA_PROGRAMMED :
       break;
     default:
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "fpga not programmed");
@@ -2262,10 +2285,39 @@ int meta_cmd(struct katcp_dispatch *d, int argc)
   return KATCP_RESULT_OK;
 }
 
+int clobber_cmd(struct katcp_dispatch *d, int argc)
+{
+  struct tbs_raw *tr;
+  char *option;
+
+  tr = get_mode_katcp(d, TBS_MODE_RAW);
+  if(tr == NULL){
+    return KATCP_RESULT_FAIL;
+  }
+
+  option = arg_string_katcp(d, 1);
+  if(option != NULL){
+    if((!strcmp(option, "true")) ||
+       (!strcmp(option, "on")) ||
+       (!strcmp(option, "yes")) ||
+       (!strncmp(option, "enable", 5)) ||
+       (!strcmp(option, "1"))
+      ){
+
+      tr->r_clobber = 1;
+    } else {
+      tr->r_clobber = 0;
+    }
+  }
+
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "duplicate register definitions %s", tr->r_clobber ? "will redefine earlier ones" : "will be rejected");
+  return KATCP_RESULT_OK;
+}
+
 int register_cmd(struct katcp_dispatch *d, int argc)
 {
   char *name, *position, *end, *extra, *length;
-  struct tbs_entry entry, *te;
+  struct tbs_entry entry, *te, *tp;
   unsigned int mod, div, final, bits;
   struct tbs_raw *tr;
 
@@ -2300,9 +2352,14 @@ int register_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
-  if(find_data_avltree(tr->r_registers, name)){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "register called %s already defined", name);
-    return KATCP_RESULT_FAIL;
+  tp = find_data_avltree(tr->r_registers, name);
+  if(tp != NULL){
+    if(tr->r_clobber == 0){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "register called %s already defined", name);
+      return KATCP_RESULT_FAIL;
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "will redefine register called %s", name);
+    }
   }
 
   entry.e_pos_base = strtoul(position, &end, 0);
@@ -2386,17 +2443,21 @@ int register_cmd(struct katcp_dispatch *d, int argc)
     }
   }
 
-  te = malloc(sizeof(struct tbs_entry));
-  if(te == NULL){
-    return KATCP_RESULT_FAIL;
-  }
 
-  memcpy(te, &entry, sizeof(struct tbs_entry));
+  if(tp){ /* clobber an existing entry */
+    memcpy(tp, &entry, sizeof(struct tbs_entry));
+  } else { /* add a new entry */
+    te = malloc(sizeof(struct tbs_entry));
+    if(te == NULL){
+      return KATCP_RESULT_FAIL;
+    }
+    memcpy(te, &entry, sizeof(struct tbs_entry));
 
-  if(store_named_node_avltree(tr->r_registers, name, te) < 0){
-    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unable to store definition of register %s", name);
-    free(te);
-    return KATCP_RESULT_FAIL;
+    if(store_named_node_avltree(tr->r_registers, name, te) < 0){
+      log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unable to store definition of register %s", name);
+      free(te);
+      return KATCP_RESULT_FAIL;
+    }
   }
 
   return KATCP_RESULT_OK;
@@ -2690,6 +2751,8 @@ int start_fpg_tbs(struct katcp_dispatch *d)
   tr->r_top_register = 0;
   tr->r_bot_register = SIZE_MAX;
 
+  status_fpga_tbs(d, TBS_FPGA_PROGRAMMED);
+
 #if 0
   tr->r_top_register = infer_fpga_range(d);
 
@@ -2904,6 +2967,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
   tr->r_hwmon = NULL;
 #endif
   tr->r_fpga = TBS_FPGA_DOWN;
+  tr->r_clobber = 0;
 
   tr->r_map = NULL;
   tr->r_map_size = 0;
@@ -2924,7 +2988,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
 
   tr->r_meta = NULL;
   /* clear out further structure elements */
- 
+
   tr->r_lkey = NULL;
 
   /* allocate structure elements */
@@ -2980,7 +3044,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
   result += register_flag_mode_katcp(d, "?finalise",     "mark register definitions as complete (?finalise)", &finalise_cmd, 0, TBS_MODE_RAW);
 
   result += register_flag_mode_katcp(d, "?phyprog",      "programs firmware onto phy chip on mezzanine card (?phyprog mezzanine_card phy_number [file <filename>] [force])", &phy_prog_cmd, 0, TBS_MODE_RAW);
- 
+
   result += register_flag_mode_katcp(d, "?phywatch",     "returns the watchdog counter value of phy chip on mezzanine card (?phywatch mezzanine_card phy_number)", &phy_watchdog_cmd, 0, TBS_MODE_RAW);
 
   /* upload, not program */
@@ -3001,6 +3065,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
   result += register_flag_mode_katcp(d, "?devkey",    "retrieve the fpga programmability locking key (?devkey)", &retrieve_dev_key_cmd, 0, TBS_MODE_RAW);
   result += register_flag_mode_katcp(d, "?lockdev",    "lock fpga programmability (?lockdev [key optional]. if key ommitted, current connection parameters used)", &lockdev_cmd, 0, TBS_MODE_RAW);
 
+  result += register_flag_mode_katcp(d, "?clobber",     "permit or disallow redefinition of existing registers (?clobber [on|off])", &clobber_cmd, 0, TBS_MODE_RAW);
   result += register_flag_mode_katcp(d, "?register",     "name a memory location (?register name position bit-offset length)", &register_cmd, 0, TBS_MODE_RAW);
 
   result += register_flag_mode_katcp(d, "?meta",         "more info abt design(key parent field value)", &meta_cmd, 0, TBS_MODE_RAW);

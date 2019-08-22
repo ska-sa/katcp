@@ -17,12 +17,13 @@
 #define TBS_LOGFILE        "/var/log/tcpborphserver3.log"
 #endif
 
-#ifdef __PPC__
+#ifdef __PPC__ /* roach */
 #define TBS_FPGA_CONFIG    "/dev/roach/config"
 #define TBS_FPGA_MEM       "/dev/roach/mem"
-#else
-#define TBS_FPGA_CONFIG    "dev-roach-config"
-#define TBS_FPGA_MEM       "dev-roach-mem"
+#else /* redpitaya - should be a check for arm actually ... */
+#define TBS_FPGA_CONFIG    "/dev/xdevcfg"
+#define TBS_FPGA_MEM       "/dev/mem"
+
 #endif
 
 #define TBS_KCPFPG_PATH    "/bin/kcpfpg"
@@ -199,6 +200,7 @@ struct tbs_raw
   struct avl_tree *r_registers;
   struct avl_tree *r_hwmon; /* only used if INTERNAL_HWMON set */
   int r_fpga;
+  int r_clobber;
 
   void *r_map;
   unsigned int r_map_size;
