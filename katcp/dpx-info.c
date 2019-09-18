@@ -523,6 +523,10 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
 
   if(units){
     scan_vrbl_katcp(d, vx, units, KATCP_VRC_SENSOR_UNITS, 1, KATCP_VRT_STRING);
+  } else {
+    if((fx->f_flags & KATCP_FLAT_PERMITNUL) == 0){
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "sensor %s declared with no units", name);
+    }
   }
 
   if(typecode == KATCP_SENSOR_DISCRETE){
@@ -614,7 +618,9 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
         } else {
           tmp = "value";
         }
-        log_message_katcp(d, (count < 6) ? KATCP_LEVEL_WARN : KATCP_LEVEL_INFO, NULL, "encountered sensor update for %s which lacks a valid %s field", name, tmp);
+        if((fx->f_flags & KATCP_FLAT_PERMITNUL) == 0){
+          log_message_katcp(d, (count < 6) ? KATCP_LEVEL_WARN : KATCP_LEVEL_INFO, NULL, "encountered sensor update for %s which lacks a valid %s field", name, tmp);
+        }
       } else {
         log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "encountered sensor update without a valid name");
       }

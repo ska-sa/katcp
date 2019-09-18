@@ -2630,7 +2630,7 @@ int map_raw_tbs(struct katcp_dispatch *d)
   tr->r_map_size = tr->r_top_register - tr->r_bot_register;
   tr->r_map_offset = tr->r_bot_register;
 
-  log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "mapping area 0x%08x at 0x%x", tr->r_map_size, tr->r_map_offset);
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "mapping area 0x%08x at 0x%x", tr->r_map_size, tr->r_map_offset);
 
   complex_inorder_traverse_avltree(d, tr->r_registers->t_root, tr, &fixup_offset_tbs);
 

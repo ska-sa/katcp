@@ -233,6 +233,11 @@ int client_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     set    = KATCP_FLAT_RUNMAPTOO;
 #endif
 
+  } else if(!strcmp(option, "permit-nul")){
+    set    = KATCP_FLAT_PERMITNUL;
+  } else if(!strcmp(option, "fill-nul")){
+    mask   = KATCP_FLAT_PERMITNUL;
+
   } else if(!strcmp(option, "version-prepend")){
     set    = KATCP_FLAT_PREPEND;
   } else if(!strcmp(option, "version-unchanged")){
@@ -846,6 +851,10 @@ int group_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     mask   = KATCP_FLAT_PREFIXED | KATCP_FLAT_PREPEND;
   } else if(!strcmp(option, "flexible")){ /* pick whatever the calling logic prefers */
     mask   = (KATCP_GROUP_OVERRIDE_SENSOR  | KATCP_FLAT_PREFIXED) | (KATCP_GROUP_OVERRIDE_VERSION | KATCP_FLAT_PREPEND);
+  } else if(!strcmp(option, "permit-nul")){
+    set    = KATCP_FLAT_PERMITNUL;
+  } else if(!strcmp(option, "fill-nul")){
+    mask   = KATCP_FLAT_PERMITNUL;
   } else { /* TODO: broadcast and relayinfo overrides */
     /* WARNING: does not error out in an effort to be forward compatible */
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unknown configuration option %s", option);

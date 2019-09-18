@@ -675,9 +675,10 @@ int sensor_list_callback_katcp(struct katcp_dispatch *d, unsigned int *count, ch
   int result;
 #if 0
   struct katcp_vrbl_payload *prefix;
-  struct katcp_flat *fx;
   char *front;
 #endif
+  struct katcp_flat *fx;
+  int fill;
 
   result = is_vrbl_sensor_katcp(d, vx);
   if(result <= 0){
@@ -722,13 +723,14 @@ int sensor_list_callback_katcp(struct katcp_dispatch *d, unsigned int *count, ch
 
 #if 0
   front = NULL;
+#endif
+  fill = 1;
   fx = this_flat_katcp(d);
   if(fx){
-    if(fx->f_flags & KATCP_FLAT_PREFIXED){
-      front = fx->f_name;
+    if(fx->f_flags & KATCP_FLAT_PERMITNUL){
+      fill = 0;
     }
   }
-#endif
 
   prepend_inform_katcp(d);
 
@@ -746,14 +748,15 @@ int sensor_list_callback_katcp(struct katcp_dispatch *d, unsigned int *count, ch
   if(help && (help->p_type == KATCP_VRT_STRING)){
     append_payload_vrbl_katcp(d, 0, vx, help);
   } else {
-    append_string_katcp(d, KATCP_FLAG_STRING, "undocumented");
+    append_string_katcp(d, KATCP_FLAG_STRING, fill ? "undocumented" : NULL);
   }
 
   units = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_UNITS);
   if(units && (units->p_type == KATCP_VRT_STRING)){
     append_payload_vrbl_katcp(d, 0, vx, units);
   } else {
-    append_string_katcp(d, KATCP_FLAG_STRING, "none");
+
+    append_string_katcp(d, KATCP_FLAG_STRING, fill ? "none" : NULL);
   }
 
   range = find_payload_katcp(d, vx, KATCP_VRC_SENSOR_RANGE);

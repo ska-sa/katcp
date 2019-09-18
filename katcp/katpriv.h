@@ -1121,6 +1121,9 @@ int switch_group_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct k
 #define KATCP_FLAT_SEESMAPINFO 0x800   /* interested in seeing informs which also have a map handler */
 
 #define KATCP_FLAT_PREPEND     0x1000  /* add client name to version field */
+#define KATCP_FLAT_PERMITNUL   0x2000  /* permit sensor definitions/updates with null fields */
+
+/* WARNING: above KATCP_FLAT can get or'ed with KATCP_GROUP_OVERRIDE... */
 
 int broadcast_pair_katcp(struct katcp_dispatch *d, char *inform, char *value, unsigned int flag);
 

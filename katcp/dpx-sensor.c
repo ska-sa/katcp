@@ -630,6 +630,8 @@ int add_partial_sensor_katcp(struct katcp_dispatch *d, struct katcl_parse *px, c
   unsigned int r;
   int i, sum;
   char *ptr;
+  struct katcp_flat *fx;
+  int fill;
 
   if((px == NULL) || (vx == NULL)){
     return -1;
@@ -641,6 +643,14 @@ int add_partial_sensor_katcp(struct katcp_dispatch *d, struct katcl_parse *px, c
     ptr = vx->v_name;
   } else {
     ptr = "unnamed";
+  }
+
+  fill = 1;
+  fx = this_flat_katcp(d);
+  if(fx){
+    if(fx->f_flags & KATCP_FLAT_PERMITNUL){
+      fill = 0;
+    }
   }
 
   r = 0;
@@ -667,7 +677,7 @@ int add_partial_sensor_katcp(struct katcp_dispatch *d, struct katcl_parse *px, c
   if(py){
     results[r++] = add_payload_vrbl_katcp(d, px, flags & KATCP_FLAG_LAST, vx, py);
   } else {
-    results[r++] = add_string_parse_katcl(px, KATCP_FLAG_STRING | (flags & KATCP_FLAG_LAST), "unset");
+    results[r++] = add_string_parse_katcl(px, KATCP_FLAG_STRING | (flags & KATCP_FLAG_LAST), fill ? "unset" : NULL);
   }
 
   sum = 0;
