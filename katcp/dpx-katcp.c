@@ -447,6 +447,8 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept user messages", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESUSER) ? "will" : "will not");
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s relay messages seen in map handlers", fx->f_name, (fx->f_flags & KATCP_FLAT_SEESMAPINFO) ? "will" : "will not");
 
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s %s accept and relay empty sensor fields", fx->f_name, (fx->f_flags & KATCP_FLAT_PERMITNUL) ? "will" : "will not");
+
   ptr = string_from_scope_katcp(fx->f_scope);
   if(ptr){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has %s scope", fx->f_name, ptr);

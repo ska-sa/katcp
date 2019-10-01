@@ -1624,7 +1624,15 @@ int reconfigure_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, unsi
     trigger_connect_flat(d, fx);
   }
 
-  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT | KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_RETAINFO | KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO | KATCP_FLAT_PREPEND);
+#if 0
+  fx->f_flags = flags & (KATCP_FLAT_TOSERVER | KATCP_FLAT_TOCLIENT |
+      KATCP_FLAT_HIDDEN | KATCP_FLAT_PREFIXED |
+      KATCP_FLAT_INSTALLINFO | KATCP_FLAT_RETAINFO | LOG_PREFIX |
+      KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER | KATCP_FLAT_SEESMAPINFO |
+      KATCP_FLAT_PREPEND | KATCP_FLAT_PERMITNUL);
+#endif
+
+  fx->f_flags = flags & KATCP_FLAT_CONFIGMASK;
 
   return 0;
 }
@@ -1635,7 +1643,7 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
   struct katcp_flat *f, **tmp;
   struct katcp_shared *s;
   struct katcp_group *gx;
-  unsigned int i, mask, set;
+  unsigned int i, fields;
 
   s = d->d_shared;
 
@@ -1785,32 +1793,22 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
 
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "created instance for %s", name ? name : "<anonymous");
 
-  set  = 0;
-  mask = 0;
+  fields = 0;
 
-  if(gx->g_flags & KATCP_GROUP_OVERRIDE_SENSOR){
-    set  |=   (gx->g_flags)  & KATCP_FLAT_PREFIXED;
-    mask |= (~(gx->g_flags)) & KATCP_FLAT_PREFIXED;
+  if(gx->g_flags & KATCP_GROUP_OVERRIDE_MISC){
+    fields |= (KATCP_FLAT_HIDDEN | KATCP_FLAT_PERMITNUL);
   }
-
-  if(gx->g_flags & KATCP_GROUP_OVERRIDE_VERSION){
-    set  |=   (gx->g_flags)  & KATCP_FLAT_PREPEND;
-    mask |= (~(gx->g_flags)) & KATCP_FLAT_PREPEND;
-  }
-
   if(gx->g_flags & KATCP_GROUP_OVERRIDE_BROADCAST){
-    set  |=   (gx->g_flags)  & (KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER);
-    mask |= (~(gx->g_flags)) & (KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER);
+    fields |= (KATCP_FLAT_SEESKATCP | KATCP_FLAT_SEESADMIN | KATCP_FLAT_SEESUSER);
+  }
+  if(gx->g_flags & KATCP_GROUP_OVERRIDE_RELAYING){
+    fields |= (KATCP_FLAT_RETAINFO | KATCP_FLAT_INSTALLINFO | KATCP_FLAT_SEESMAPINFO);
+  }
+  if(gx->g_flags & KATCP_GROUP_OVERRIDE_PREFIXING){
+    fields |= (KATCP_FLAT_PREFIXED | KATCP_FLAT_LOGPREFIX | KATCP_FLAT_PREPEND);
   }
 
-  if(gx->g_flags & KATCP_GROUP_OVERRIDE_RELAYINFO){
-    set  |=   (gx->g_flags)  & KATCP_FLAT_RETAINFO;
-    mask |= (~(gx->g_flags)) & KATCP_FLAT_RETAINFO;
-  }
-
-  /* TODO: missing INSTALLINFO, SEESMAPINFO and PREPEND */
-
-  reconfigure_flat_katcp(d, f, (flags & (~mask)) | set);
+  reconfigure_flat_katcp(d, f, (flags & (~fields)) | (gx->g_flags & fields));
 
   s->s_up_count++;
 
@@ -4147,7 +4145,8 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "client-halt", "stop a client (?client-halt [name [group]])", 0, &client_halt_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-connect", "create a client to a remote host (?client-connect host:port [group [name]])", 0, &client_connect_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "?client-exec", "create a client to a local process (?client-exec label [group [binary [args]*])", 0, &client_exec_group_cmd_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config (duplex|server|client|hidden|visible|prefixed|fixed|translate|native|[no-]named-log) [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config (duplex|server|client|hidden|visible|prefixed|fixed|translate|native|log-prefix|log-plain|permit-nul|fill-nul|version-prepend|version-unchanged|info-none|info-katcp|info-user|info-admin|extra-relay|extra-drop|info-all [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
+
     add_full_cmd_map_katcp(m, "client-switch", "switch a client's group (?client-switch group [client])", 0, &client_switch_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "tcp-config", "set client tcp keepalive parameters (?tcp-config [info|idle|cnt|intvl] (client|value) [client])", 0, &tcp_config_group_cmd_katcp, NULL, NULL);

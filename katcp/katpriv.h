@@ -1097,31 +1097,33 @@ void sane_flat_katcp(struct katcp_flat *f);
 int startup_duplex_katcp(struct katcp_dispatch *d, unsigned int stories);
 void shutdown_duplex_katcp(struct katcp_dispatch *d);
 
-#define KATCP_GROUP_OVERRIDE_SENSOR    0x10000000
+#define KATCP_GROUP_OVERRIDE_MISC      0x10000000
 #define KATCP_GROUP_OVERRIDE_BROADCAST 0x20000000
-#define KATCP_GROUP_OVERRIDE_RELAYINFO 0x40000000
-#define KATCP_GROUP_OVERRIDE_VERSION   0x80000000
+#define KATCP_GROUP_OVERRIDE_RELAYING  0x40000000
+#define KATCP_GROUP_OVERRIDE_PREFIXING 0x80000000
 
 int switch_group_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct katcp_group *gx);
 
+#define KATCP_FLAT_CONNECTING          0x00100000   /* wait for connect to complete */
 
-#define KATCP_FLAT_CONNECTING   0x01   /* wait for connect to complete */
-#define KATCP_FLAT_TOSERVER     0x02   /* direction */
-#define KATCP_FLAT_TOCLIENT     0x04   /* direction */
-#define KATCP_FLAT_HIDDEN       0x08   /* do not show up in client list */
-#define KATCP_FLAT_PREFIXED     0x10   /* sensors have prefix fields to them */
+#define KATCP_FLAT_TOSERVER                  0x02   /* direction */
+#define KATCP_FLAT_TOCLIENT                  0x04   /* direction */
+#define KATCP_FLAT_HIDDEN                    0x08   /* do not show up in client list */
+#define KATCP_FLAT_PREFIXED                  0x10   /* sensors have prefix fields to them */
 
-#define KATCP_FLAT_INSTALLINFO  0x20   /* install info relay handler */
-#define KATCP_FLAT_RETAINFO     0x40   /* do not rewrite relayed info fields */
-#define KATCP_FLAT_LOGPREFIX    0x80   /* prefix flat name to log message name field */
+#define KATCP_FLAT_INSTALLINFO               0x20   /* install info relay handler */
+#define KATCP_FLAT_RETAINFO                  0x40   /* do not rewrite relayed info fields */
+#define KATCP_FLAT_LOGPREFIX                 0x80   /* prefix flat name to log message name field */
 
-#define KATCP_FLAT_SEESKATCP   0x100   /* sees katcp-specified inform messages */
-#define KATCP_FLAT_SEESADMIN   0x200   /* sees admin messages */
-#define KATCP_FLAT_SEESUSER    0x400   /* wants to see the content of broadcast_inform */
-#define KATCP_FLAT_SEESMAPINFO 0x800   /* interested in seeing informs which also have a map handler */
+#define KATCP_FLAT_SEESKATCP                0x100   /* sees katcp-specified inform messages */
+#define KATCP_FLAT_SEESADMIN                0x200   /* sees admin messages */
+#define KATCP_FLAT_SEESUSER                 0x400   /* wants to see the content of broadcast_inform */
+#define KATCP_FLAT_SEESMAPINFO              0x800   /* interested in seeing informs which also have a map handler */
 
-#define KATCP_FLAT_PREPEND     0x1000  /* add client name to version field */
-#define KATCP_FLAT_PERMITNUL   0x2000  /* permit sensor definitions/updates with null fields */
+#define KATCP_FLAT_PREPEND                 0x1000   /* add client name to version field */
+#define KATCP_FLAT_PERMITNUL               0x2000   /* permit sensor definitions/updates with null fields */
+
+#define KATCP_FLAT_CONFIGMASK              0xffff   /* the set of bits that we carry over from the group !? */
 
 /* WARNING: above KATCP_FLAT can get or'ed with KATCP_GROUP_OVERRIDE... */
 
