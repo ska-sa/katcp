@@ -4145,7 +4145,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "client-halt", "stop a client (?client-halt [name [group]])", 0, &client_halt_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "client-connect", "create a client to a remote host (?client-connect host:port [group [name]])", 0, &client_connect_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "?client-exec", "create a client to a local process (?client-exec label [group [binary [args]*])", 0, &client_exec_group_cmd_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config (duplex|server|client|hidden|visible|prefixed|fixed|translate|native|log-prefix|log-plain|permit-nul|fill-nul|version-prepend|version-unchanged|info-none|info-katcp|info-user|info-admin|extra-relay|extra-drop|info-all [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "client-config", "set a client option (?client-config (duplex|server|client|hidden|visible|prefixed|fixed|translate|native|log-prefix|log-plain|permit-nul|fill-nul|version-prepend|version-unchanged|info-none|info-katcp|info-user|info-admin|extra-relay|extra-drop|info-all) [client])", 0, &client_config_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "client-switch", "switch a client's group (?client-switch group [client])", 0, &client_switch_group_cmd_katcp, NULL, NULL);
 
@@ -4154,7 +4154,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "group-create", "create a new group (?group-create name [group])", 0, &group_create_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "group-list", "list groups (?group-list)", 0, &group_list_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "group-halt", "halt a group (?group-halt [group])", 0, &group_halt_group_cmd_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "group-config", "set a group option (?group-config option [group])", 0, &group_config_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "group-config", "set a group option (?group-config (all-prefix|all-unchanged|sensor-prefix|log-prefix|version-prefix|delegates|permit-nul|fill-nul) [group])", 0, &group_config_group_cmd_katcp, NULL, NULL);
 
     add_full_cmd_map_katcp(m, "listener-create", "create a listener (?listener-create label [port [interface [group]]])", 0, &listener_create_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "listener-config", "configure a listener (?listener-config label [nagle|fast])", 0, &listener_config_group_cmd_katcp, NULL, NULL);
