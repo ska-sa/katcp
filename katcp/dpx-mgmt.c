@@ -828,9 +828,7 @@ int group_config_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   if(argc < 2){
-    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "prefixed option forces name prefix in sensors");
-    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "fixed option inhibits name prefix in sensors");
-    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "flexible option decides does not force sensor prefix");
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "valid configuration values in clude all-prefix all-unchanged sensor-prefix log-prefix version-prefix delegates permit-nul fill-nul");
     return KATCP_RESULT_FAIL;
   }
 
