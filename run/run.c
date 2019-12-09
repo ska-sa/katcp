@@ -786,6 +786,8 @@ int main(int argc, char **argv)
   server = NULL;
   app = argv[0];
 
+  p = NULL;
+
   k = create_katcl(STDOUT_FILENO);
   if(k == NULL){
     fprintf(stderr, "%s: unable to create katcp message logic\n", app);
