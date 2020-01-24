@@ -126,7 +126,7 @@ static struct katcp_wit *create_wit_katcp(struct katcp_dispatch *d)
   w->w_size_period = 0;
   w->w_size_event = 0;
 
-  w->w_endpoint = create_endpoint_katcp(d, NULL, &release_endpoint_wit, w);
+  w->w_endpoint = create_endpoint_katcp(d, NULL, &release_endpoint_wit, w, 0);
   if(w->w_endpoint == NULL){
     destroy_wit_katcp(d, w);
     return NULL;

@@ -1744,14 +1744,14 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
     return NULL;
   }
 
-  f->f_peer = create_endpoint_katcp(d, &wake_endpoint_peer_flat_katcp, &release_endpoint_peer_flat_katcp, f);
+  f->f_peer = create_endpoint_katcp(d, &wake_endpoint_peer_flat_katcp, &release_endpoint_peer_flat_katcp, f, 0);
   if(f->f_peer == NULL){
     /* WARNING - unclear how bad a failure this is */
     destroy_flat_katcp(d, f);
     return NULL;
   }
 
-  f->f_remote = create_endpoint_katcp(d, &wake_endpoint_remote_flat_katcp, &release_endpoint_remote_flat_katcp, f);
+  f->f_remote = create_endpoint_katcp(d, &wake_endpoint_remote_flat_katcp, &release_endpoint_remote_flat_katcp, f, 1);
   if(f->f_remote == NULL){
     destroy_flat_katcp(d, f);
     return NULL;

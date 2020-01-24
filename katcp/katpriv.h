@@ -967,6 +967,7 @@ struct katcp_endpoint{
   void *e_data;
 
   struct katcp_endpoint *e_next;
+  unsigned int e_fast_flush;
 };
 
 #if 0
@@ -1302,7 +1303,7 @@ void load_endpoints_katcp(struct katcp_dispatch *d);
 
 void release_endpoints_katcp(struct katcp_dispatch *d);
 
-struct katcp_endpoint *create_endpoint_katcp(struct katcp_dispatch *d, int (*wake)(struct katcp_dispatch *d, struct katcp_endpoint *ep, struct katcp_message *msg, void *data), void (*release)(struct katcp_dispatch *d, void *data), void *data);
+struct katcp_endpoint *create_endpoint_katcp(struct katcp_dispatch *d, int (*wake)(struct katcp_dispatch *d, struct katcp_endpoint *ep, struct katcp_message *msg, void *data), void (*release)(struct katcp_dispatch *d, void *data), void *data, int fast);
 
 /* schedule destruction of endpoint, does not call release callback, to be called in destruction logic of entity owning the endpoint */
 int release_endpoint_katcp(struct katcp_dispatch *d, struct katcp_endpoint *ep);

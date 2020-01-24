@@ -25,7 +25,7 @@ OBJ = $(patsubst %.c,%.o,$(SRC))
 
 all: $(LIB)
 
-both: $(LIB) $(SHARED) 
+both: $(LIB)
 
 $(LIB): $(OBJ)
 	$(AR) rcs $(LIB) $(OBJ)
