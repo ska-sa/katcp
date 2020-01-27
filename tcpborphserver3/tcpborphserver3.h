@@ -17,11 +17,7 @@
 #define TBS_LOGFILE        "/var/log/tcpborphserver3.log"
 #endif
 
-#ifdef __PPC__ /* check for PPC roach */
-#define TBS_DO_FLIP        0
-#define TBS_FPGA_CONFIG    "/dev/roach/config"
-#define TBS_FPGA_MEM       "/dev/roach/mem"
-#elif __ARM_ARCH_7A__ /* check for arm 7 (red pitaya board zync soc)  */
+#if __ARM_ARCH_7A__ /* check for arm 7 (red pitaya board zync soc)  */
 #define TBS_DO_FLIP        1
 #define TBS_FPGA_CONFIG    "/dev/xdevcfg"
 #define TBS_FPGA_MEM       "/dev/mem"
@@ -31,6 +27,10 @@
 #define TBS_FPGA_MEM       "/dev/mem"
 #define FPGA_MANAGER_FLAG  "/sys/class/fpga_manager/fpga0/flags"
 #define FPGA_MANAGER_FW    "/sys/class/fpga_manager/fpga0/firmware"
+#else /* assume PPC for ROACH*/
+#define TBS_DO_FLIP        0
+#define TBS_FPGA_CONFIG    "/dev/roach/config"
+#define TBS_FPGA_MEM       "/dev/roach/mem"
 #endif
 
 #define TBS_KCPFPG_PATH    "/bin/kcpfpg"
