@@ -25,7 +25,9 @@
 
 #define KATCP_INIT_WAIT    3600
 #define KATCP_HALT_WAIT       1
+
 #define KATCP_BRIEF_WAIT  10000   /* 10 ms */
+#define KATCP_SPIN_PROTECT   20   /* start adding a small delay so not to hammer CPU, in case of logic issue  */
 
 #if KATCP_EXPERIMENTAL == 2
 #ifndef KATCP_HEAP_TIMERS
@@ -577,7 +579,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 {
 #define LABEL_BUFFER 32
   /* int nfd; */
-  int run, result, suspend;
+  int run, result, suspend, rapid;
 #ifdef KATCP_DEPRECATED
   unsigned int len;
   struct sockaddr_in sa;
@@ -599,7 +601,6 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     FD_ZERO(&(s->s_read));
     FD_ZERO(&(s->s_write));
 
-
 #if 0
     gettimeofday(&now, NULL);
     future.tv_sec = now.tv_sec + KATCP_INIT_WAIT;
@@ -613,6 +614,7 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
 #else
     suspend = run_timers_katcp(dl, &delta);
 #endif
+    rapid = 0;
 
 #ifdef KATCP_SUBPROCESS
     load_jobs_katcp(dl);
@@ -677,24 +679,43 @@ int run_core_loop_katcp(struct katcp_dispatch *dl)
     
     if(s->s_busy > 0){
       suspend = 0;
-      delta.tv_sec = 0;
-      delta.tv_nsec = KATCP_BRIEF_WAIT;
+      if(s->s_busy_run == 0){
+        rapid = 1;
+      } else {
+        delta.tv_sec = 0;
+        if(s->s_busy_run > KATCP_SPIN_PROTECT){
+          delta.tv_nsec = KATCP_BRIEF_WAIT;
+        } else {
+          delta.tv_nsec = 0;
+        }
+      }
+      s->s_busy_run++;
+    } else {
+      s->s_busy_run = 0;
     }
 
 #ifdef DEBUG
-    if(suspend){
+    if(rapid){
+      fprintf(stderr, "core loop: skipping select entirely\n");
+    } else if(suspend){
       fprintf(stderr, "core loop: selecting indefinitely\n");
     } else {
-      fprintf(stderr, "core loop: selecting for %lu.%09lu\n", delta.tv_sec, delta.tv_nsec);
+      fprintf(stderr, "core loop: selecting for %lu.%09lu (busy run %u)\n", delta.tv_sec, delta.tv_nsec, s->s_busy_run);
     }
 #endif
 
+    if(rapid){
+      FD_ZERO(&(s->s_read));
+      FD_ZERO(&(s->s_write));
+      result = 0;
+    } else {
     /* delta now timespec, not timeval */
-    result = pselect(s->s_max + 1, &(s->s_read), &(s->s_write), NULL, suspend ? NULL : &delta, &(s->s_signal_mask));
+      result = pselect(s->s_max + 1, &(s->s_read), &(s->s_write), NULL, suspend ? NULL : &delta, &(s->s_signal_mask));
 #ifdef DEBUG
-    fprintf(stderr, "core loop: select=%d, used=%d\n", result, s->s_used);
-    fprintf(stderr, "core loop: lcount = %d, epcount = %d, upcount = %d\n", s->s_lcount, s->s_epcount, s->s_up_count);
+      fprintf(stderr, "core loop: select=%d, used=%d\n", result, s->s_used);
+      fprintf(stderr, "core loop: lcount = %d, epcount = %d, upcount = %d\n", s->s_lcount, s->s_epcount, s->s_up_count);
 #endif
+    }
 
     s->s_busy = 0;
 

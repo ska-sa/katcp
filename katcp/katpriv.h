@@ -825,6 +825,7 @@ struct katcp_shared{
   unsigned int s_pending;
 
   unsigned int s_busy; /* more things to do, keep select short */
+  unsigned int s_busy_run; /* how many times were we busy ... */
 
   struct katcp_group **s_groups;
   struct katcp_group *s_fallback;
@@ -968,6 +969,8 @@ struct katcp_endpoint{
 
   struct katcp_endpoint *e_next;
   unsigned int e_fast_flush;
+  unsigned long e_flush_runs;
+  unsigned long e_flush_messages;
 };
 
 #if 0

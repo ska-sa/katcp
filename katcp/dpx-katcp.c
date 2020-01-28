@@ -512,7 +512,8 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   sub_time_katcp(&delta, &now, &(fx->f_last_read));
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s last read %lu.%06lus ago", fx->f_name, delta.tv_sec, delta.tv_usec);
 
-  show_endpoint_katcp(d, fx->f_name ? fx->f_name : "unknown", KATCP_LEVEL_TRACE | KATCP_LEVEL_LOCAL, fx->f_peer);
+  show_endpoint_katcp(d, fx->f_name ? fx->f_name : "unknown", KATCP_LEVEL_DEBUG | KATCP_LEVEL_LOCAL, fx->f_peer);
+  show_endpoint_katcp(d, fx->f_name ? fx->f_name : "unknown", KATCP_LEVEL_TRACE | KATCP_LEVEL_LOCAL, fx->f_remote);
 
   log_message_katcp(d, KATCP_LEVEL_DEBUG | KATCP_LEVEL_LOCAL, NULL, "client %s running with fd %d", fx->f_name ? fx->f_name : "unknown", fileno_katcl(fx->f_line));
 
