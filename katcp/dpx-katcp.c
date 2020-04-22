@@ -1039,7 +1039,7 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   char *key_base;
   char *key_start;
   char *key_end;
-  int done = 0;  
+  int done = 0;
   unsigned int index = 0;
 
   if(argc <= 2){
@@ -1093,7 +1093,7 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "invalid sensor sampling strategy number %d", strategy);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
   }
-  
+
   key_base = arg_copy_string_katcp(d, 1);
   key_start = key_base;
   do{
@@ -1105,7 +1105,7 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     } else {
       done = 1;
     }
-    key = key_start; 
+    key = key_start;
     if(key == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no useful sensor in parameter %d", i);
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
@@ -1203,7 +1203,7 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
     if(key_end){
       key_start = key_end + 1;
-    }  
+    }
     i++;
   } while (!done);
 
