@@ -1095,6 +1095,11 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   key_base = arg_copy_string_katcp(d, 1);
+
+  if(key_base == NULL){
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_MALLOC);
+  }
+
   key_start = key_base;
   do{
     i = 1;
