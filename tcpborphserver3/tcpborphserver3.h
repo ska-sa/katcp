@@ -31,6 +31,10 @@
 #define TBS_FPGA_MEM       "/dev/mem"
 #define FPGA_MANAGER_FLAG  "/sys/class/fpga_manager/fpga0/flags"
 #define FPGA_MANAGER_FW    "/sys/class/fpga_manager/fpga0/firmware"
+#else
+#define TBS_DO_FLIP        0
+#define TBS_FPGA_CONFIG    "/lib/firmware/tcpborphserver.bin"
+#define TBS_FPGA_MEM       "/dev/mem"
 #endif
 
 #define TBS_KCPFPG_PATH    "/bin/kcpfpg"
