@@ -233,6 +233,88 @@ static void word_normalise(struct katcl_byte_bit *bb)
 
 /*********************************************************************/
 
+int run_capture_timer(struct katcp_dispatch *d, void *data)
+{
+  struct read_bram_info *bram = (struct read_bram_info *) data;
+  
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "2please read %s bram", bram->name);
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "and send ip %s ", bram->ip_addr);
+
+  return 0;
+}
+
+struct read_bram_info *create_read_bram_info(struct katcp_dispatch *d, char *bram_name, char *ip)
+{
+  struct read_bram_info *info;
+  
+  info = malloc(sizeof(struct read_bram_info));
+  if (info == NULL) {
+    return NULL;
+  }
+  
+  info->name = bram_name;
+  info->ip_addr = ip;
+
+  return info;
+}
+
+void destroy_read_bram_info(struct katcp_dispatch *d, struct read_bram_info *bram)
+{
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "in destroy");
+  free(bram->name);
+  bram->name = NULL; 
+  free(bram->ip_addr);
+  bram->ip_addr = NULL; 
+  free(bram);
+}
+
+int capture_start_cmd(struct katcp_dispatch *d, int argc)
+{
+  struct read_bram_info *bram_info; 
+  char *bram_name;
+  char *ip_addr;
+  int rate;
+
+  if (argc != 4){
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "parameters are not correct. need 4 including name, got %d", argc);
+    return -1;
+  } 
+  bram_name = arg_copy_string_katcp(d, 1);
+  ip_addr = arg_copy_string_katcp(d, 2);
+  rate = arg_double_katcp(d, 3);
+  bram_info = create_read_bram_info(d, bram_name, ip_addr);
+
+  if(register_heap_timer_every_ms_katcp(d, rate, &run_capture_timer, bram_info, bram_name) < 0){
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "cannot schedule timer to capture data");
+    return -1;
+  }
+  return 0;
+}
+
+int capture_stop_cmd(struct katcp_dispatch *d, int argc)
+{
+  struct read_bram_info *info;
+  char *bram_name;
+  
+  if (argc != 2){
+    log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "parameters are not correct. need 2 including name, got %d", argc);
+    return -1;
+  } 
+
+  bram_name = arg_copy_string_katcp(d, 1);
+  info = (struct read_bram_info *) find_data_by_name_heap_timer_katcp(d, bram_name);
+  destroy_read_bram_info(d, info);
+
+  if(discharge_named_timer_katcp(d, bram_name) < 0) {
+    log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "cannot discharge timer to stop data capture");
+    return -1;
+  }
+  
+  free(bram_name);
+
+  return 0;
+}
+
 int display_dir_cmd(struct katcp_dispatch *d, char *directory)
 {
   DIR *dr;
@@ -783,7 +865,7 @@ int word_write_cmd(struct katcp_dispatch *d, int argc)
   unsigned int i, start, shift, j;
   uint32_t value, prev, update, current;
   char *name;
-#ifndef __PPC__
+#if TBS_DO_FLIP
   uint32_t flip;
 #endif
 
@@ -845,13 +927,13 @@ int word_write_cmd(struct katcp_dispatch *d, int argc)
 
     value = arg_unsigned_long_katcp(d, i);
 
-#ifdef __PPC__
-    update = prev | (value >> shift);
-#else
+#if TBS_DO_FLIP
     /* this hack is on the request of Wes to do endianess hacking in tcpborphserver for the redpitaya */
     /* it will mangle registers not on the word boundary, and words not 32bits in size. Be warned */
     flip = flip32(value);
     update = prev | (flip >> shift);
+#else
+    update = prev | (value >> shift);
 #endif
 
     log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "writing 0x%x to position 0x%x", update, j);
@@ -1196,7 +1278,7 @@ int word_read_cmd(struct katcp_dispatch *d, int argc)
   char *name;
   uint32_t value, prev, current;
   unsigned int length, start, i, j, shift, flags;
-#ifndef __PPC__
+#if TBS_DO_FLIP
   uint32_t flip;
 #endif
 
@@ -1289,11 +1371,11 @@ int word_read_cmd(struct katcp_dispatch *d, int argc)
       flags |= KATCP_FLAG_LAST;
     }
 
-#ifdef __PPC__
-    append_hex_long_katcp(d, flags, value);
-#else
+#if TBS_DO_FLIP
     flip = flip32(value);
     append_hex_long_katcp(d, flags, flip);
+#else
+    append_hex_long_katcp(d, flags, value);
 #endif
   }
 
@@ -2622,7 +2704,7 @@ int map_raw_tbs(struct katcp_dispatch *d)
     log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "map request 0x%x is within limit 0x%x", tr->r_map_size, window);
   }
 
-#else /* redpitaya */
+#else /* !< non ROACH's (non PPCs) */
 
   tr->r_bot_register = tr->r_bot_register &              (~(page - 1));
   tr->r_top_register = (tr->r_top_register + page - 1) & (~(page - 1));
@@ -3098,6 +3180,8 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
 
   result += register_flag_mode_katcp(d, "?chassis-start",  "initialise chassis interface", &start_chassis_cmd, 0, TBS_MODE_RAW);
   result += register_flag_mode_katcp(d, "?chassis-led",    "set a chassis led (?chassis-led led state)", &led_chassis_cmd, 0, TBS_MODE_RAW);
+  result += register_katcp(d, "?capture", "starts a data capture", &capture_start_cmd);
+  result += register_katcp(d, "?capture-stop", "stops a data capture", &capture_stop_cmd);
 
   tr->r_chassis = chassis_init_tbs(d, TBS_ROACH_CHASSIS);
   if(tr->r_chassis){
