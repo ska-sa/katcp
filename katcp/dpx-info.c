@@ -527,7 +527,7 @@ int sensor_list_group_info_katcp(struct katcp_dispatch *d, int argc)
     if((fx->f_flags & KATCP_FLAT_PERMITNUL) == 0){
       log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "sensor %s declared with no units", name);
     } else {
-      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "accepted sensor %s which has no units", name);
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "accepted sensor %s which has no units", name);
     }
   }
 

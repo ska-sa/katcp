@@ -44,7 +44,7 @@ static struct fpga_reg fpga_reg_map[] = {
 static int fpga_set_reg(unsigned int index, uint32_t val){
     if (fpga_reg_map[index].abs_addr != NULL){
         *(fpga_reg_map[index].abs_addr) = val;
-        return 0;    
+        return 0;
     }
     else{
         fprintf(stderr, "Could not write to register %s : address not initialized\n", fpga_reg_map[index].name);
@@ -70,7 +70,7 @@ static uint32_t fpga_get_reg(unsigned int index){
   Bits 2:1 are the MDIO opcode
   MDIO opcodes
 ADDRESS:      0, # 0b000 - 0 << 1
-WRITE:        2, # 0b010 - 1 << 1    
+WRITE:        2, # 0b010 - 1 << 1
 RD_ADDR_INC:  4, # 0b100 - 2 << 1
 READ:         6, # 0b110 - 3 << 1
 EMAC configuration
@@ -96,14 +96,14 @@ static uint32_t fpga_mdio_op(uint32_t op_type, uint32_t addr, uint32_t payload){
 
 /*****Reset a phy on a mezzanine card*****/
 /*
-   mgt_gpio[11]  Unused 
+   mgt_gpio[11]  Unused
    mgt_gpio[10]  SFP1: MDIO          MDIO data line
    mgt_gpio[9]   SFP1: MDC           MDIO clock line
    ENABLE SW RESET => mgt_gpio[8]   SFP1: PHY1 RESET    PHY reset when '1'
 
    ENABLE SW RESET => mgt_gpio[7]   SFP1: PHY0 RESET    PHY reset when '1'
    mgt_gpio[6]   SFP1: MDIO Enable   Enable MDIO mode when '1'
-   mgt_gpio[5]   Unused 
+   mgt_gpio[5]   Unused
    mgt_gpio[4]   SFP0: MDIO          MDIO data line
 
    mgt_gpio[3]   SFP0: MDC           MDIO clock line
@@ -129,7 +129,7 @@ int mezz_phy_reset_op(int mezz_card, int phy_num){
     }
     else if (mezz_card == 1){
         if (phy_num==0){
-            val = 0x80;             //0b0000 1000 0000 
+            val = 0x80;             //0b0000 1000 0000
         }
         else if(phy_num == 1){
             val = 0x100;            //0b0001 0000 0000
@@ -144,21 +144,21 @@ int mezz_phy_reset_op(int mezz_card, int phy_num){
     retval += fpga_set_reg(INDEX_SFP_GPIO_DATA_OE,  val);
     retval += fpga_set_reg(INDEX_SFP_GPIO_DATA_OUT, val);
     usleep(1);
-    retval += fpga_set_reg(INDEX_SFP_GPIO_DATA_OUT, 0x0); 
+    retval += fpga_set_reg(INDEX_SFP_GPIO_DATA_OUT, 0x0);
     return retval;
 }
 
 
 /******Enable software control of SFP MDIOs.
 
-  mgt_gpio[11]  Unused 
+  mgt_gpio[11]  Unused
   ENABLE SW CONTROL => mgt_gpio[10]  SFP1: MDIO          MDIO data line
   ENABLE SW CONTROL => mgt_gpio[9]   SFP1: MDC           MDIO clock line
   mgt_gpio[8]   SFP1: PHY1 RESET    PHY reset when '1'
 
   mgt_gpio[7]   SFP1: PHY0 RESET    PHY reset when '1'
   mgt_gpio[6]   SFP1: MDIO Enable   Enable MDIO mode when '1'
-  mgt_gpio[5]   Unused 
+  mgt_gpio[5]   Unused
   ENABLE SW CONTROL => mgt_gpio[4]   SFP0: MDIO          MDIO data line
 
   ENABLE SW CONTROL => mgt_gpio[3]   SFP0: MDC           MDIO clock line
@@ -179,11 +179,11 @@ void fpga_mdio_sw_config(){
 void phy_write_op(uint8_t port_addr, uint8_t device_addr, uint16_t reg_addr, uint16_t data){
     //Each MDIO frame has address made up of port and device addr
     //NOTE: An address MDIO operation on FPGA structures the sfp_op_addr as follows to connect to phy: 0xUULL
-    //      UU => upper byte contains the port addr of the frame constructed as follows 
+    //      UU => upper byte contains the port addr of the frame constructed as follows
     //      UU[4:1]={PADDR_pin[4:1]} and UU[0]=channel_number{0 or 1}
     //      LL => lower byte contains the device address/number to be written to e.g 0x1E for MCU or 0x1F for RAM, etc.
     uint32_t p_d_addr = (((uint32_t) port_addr) << 8) + ((uint32_t) device_addr);
-    
+ 
     //requires two MDIO instruction frame cycles:
     //1) set the address of the register on the phy-ch-device to be written to
     fpga_mdio_op(ADDRESS, p_d_addr, (uint32_t)reg_addr);

@@ -30,7 +30,7 @@
 
 #define UPLOAD_LABEL      "upload"
 
-#define UPLOAD_TIMEOUT    30 
+#define UPLOAD_TIMEOUT    30
 #define UPLOAD_PORT       7146
 
 #define FPG_HEADER 589377378
@@ -52,7 +52,7 @@ void destroy_port_data_tbs(struct katcp_dispatch *d, struct tbs_port_data *pd, i
   pd->t_port = 0;
 
   if(pd->t_name){
- 
+
     switch(pd->t_del){
       case  TBS_DEL_NEVER  :
         break;
@@ -129,7 +129,7 @@ struct tbs_port_data *create_port_data_tbs(struct katcp_dispatch *d, char *file,
 /****************************************************************************/
 
 int subprocess_upload_tbs(struct katcl_line *l, void *data)
-{ 
+{
   /* TODO: once kcpfpg does gzopen, this should only decompress if format is BIN ? */
 
   struct tbs_port_data *pd;
@@ -171,7 +171,7 @@ int subprocess_upload_tbs(struct katcl_line *l, void *data)
     sync_message_katcl(l, KATCP_LEVEL_ERROR, UPLOAD_LABEL, "gzdopen on network data stream failed: %s", strerror(errno));
     return -1;
   }
-  
+
   count = 0;
 
   for (;;){
@@ -335,7 +335,7 @@ int detect_file_tbs(struct katcp_dispatch *d, char *name, int fd)
 {
 #define BUFFER 128
   int rfd, rr;
-  char buffer[BUFFER]; 
+  char buffer[BUFFER];
   char bofmagic[4] = { 0x19, 'B', 'O', 'F' };
 
   /* TODO - use gzopen */
@@ -416,7 +416,7 @@ int upload_filesystem_complete_tbs(struct katcp_dispatch *d, struct katcp_notice
   result = transfer_status_tbs(d, n);
 
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "transfer of %s %s", pd->t_name, (result < 0) ? "failed" : "succeeded");
-  
+
   destroy_port_data_tbs(d, pd, (result < 0) ? 1 : 0);
 
   return 0;
@@ -443,7 +443,7 @@ int upload_filesystem_cmd(struct katcp_dispatch *d, int argc)
   if(tr == NULL){
     return KATCP_RESULT_FAIL;
   }
- 
+
   expected = 0;
   timeout = 0;
   port = UPLOAD_PORT;
@@ -551,7 +551,7 @@ int upload_filesystem_cmd(struct katcp_dispatch *d, int argc)
     destroy_port_data_tbs(d, pd, 1);
     return KATCP_RESULT_FAIL;
   }
-      
+
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "awaiting transfer on port %d", pd->t_port);
 
   return KATCP_RESULT_PAUSE;
@@ -576,7 +576,7 @@ int upload_bin_complete_tbs(struct katcp_dispatch *d, struct katcp_notice *n, vo
   result = transfer_status_tbs(d, n);
 
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "transfer of %s %s", pd->t_name, (result < 0) ? "failed" : "succeeded");
-  
+
   destroy_port_data_tbs(d, pd, (result < 0) ? 1 : 0);
 
   if(result == 0){
@@ -607,7 +607,7 @@ int upload_bin_cmd(struct katcp_dispatch *d, int argc)
   if(tr == NULL){
     return KATCP_RESULT_FAIL;
   }
- 
+
   if ((tr->r_lkey != NULL) && strcmp(tr->r_lkey, d->d_name)){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
     return KATCP_RESULT_FAIL;
@@ -709,7 +709,7 @@ int upload_bin_cmd(struct katcp_dispatch *d, int argc)
     close(pd->t_fd);
     pd->t_fd = (-1);
   }
-      
+
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "awaiting transfer on port %d", pd->t_port);
 
   return KATCP_RESULT_PAUSE;
@@ -846,7 +846,7 @@ int upload_program_partial_tbs(struct katcp_dispatch *d, struct katcp_notice *n,
 
 #if 0
 int progremote_tbs(struct katcl_line *l, void *data)
-{ 
+{
   struct tbs_port_data *pd;
   int lfd, nfd, rr, wr, have;
   unsigned char buf[MTU];
@@ -1017,7 +1017,7 @@ int upload_program_cmd(struct katcp_dispatch *d, int argc)
   if(tr == NULL){
     return KATCP_RESULT_FAIL;
   }
- 
+
   if ((tr->r_lkey != NULL) && strcmp(tr->r_lkey, d->d_name)){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "device locked");
     return KATCP_RESULT_FAIL;
@@ -1142,7 +1142,7 @@ int upload_complete_tbs(struct katcp_dispatch *d, struct katcp_notice *n, void *
 #ifdef DEBUG
   fprintf(stderr, "%s: got inform %s\n", __func__, inform);
 #endif
-  
+
   if(strcmp(inform, KATCP_RETURN_JOB) != 0){
     destroy_port_data_tbs(d, pd, 1);
     return 0;
@@ -1161,7 +1161,7 @@ int upload_complete_tbs(struct katcp_dispatch *d, struct katcp_notice *n, void *
   }
 
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "transfer completed for %s upload", pd->t_program ? "programmed" : "plain");
-  
+
   if(pd->t_program){
 
     if (lseek(pd->t_fd, 0, SEEK_SET) < 0){
@@ -1169,7 +1169,7 @@ int upload_complete_tbs(struct katcp_dispatch *d, struct katcp_notice *n, void *
       destroy_port_data_tbs(d, pd, 1);
       return 0;
     }
-   
+
     if(stop_fpga_tbs(d) < 0){
       destroy_port_data_tbs(d, pd, 1);
       return 0;
@@ -1200,7 +1200,7 @@ int upload_complete_tbs(struct katcp_dispatch *d, struct katcp_notice *n, void *
   }
 
   destroy_port_data_tbs(d, pd, 0);
-  
+
   return 0;
 }
 
@@ -1224,7 +1224,7 @@ int upload_cmd(struct katcp_dispatch *d, int argc)
   if(tr == NULL){
     return KATCP_RESULT_FAIL;
   }
- 
+
   expected = 0;
   timeout = 0;
   port = UPLOAD_PORT;
@@ -1292,7 +1292,7 @@ int upload_cmd(struct katcp_dispatch *d, int argc)
     destroy_port_data_tbs(d, pd, 1);
     return KATCP_RESULT_FAIL;
   }
-      
+
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "awaiting transfer on port %d", pd->t_port);
 
   status_fpga_tbs(d, TBS_FPGA_PROGRAMMED);

@@ -143,10 +143,10 @@
 #define IP_ID_LEN                   2
 #define IP_FLAG_FRAG_OFFSET         (IP_ID_OFFSET + IP_ID_LEN) //6
 #define IP_FLAG_FRAG_LEN            2
-#define IP_TTL_OFFSET               (IP_FLAG_FRAG_OFFSET + IP_FLAG_FRAG_LEN) //8 
-#define IP_TTL_LEN                  1 
+#define IP_TTL_OFFSET               (IP_FLAG_FRAG_OFFSET + IP_FLAG_FRAG_LEN) //8
+#define IP_TTL_LEN                  1
 #define IP_PROT_OFFSET              (IP_TTL_OFFSET + IP_TTL_LEN) //9
-#define IP_PROT_LEN                 1 
+#define IP_PROT_LEN                 1
 #define IP_CHKSM_OFFSET             (IP_PROT_OFFSET + IP_PROT_LEN) //10
 #define IP_CHKSM_LEN                2
 #define IP_SRC_OFFSET               (IP_CHKSM_OFFSET + IP_CHKSM_LEN)//12
@@ -156,7 +156,7 @@
 
 #define IP_FRAME_TOTAL_LEN          (IP_DST_OFFSET + IP_DST_LEN)
 
-#define UDP_FRAME_BASE              (IP_FRAME_BASE + IP_FRAME_TOTAL_LEN) //34 
+#define UDP_FRAME_BASE              (IP_FRAME_BASE + IP_FRAME_TOTAL_LEN) //34
 #define UDP_SRC_PORT_OFFSET         0
 #define UDP_SRC_PORT_LEN            2
 #define UDP_DST_PORT_OFFSET         (UDP_SRC_PORT_OFFSET + UDP_SRC_PORT_LEN) //2
@@ -232,7 +232,7 @@
 /*Discover:*/
 //#define DHCP_PARAM_OFFSET           0
 //#define DHCP_PARAM_LEN              7
-//#define DHCP_END_DISC_OFFSET        (DHCP_PARAM_OFFSET + DHCP_PARAM_LEN) 
+//#define DHCP_END_DISC_OFFSET        (DHCP_PARAM_OFFSET + DHCP_PARAM_LEN)
 #define DHCP_END_DISC_OFFSET        0
 #define DHCP_END_DISC_LEN           1
 
@@ -452,7 +452,7 @@ static unsigned int compute_spam_rate(struct getap_state *gs, unsigned int index
 #endif
 
   value = (2 * third) + ((((index * COPRIME_A) + (gs->s_iteration * COPRIME_B) + (gs->s_self * gs->s_spam_period[GETAP_PERIOD_CURRENT])) % 3) ? extra : third);
-  
+
   return value;
 }
 
@@ -690,7 +690,7 @@ int reply_arp(struct getap_state *gs)
   gs->s_rxb[SIZE_FRAME_HEADER + ARP_OP2] = 2;
 
   /* make sender of receive the target of transmit*/
-  memcpy(gs->s_rxb + SIZE_FRAME_HEADER + ARP_THA_BASE, gs->s_rxb + SIZE_FRAME_HEADER + ARP_SHA_BASE, 10); 
+  memcpy(gs->s_rxb + SIZE_FRAME_HEADER + ARP_THA_BASE, gs->s_rxb + SIZE_FRAME_HEADER + ARP_SHA_BASE, 10);
 
   /* write in our own sending information */
   memcpy(gs->s_rxb + SIZE_FRAME_HEADER + ARP_SIP_BASE, &(gs->s_address_binary), 4);
@@ -856,14 +856,14 @@ static int write_mac_fpga(struct getap_state *gs, unsigned int offset, const uin
 
   base = gs->s_raw_mode->r_map + gs->s_register->e_pos_base;
 
-  value = (   0x0         & 0xff000000) | 
+  value = (   0x0         & 0xff000000) |
           (   0x0         & 0xff0000) |
-          ((mac[0] <<  8) & 0xff00) | 
+          ((mac[0] <<  8) & 0xff00) |
            (mac[1]        & 0xff);
   *((uint32_t *)(base + offset)) = value;
 
 
-  value = ((mac[2] << 24) & 0xff000000) | 
+  value = ((mac[2] << 24) & 0xff000000) |
           ((mac[3] << 16) & 0xff0000) |
           ((mac[4] <<  8) & 0xff00) |
            (mac[5]        & 0xff);
@@ -882,11 +882,11 @@ int write_mac_fpga(struct getap_state *gs, unsigned int offset, const uint8_t *m
   d = gs->s_dispatch;
   base = gs->s_raw_mode->r_map + gs->s_register->e_pos_base + offset;
 
-  v[0] = (   0x0         & 0xff000000) | 
+  v[0] = (   0x0         & 0xff000000) |
          (   0x0         & 0xff0000) |
-         ((mac[0] <<  8) & 0xff00) | 
+         ((mac[0] <<  8) & 0xff00) |
           (mac[1]        & 0xff);
-  v[1] = ((mac[2] << 24) & 0xff000000) | 
+  v[1] = ((mac[2] << 24) & 0xff000000) |
          ((mac[3] << 16) & 0xff0000) |
          ((mac[4] <<  8) & 0xff00) |
           (mac[5]        & 0xff);
@@ -1009,14 +1009,14 @@ static int transmit_frame_fpga(struct getap_state *gs)
   return result;
 }
 
- /*    
+ /*
     An IP host group address is mapped to an Ethernet multicast address
     by placing the low-order 23-bits of the IP address into the low-order
     23 bits of the Ethernet multicast address 01-00-5E-00-00-00 (hex).
     Because there are 28 significant bits in an IP host group address,
     more than one host group address may map to the same Ethernet
     multicast address.
-    i.e. take multicast address and it with 0x7FFFFF 
+    i.e. take multicast address and it with 0x7FFFFF
   */
 
 int transmit_ip_fpga(struct getap_state *gs)
@@ -1083,7 +1083,7 @@ int transmit_ip_fpga(struct getap_state *gs)
 #ifdef DEBUG
   fprintf(stderr, "-> %x:%x:%x:%x:%x:%x\n", gs->s_txb[0], gs->s_txb[1], gs->s_txb[2], gs->s_txb[3], gs->s_txb[4], gs->s_txb[5]);
 #endif
-  
+
   return transmit_frame_fpga(gs);
 }
 
@@ -1170,7 +1170,7 @@ int receive_ip_kernel(struct katcp_dispatch *d, struct getap_state *gs)
   switch(rr){
     case -1 :
       switch(errno){
-        case EAGAIN : 
+        case EAGAIN :
         case EINTR  :
           return 0;
         default :
@@ -1190,7 +1190,7 @@ int receive_ip_kernel(struct katcp_dispatch *d, struct getap_state *gs)
 #ifdef DEBUG
   fprintf(stderr, "rxt: tap rx=%d, data=", rr);
   for(i = 0; i < rr; i++){
-    fprintf(stderr, " %02x", gs->s_txb[i]); 
+    fprintf(stderr, " %02x", gs->s_txb[i]);
   }
   fprintf(stderr, "\n");
 #endif
@@ -1342,7 +1342,7 @@ int run_timer_tap(struct katcp_dispatch *d, void *data)
             break;
 
           case 0x06 : /* arp packet */
-            
+
             if(gs->s_address_binary != 0){
               result = process_arp(gs);
               if(result == 0){
@@ -1470,7 +1470,7 @@ int configure_ip_fpga(struct getap_state *gs)
   *((uint32_t *)(base + GO_ADDRESS)) = value;
   gs->s_address_binary = value; /* in network byte order */
 
-  gs->s_mask_binary = htonl((0xffffffff << (32 - gs->s_subnet))); 
+  gs->s_mask_binary = htonl((0xffffffff << (32 - gs->s_subnet)));
   gs->s_network_binary = gs->s_mask_binary & gs->s_address_binary;
   gs->s_self = ntohl(~(gs->s_mask_binary) & gs->s_address_binary);
 
@@ -1698,7 +1698,7 @@ void unlink_getap(struct katcp_dispatch *d, struct getap_state *gs)
     return;
   }
 
-  i = 0; 
+  i = 0;
   while(i < tr->r_instances){
     if(tr->r_taps[i] == gs){
       tr->r_instances--;
@@ -1825,7 +1825,7 @@ void stop_all_getap(struct katcp_dispatch *d, int final)
 
 struct getap_state *create_getap(struct katcp_dispatch *d, unsigned int instance, char *name, char *tap, char *ip, unsigned int port, char *mac, char *gateway, unsigned int period)
 {
-  struct getap_state *gs; 
+  struct getap_state *gs;
   unsigned int i;
   struct tbs_raw *tr;
 
@@ -2055,7 +2055,7 @@ struct getap_state *create_getap(struct katcp_dispatch *d, unsigned int instance
 
 int insert_getap(struct katcp_dispatch *d, char *name, char *tap, char *ip, unsigned int port, char *mac, char *gateway, unsigned int period)
 {
-  struct getap_state *gs, **tmp; 
+  struct getap_state *gs, **tmp;
   unsigned int i;
   struct tbs_raw *tr;
 
@@ -2065,7 +2065,7 @@ int insert_getap(struct katcp_dispatch *d, char *name, char *tap, char *ip, unsi
     return -1;
   }
 
-  i = 0; 
+  i = 0;
   while(i < tr->r_instances){
     if(!strcmp(tap, tr->r_taps[i]->s_tap_name)){
       log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "tap device %s already running, restarting it", tap);
@@ -2237,7 +2237,7 @@ int tap_reload_cmd(struct katcp_dispatch *d, int argc)
 
     return KATCP_RESULT_OK;
   }
-  
+
   name = arg_string_katcp(d, 1);
   if(name == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "internal failure while acquiring parameters");
@@ -2264,7 +2264,7 @@ int tap_runtime_configure(struct katcp_dispatch *d, struct getap_state *gs, char
   unsigned int *array, index;
 
   index = 0;  /* pacify compiler warnings */
-  v = 1; 
+  v = 1;
 
   if(key == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no key given");
@@ -2381,7 +2381,7 @@ int tap_config_cmd(struct katcp_dispatch *d, int argc)
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a device and setting");
     return KATCP_RESULT_FAIL;
   }
-  
+
   name = arg_string_katcp(d, 1);
   if(name == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "internal failure while acquiring device name");
@@ -2501,7 +2501,7 @@ int tap_info_cmd(struct katcp_dispatch *d, int argc)
 
     return KATCP_RESULT_OK;
   }
-  
+
   name = arg_string_katcp(d, 1);
   if(name == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "internal failure while acquiring parameters");
@@ -2602,7 +2602,7 @@ int tap_multicast_add_group_cmd(struct katcp_dispatch *d, int argc)
   struct getap_state *gs;
   char *name, *mode, *addresses, *ptr;
   unsigned int count;
-  
+
   uint32_t start;
 
   void *base    = NULL;
@@ -2613,7 +2613,7 @@ int tap_multicast_add_group_cmd(struct katcp_dispatch *d, int argc)
   int reuse = 1, loopch = 0;
   struct sockaddr_in  locosock;
   //struct ip_mreq        grp;
-  
+
   /*send*/
   struct in_addr        locoif;
 
@@ -2627,7 +2627,7 @@ int tap_multicast_add_group_cmd(struct katcp_dispatch *d, int argc)
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "usage tap-name [recv|send] multicast-address");
     return KATCP_RESULT_FAIL;
   }
-  
+
   name = arg_string_katcp(d, 1);
   if(name == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to acquire a nonempty name");
@@ -2715,10 +2715,10 @@ int tap_multicast_add_group_cmd(struct katcp_dispatch *d, int argc)
     if (setsockopt(gs->s_mcast_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse, sizeof(reuse)) < 0){
       log_message_katcp(d, KATCP_LEVEL_WARN, NULL, "unable to set reuseaddr on mcast socket");
     }
-    
+
     /*change to inet_aton*/
     //locosock.sin_addr.s_addr  = inet_addr(gs->s_address_name);
-    
+
     base = gs->s_raw_mode->r_map + gs->s_register->e_pos_base;
     if (base){
       /*assign the multicast ip to the gateware*/
@@ -2729,11 +2729,11 @@ int tap_multicast_add_group_cmd(struct katcp_dispatch *d, int argc)
 
     for(i = 0; i < count; i++){
       struct ip_mreq        grp;
-      
+
       //log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "temp1: 0x%08X", temp1);
 
       grp.imr_interface.s_addr = inet_addr(gs->s_address_name);
-      grp.imr_multiaddr.s_addr = htonl(start + i); 
+      grp.imr_multiaddr.s_addr = htonl(start + i);
       if (setsockopt(gs->s_mcast_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (struct ip_mreq *) &grp, sizeof(struct ip_mreq)) < 0){
         close(gs->s_mcast_fd);
         gs->s_mcast_fd = (-1);
@@ -2741,13 +2741,13 @@ int tap_multicast_add_group_cmd(struct katcp_dispatch *d, int argc)
         return KATCP_RESULT_FAIL;
       }
 
-      
+
       gs->s_mcast_count++;
       log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "assigned group %s (%d in total)", inet_ntoa(grp.imr_multiaddr), gs->s_mcast_count);
     }
-    
+
   } else if (strncmp(mode, "send", 4) == 0){
-    
+
     if (setsockopt(gs->s_mcast_fd, IPPROTO_IP, IP_MULTICAST_LOOP, (char *) &loopch, sizeof(loopch)) < 0){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to disable multicast loop back (%s)", strerror(errno));
       close(gs->s_mcast_fd);
@@ -2767,14 +2767,14 @@ int tap_multicast_add_group_cmd(struct katcp_dispatch *d, int argc)
     }
 
     gs->s_mcast_count++;
-    
+
   } else {
     log_message_katcp(d, KATCP_LEVEL_ERROR , NULL, "invalid mode <%s> [send | recv]", mode);
     return KATCP_RESULT_FAIL;
   }
-  
+
   return KATCP_RESULT_OK;
-} 
+}
 
 int tap_multicast_remove_group_cmd(struct katcp_dispatch *d, int argc)
 {
@@ -2782,7 +2782,7 @@ int tap_multicast_remove_group_cmd(struct katcp_dispatch *d, int argc)
   struct katcp_arb *a;
   struct getap_state *gs;
   char *grpip, *name;
-  
+
   struct ip_mreq grp;
 
   tr = get_current_mode_katcp(d);
@@ -2799,7 +2799,7 @@ int tap_multicast_remove_group_cmd(struct katcp_dispatch *d, int argc)
   name = arg_string_katcp(d, 1);
 
   log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "attempting to remove multicast subscription from device %s", name);
-  
+
 
   a = find_arb_katcp(d, name);
   if(a == NULL){
@@ -2836,14 +2836,14 @@ int tap_multicast_remove_group_cmd(struct katcp_dispatch *d, int argc)
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "releasing all multicast subscriptions for %s", name);
     gs->s_mcast_count = 0;
   }
-  
+
   if(gs->s_mcast_count <= 0){
     close(gs->s_mcast_fd);
     gs->s_mcast_fd = (-1);
   }
-  
+
   return KATCP_RESULT_OK;
-} 
+}
 
 int tap_route_add_cmd(struct katcp_dispatch *d, int argc)
 {
@@ -2853,7 +2853,7 @@ int tap_route_add_cmd(struct katcp_dispatch *d, int argc)
   char *name, *gateway, *network, *mask;
   char cmd_buffer[CMD_BUFFER];
   int len;
-  
+
   tr = get_current_mode_katcp(d);
   if(tr == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to get raw state");
@@ -2864,7 +2864,7 @@ int tap_route_add_cmd(struct katcp_dispatch *d, int argc)
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "usage tap-name address [network mask]");
     return KATCP_RESULT_FAIL;
   }
-  
+
   name  = arg_string_katcp(d, 1);
   gateway = arg_string_katcp(d, 2);
 
@@ -2891,7 +2891,7 @@ int tap_route_add_cmd(struct katcp_dispatch *d, int argc)
   } else {
     log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "setting default route to %s", gateway);
   }
-  
+
   a = find_arb_katcp(d, name);
   if(a == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate %s", name);
@@ -3002,7 +3002,7 @@ static uint32_t dhcp_rand(){
   }
 
   fclose(rfp);
-  return rndm; 
+  return rndm;
 }
 
 /*generally tried to work on byte level buffer access/packing to avoid endianness issues*/
@@ -3022,7 +3022,7 @@ static int dhcp_msg(struct getap_state *gs, DHCP_MSG_TYPE mtype, unsigned int mf
     memcpy(gs->s_dhcp_tx_buffer + ETH_DST_OFFSET, gs->s_dhcp_next_hop_mac_binary, 6);
   } else {
     memset(gs->s_dhcp_tx_buffer + ETH_DST_OFFSET, 0xff, 6);   //broadcast
-  } 
+  }
 
   memcpy(gs->s_dhcp_tx_buffer + ETH_SRC_OFFSET, gs->s_mac_binary, 6);
 
@@ -3196,7 +3196,7 @@ static int dhcp_msg(struct getap_state *gs, DHCP_MSG_TYPE mtype, unsigned int mf
 static int validate_dhcp_reply(struct getap_state *gs){
   uint8_t bootpc[] = {0x00, 0x44};
   uint8_t dhcp_cookie[] = {0x63, 0x82, 0x53, 0x63};
-  unsigned int ip_len; 
+  unsigned int ip_len;
   int i;
 
   /*adjust ip base value if ip length greater than 20 bytes*/
@@ -3273,7 +3273,7 @@ static int process_dhcp(struct getap_state *gs, struct dhcp_rx_msg_info *msg){
   msg->xid_binary = (((uint32_t) (msg->xid[0])) << 24) | (((uint32_t) (msg->xid[1])) << 16) | (((uint32_t) (msg->xid[2])) <<  8) | ((uint32_t) (msg->xid[3]));
 
 #ifdef DEBUG
-  fprintf(stderr, "dhcp: rx msg xid : %02x %02x %02x %02x\n", msg->xid[0], msg->xid[1], msg->xid[2], msg->xid[3]); 
+  fprintf(stderr, "dhcp: rx msg xid : %02x %02x %02x %02x\n", msg->xid[0], msg->xid[1], msg->xid[2], msg->xid[3]);
 #endif
 
   /*xid still valid? - compared with most recent xid sent out - done just in case there's a duplicate packet still lingering in the buffers*/
@@ -3296,7 +3296,7 @@ static int process_dhcp(struct getap_state *gs, struct dhcp_rx_msg_info *msg){
     switch(opt){
       case 53:        //message type
         msg->mt = gs->s_dhcp_rx_buffer[opt_index + 2];
-        opt_index = opt_index + 3; 
+        opt_index = opt_index + 3;
         break;
 
       case 1:         //subnet mask
@@ -3560,7 +3560,7 @@ static DHCP_STATE_TYPE request_dhcp_state(struct getap_state *gs){
       }
     } else {
       log_message_katcp(gs->s_dispatch, KATCP_LEVEL_WARN, NULL, "dhcp (%#x): received an invalid dhcp message on %s", msg.xid_binary, gs->s_tap_name);
-    } 
+    }
   }
 
   return REQUEST;
@@ -3603,7 +3603,7 @@ static DHCP_STATE_TYPE renew_dhcp_state(struct getap_state *gs){
       }
     } else {
       log_message_katcp(gs->s_dispatch, KATCP_LEVEL_WARN, NULL, "dhcp (%#x): received an invalid dhcp message on %s", msg.xid_binary, gs->s_tap_name);
-    } 
+    }
   }
 
   if ((gs->s_dhcp_timer * POLL_INTERVAL) >= (gs->s_dhcp_t2 * 1000)){
@@ -3637,7 +3637,7 @@ static DHCP_STATE_TYPE rebind_dhcp_state(struct getap_state *gs){
       }
     } else {
       log_message_katcp(gs->s_dispatch, KATCP_LEVEL_WARN, NULL, "dhcp (%#x): received an invalid dhcp message on %s", msg.xid_binary, gs->s_tap_name);
-    } 
+    }
   }
 
   if ((gs->s_dhcp_timer * POLL_INTERVAL) >= (gs->s_dhcp_lease_t * 1000)){
@@ -3652,7 +3652,7 @@ static DHCP_STATE_TYPE rebind_dhcp_state(struct getap_state *gs){
     return SELECT;
   }
 
-  return REBIND; 
+  return REBIND;
 }
 /*dhcp configuration and auxiliary functions*****************************************************************/
 
