@@ -111,7 +111,7 @@ struct katcp_cmd{
 /**********************************************************************/
 
 #define KATCP_SENSOR_INVALID (-1)
-#define KATCP_SENSOR_INTEGER  0 
+#define KATCP_SENSOR_INTEGER  0
 #define KATCP_SENSOR_BOOLEAN  1
 #define KATCP_SENSOR_DISCRETE 2
 #define KATCP_SENSOR_LRU      3
@@ -393,7 +393,7 @@ struct katcp_job{
 
   struct katcp_notice *j_halt;
 
-  struct katcp_notice **j_queue; 
+  struct katcp_notice **j_queue;
   unsigned int j_size;
   unsigned int j_head; /* points at the current head */
   unsigned int j_count; /* number of entries present */
@@ -468,7 +468,7 @@ struct katcp_notice{
 struct katcp_arb{
   char *a_name;
   int a_fd;
-  
+
   unsigned int a_type;
 
   unsigned short a_reap;
@@ -608,7 +608,7 @@ struct katcp_cmd_item{
   char *i_name;
   char *i_help;
   int (*i_call)(struct katcp_dispatch *d, int argc);
-  unsigned int i_flags; 
+  unsigned int i_flags;
   void *i_data;
   void (*i_clear)(void *data);
   int i_refs;
@@ -656,6 +656,7 @@ struct katcp_group{
   unsigned int g_count;
 
   int g_log_level;
+  int g_log_reach;
   int g_scope;
 
   int g_use;             /* are we ref'ed by the listener */
@@ -717,6 +718,9 @@ struct katcp_flat{
   int f_exit_code;       /* reported exit status */
 
   int f_log_level;       /* log level currently set */
+  int f_log_reach;       /* how far our log messages travel */
+
+  unsigned int f_layer;  /* how deep we see into things */
 
   int f_scope;           /* how much we see */
 
@@ -743,16 +747,16 @@ struct katcp_flat{
 #endif
 
   struct katcp_response_handler f_replies[KATCP_SIZE_REPLY]; /* this should probably be a dynamic number */
- 
+
   struct katcp_endpoint *f_current_endpoint;
 
   struct katcp_cmd_map *f_maps[KATCP_SIZE_MAP];
-  int f_current_map; 
+  int f_current_map;
 
   struct katcp_group *f_group;
 
   /* TODO: */
-  
+
   /* notices, sensors */
 
   /* a sensor could probably be a special type of notice */
@@ -864,7 +868,7 @@ struct katcp_shared{
 
   fd_set s_read, s_write;
   int s_max;
-  
+
   struct katcp_type **s_type;
   unsigned int s_type_count;
 
@@ -909,7 +913,7 @@ struct katcp_url {
 
 struct katcp_type {
   char *t_name;
-  
+
   int t_dep;
 
   struct avl_tree *t_tree;
@@ -952,7 +956,7 @@ struct katcp_message{
 struct katcp_endpoint{
   unsigned int e_magic;
   unsigned short e_freeable;
-  unsigned int e_state; 
+  unsigned int e_state;
   unsigned int e_refcount;
 
 #if 0
@@ -1047,7 +1051,7 @@ int display_heap_timers_katcp(struct katcp_dispatch *d);
 void forget_nonsense_katcp(struct katcp_dispatch *d, unsigned int index);
 
 /* how many times to try waitpid for child to exit */
-#define KATCP_WAITPID_CHECKS 5 
+#define KATCP_WAITPID_CHECKS 5
 /* how long to sleep between checks in nanoseconds */
 #define KATCP_WAITPID_POLL   250000000UL
 
@@ -1259,7 +1263,7 @@ int startup_services_katcp(struct katcp_dispatch *d);
 
 struct katcp_dict {
   char *d_key;
-  struct avl_tree *d_avl; 
+  struct avl_tree *d_avl;
 };
 
 struct katcp_dbase {
@@ -1337,7 +1341,7 @@ int fixup_timestamp_katcp(char *src, char *dst, int size);
 
 #define KATCP_VRBL_DELIM_GROUP    '*'
 #define KATCP_VRBL_DELIM_TREE     ':'
-#define KATCP_VRBL_DELIM_ARRAY    '#' 
+#define KATCP_VRBL_DELIM_ARRAY    '#'
 #define KATCP_VRBL_DELIM_LOGIC    '.'
 
 #define KATCP_VRBL_DELIM_FORBID   '_'
@@ -1376,7 +1380,7 @@ void destroy_vrbl_katcp(struct katcp_dispatch *d, char *name, struct katcp_vrbl 
 
 unsigned int type_from_string_vrbl_katcp(struct katcp_dispatch *d, char *string);
 char *type_to_string_vrbl_katcp(struct katcp_dispatch *d, unsigned int type);
- 
+
 /* type specific top-level utilities */
 
 struct katcp_vrbl *create_string_vrbl_katcp(struct katcp_dispatch *d, unsigned int flags, char *value);

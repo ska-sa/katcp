@@ -177,6 +177,8 @@ int log_group_info_katcp(struct katcp_dispatch *d, int argc)
 {
   struct katcp_flat *fx;
   struct katcl_parse *px;
+  int level;
+  char *ptr;
 
 #ifdef DEBUG
   fprintf(stderr, "log: encountered a log message\n");
@@ -202,7 +204,23 @@ int log_group_info_katcp(struct katcp_dispatch *d, int argc)
     return -1;
   }
 
-  if(log_parse_katcp(d, -1, px) < 0){
+  ptr = get_string_parse_katcl(px, 1);
+  if(ptr == NULL){
+#ifdef KATCP_CONSISTENCY_CHECKS
+    fprintf(stderr, "log: null priority value for log message\n");
+#endif
+    return -1;
+  }
+
+  level = log_to_code_katcl(ptr);
+  if(level < 0){
+#ifdef KATCP_CONSISTENCY_CHECKS
+    fprintf(stderr, "log: invalid log priority value %s for log message\n", ptr);
+#endif
+    return -1;
+  }
+
+  if(log_parse_katcp(d, level, px) < 0){
     return -1;
   }
 

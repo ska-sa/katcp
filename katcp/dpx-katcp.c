@@ -456,6 +456,8 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
     log_message_katcp(d, KATCP_LEVEL_WARN | KATCP_LEVEL_LOCAL, NULL, "client %s has invalid scope", fx->f_name);
   }
 
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s is in layer %u", fx->f_name, fx->f_layer);
+
   switch((fx->f_stale & KATCP_STALE_MASK_SENSOR)){
     case KATCP_STALE_SENSOR_NAIVE :
       log_message_katcp(d, KATCP_LEVEL_DEBUG | KATCP_LEVEL_LOCAL, NULL, "client %s has not listed sensors", fx->f_name);

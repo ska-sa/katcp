@@ -113,6 +113,7 @@ static int deallocate_group_katcp(struct katcp_dispatch *d, struct katcp_group *
   }
 
   g->g_log_level = (-1);
+  g->g_log_reach = (-1);
   g->g_scope = KATCP_SCOPE_INVALID;
 
   g->g_autoremove = 0;
@@ -212,6 +213,8 @@ struct katcp_group *create_group_katcp(struct katcp_dispatch *d, char *name)
   g->g_count = 0;
 
   g->g_log_level = s->s_default;
+  g->g_log_reach = KATCL_LEVEL_ALL;
+
   g->g_scope = KATCP_SCOPE_GROUP;
 
   g->g_use = 0;
@@ -276,6 +279,8 @@ struct katcp_group *duplicate_group_katcp(struct katcp_dispatch *d, struct katcp
 
   gx->g_flags = go->g_flags;
   gx->g_log_level = go->g_log_level;
+  gx->g_log_reach = go->g_log_reach;
+
   gx->g_scope = go->g_scope;
   gx->g_flushdefer = go->g_flushdefer;
 
@@ -773,6 +778,9 @@ static void deallocate_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *f
   }
 
   f->f_log_level = (-1);
+  f->f_log_reach = (-1);
+
+  f->f_layer = 0;
   f->f_scope = KATCP_SCOPE_INVALID;
   f->f_stale = 0;
 
@@ -1685,7 +1693,9 @@ struct katcp_flat *create_flat_katcp(struct katcp_dispatch *d, int fd, unsigned 
   f->f_exit_code = 0; /* WARNING: should technically be a fail, to catch cases where it isn't set at exit time */
 
   f->f_log_level = gx->g_log_level;
+  f->f_log_reach = gx->g_log_reach;
 
+  f->f_layer = 0;
   f->f_scope = gx->g_scope;
   f->f_stale = KATCP_STALE_SENSOR_NAIVE;
 

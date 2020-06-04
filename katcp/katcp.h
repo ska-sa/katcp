@@ -31,14 +31,14 @@ struct katcp_cmd_map;
 struct katcp_vrbl;
 struct katcp_vrbl_payload;
 
-#define KATCP_CODEBASE_NAME     "Ckatcp" 
+#define KATCP_CODEBASE_NAME     "Ckatcp"
 
 #define KATCP_LIBRARY_LABEL     "katcp-library"
 #define KATCP_PROTOCOL_LABEL    "katcp-protocol"
 
-#define KATCP_REQUEST '?' 
-#define KATCP_REPLY   '!' 
-#define KATCP_INFORM  '#' 
+#define KATCP_REQUEST '?'
+#define KATCP_REPLY   '!'
+#define KATCP_INFORM  '#'
 
 #define KATCP_OK      "ok"
 #define KATCP_FAIL    "fail"
@@ -64,7 +64,7 @@ struct katcp_vrbl_payload;
 #define KATCP_MAX_LEVELS     7
 
 #define KATCP_MASK_LEVELS  0xff
-/*      KATCL_LEVEL_ALL   0x000 */
+#define KATCL_LEVEL_ALL   0x000
 #define KATCP_LEVEL_LOCAL 0x100
 #define KATCP_LEVEL_GROUP 0x200
 
@@ -106,7 +106,7 @@ struct katcp_vrbl_payload;
 #define KATCP_SEARCH_REQUEST  "?search"
 
 #define KATCP_LOG_INFORM               "#log"
-#if KATCP_PROTOCOL_MAJOR_VERSION >= 5   
+#if KATCP_PROTOCOL_MAJOR_VERSION >= 5
 #define KATCP_DEVICE_CHANGED_INFORM    "#device-changed"
 #else
 #define KATCP_DEVICE_CHANGED_INFORM    "#interface-changed"
@@ -145,7 +145,7 @@ struct katcp_vrbl_payload;
 /* create a dispatch handler */
 struct katcp_dispatch *startup_katcp(void);
 /* create a dispatch handler on file descriptor */
-struct katcp_dispatch *setup_katcp(int fd); 
+struct katcp_dispatch *setup_katcp(int fd);
 
 int name_katcp(struct katcp_dispatch *d, char *fmt, ...);
 
@@ -187,7 +187,7 @@ int register_flag_mode_katcp(struct katcp_dispatch *d, char *match, char *help, 
 int deregister_command_katcp(struct katcp_dispatch *d, char *match);
 int update_command_katcp(struct katcp_dispatch *d, char *match, int flags);
 
-/* invoke function run as subprocess, invoke function call in parent on its exit */ 
+/* invoke function run as subprocess, invoke function call in parent on its exit */
 pid_t spawn_child_katcp(struct katcp_dispatch *d, char *name, int (*run)(void *data), void *data, void (*call)(struct katcp_dispatch *d, int status));
 
 /* change the callback in mid-flight */
@@ -320,7 +320,7 @@ int exiting_katcp(struct katcp_dispatch *d); /* run cleanup functions once */
 #define KATCP_STATUS_WARN      2
 #define KATCP_STATUS_ERROR     3
 #define KATCP_STATUS_FAILURE   4
-#if KATCP_PROTOCOL_MAJOR_VERSION >= 5   
+#if KATCP_PROTOCOL_MAJOR_VERSION >= 5
 #define   KATCP_STATUS_UNREACHABLE 5
 #define   KATCP_STATUS_INACTIVE    6
 #define   KATCP_STATA_COUNT        7
@@ -659,7 +659,7 @@ void print_type_katcp(struct katcp_dispatch *d, struct katcp_type *t, int flags)
 
 #ifdef DEBUG
 void sane_shared_katcp(struct katcp_dispatch *d);
-#else 
+#else
 #define sane_shared_katcp(d)
 #endif
 
