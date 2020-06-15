@@ -2908,7 +2908,7 @@ static int set_generic_flat_katcp(struct katcp_dispatch *d, int direction, int (
 
 #ifdef KATCP_CONSISTENCY_CHECKS
   if(string == NULL){
-    fprintf(stderr, "major logic problem: need a valid string for callback");
+    fprintf(stderr, "major logic problem: need a valid string for callback\n");
     abort();
   }
 #endif
