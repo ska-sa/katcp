@@ -1160,8 +1160,6 @@ int write_katcl(struct katcl_line *l)
 
 int flushing_katcl(struct katcl_line *l)
 {
-  unsigned int result;
-
   if(l->l_pending > 0){
     return 1;
   }

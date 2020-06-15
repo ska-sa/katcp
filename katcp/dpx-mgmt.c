@@ -1398,10 +1398,10 @@ int broadcast_group_cmd_katcp(struct katcp_dispatch *d, int argc)
       case KATCP_SCOPE_GROUP :
         gx = this_group_katcp(d);
         break;
-      case KATCP_SCOPE_GLOBAL :
+      case KATCP_SCOPE_ALL :
         gx = NULL;
         break;
-      /* case KATCP_SCOPE_SINGLE :  */
+      /* case KATCP_SCOPE_LOCAL :  */
       default :
         /* TODO: should spam ourselves ... in order not to give away that we are restricted */
         gx = NULL;

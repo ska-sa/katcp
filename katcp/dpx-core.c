@@ -213,7 +213,7 @@ struct katcp_group *create_group_katcp(struct katcp_dispatch *d, char *name)
   g->g_count = 0;
 
   g->g_log_level = s->s_default;
-  g->g_log_reach = KATCL_LEVEL_ALL;
+  g->g_log_reach = KATCP_LEVEL_ALL;
 
   g->g_scope = KATCP_SCOPE_GROUP;
 
@@ -1847,7 +1847,7 @@ static int test_filter_group_katcp(struct katcp_dispatch *d, struct katcp_flat *
   }
 
   switch(fx->f_scope){
-    case KATCP_SCOPE_SINGLE :
+    case KATCP_SCOPE_LOCAL :
       /* WARNING: should we be smarter here ? */
       return 0;
     case KATCP_SCOPE_GROUP :
@@ -1855,7 +1855,7 @@ static int test_filter_group_katcp(struct katcp_dispatch *d, struct katcp_flat *
         return 0;
       }
       return 1;
-    case KATCP_SCOPE_GLOBAL :
+    case KATCP_SCOPE_ALL :
       return 1;
     default :
       return 0;
@@ -2172,7 +2172,7 @@ struct katcp_flat *scope_name_full_katcp(struct katcp_dispatch *d, struct katcp_
   }
 
   switch(fy->f_scope){
-    case KATCP_SCOPE_SINGLE :
+    case KATCP_SCOPE_LOCAL :
       if(fy->f_name == NULL){
         return NULL;
       }
@@ -2200,7 +2200,7 @@ struct katcp_flat *scope_name_full_katcp(struct katcp_dispatch *d, struct katcp_
         }
       }
       return search_name_flat_katcp(d, name, gy, 1);
-    case KATCP_SCOPE_GLOBAL :
+    case KATCP_SCOPE_ALL :
       gy = NULL;
       if((group == NULL) || (strcmp(group, "*"))){ /* WARNING: '*' now means any group ... */
         gy = fy->f_group;
@@ -2231,7 +2231,7 @@ struct katcp_flat *scope_name_flat_katcp(struct katcp_dispatch *d, char *name, s
   }
 
   switch(fx->f_scope){
-    case KATCP_SCOPE_SINGLE :
+    case KATCP_SCOPE_LOCAL :
       if(fx->f_name == NULL){
         return NULL;
       }
@@ -2247,7 +2247,7 @@ struct katcp_flat *scope_name_flat_katcp(struct katcp_dispatch *d, char *name, s
       }
 #endif
       return search_name_flat_katcp(d, name, fx->f_group, 1);
-    case KATCP_SCOPE_GLOBAL :
+    case KATCP_SCOPE_ALL :
       return search_name_flat_katcp(d, name, fx->f_group, 0);
     default :
 #ifdef KATCP_CONSISTENCY_CHECKS
@@ -2278,7 +2278,7 @@ struct katcp_group *scope_name_group_katcp(struct katcp_dispatch *d, char *name,
 
   switch(fx->f_scope){
     case KATCP_SCOPE_GROUP :
-    case KATCP_SCOPE_SINGLE :
+    case KATCP_SCOPE_LOCAL :
       if(fx->f_name == NULL){
         return NULL;
       }
@@ -2289,7 +2289,7 @@ struct katcp_group *scope_name_group_katcp(struct katcp_dispatch *d, char *name,
         return NULL;
       }
       return gx;
-    case KATCP_SCOPE_GLOBAL :
+    case KATCP_SCOPE_ALL :
       return find_group_katcp(d, name);
     default :
 #ifdef KATCP_CONSISTENCY_CHECKS

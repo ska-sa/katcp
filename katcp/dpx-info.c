@@ -39,20 +39,19 @@ static int each_log_parse_katcp(struct katcl_line *l, int count, unsigned int li
   return count + 1;
 }
 
-int log_parse_katcp(struct katcp_dispatch *d, int level, struct katcl_parse *px)
+int log_parse_katcp(struct katcp_dispatch *d, int level, int local, struct katcl_parse *px)
 {
 
   /* WARNING: assumption if level < 0, then a relayed log message ... this probably should be a flag in its own right */
 
-  int limit, count;
-  unsigned int mask;
+  int limit, count, cmp;
+  unsigned int mask, layer;
+  int scope;
   int i, j;
   char *ptr;
   struct katcp_flat *fx, *ft;
   struct katcp_group *gx, *gt;
   struct katcp_shared  *s;
-
-  count = 0;
 
   if(px == NULL){
     return -1;
@@ -70,45 +69,77 @@ int log_parse_katcp(struct katcp_dispatch *d, int level, struct katcl_parse *px)
   ft = this_flat_katcp(d);
   gt = this_group_katcp(d);
 
+#ifdef KATCP_CONSISTENCY_CHECKS
   ptr = get_string_parse_katcl(px, 0);
   if(ptr == NULL){
-#ifdef KATCP_CONSISTENCY_CHECKS
     fprintf(stderr, "log: empty message type\n");
-#endif
     return -1;
   }
   if(strcmp(ptr, KATCP_LOG_INFORM)){
-#ifdef KATCP_CONSISTENCY_CHECKS
     fprintf(stderr, "log: expected message %s, not %s\n", KATCP_LOG_INFORM, ptr);
-#endif
     return -1;
   }
-
   if(level < 0){
-    ptr = get_string_parse_katcl(px, 1);
-    if(ptr == NULL){
-#ifdef KATCP_CONSISTENCY_CHECKS
-      fprintf(stderr, "log: null priority value for log message\n");
-#endif
-      return -1;
-    }
-
-    limit = log_to_code_katcl(ptr);
-    mask = 0;
-    if(limit < 0){
-#ifdef KATCP_CONSISTENCY_CHECKS
-      fprintf(stderr, "log: invalid log priority value %s for log message\n", ptr);
-#endif
-      return -1;
-    }
-  } else {
-    mask = (~KATCP_MASK_LEVELS) & ((unsigned int)level);
-    limit = KATCP_MASK_LEVELS & ((unsigned int)level);
+    fprintf(stderr, "log: no longer accept messages with negative priority\n");
+    return -1;
   }
+#endif
+
+  layer = ft ? ft->f_layer : 0;
+  limit = KATCP_MASK_LEVELS & ((unsigned int)level);
+  mask = (~KATCP_MASK_LEVELS) & ((unsigned int)level);
+  scope = level_to_scope_katcp(mask);
+
+#if DEBUG > 1
+  fprintf(stderr, "log: message from layer=%u, limit=%d, mask=%x, scope=%d\n", layer, limit, mask, scope);
+#endif
+
+  count = 0;
 
   /* WARNING: ft and gt may be NULL if outside flat context */
-  /* WARNING: won't echo a negative level back to its sender */
+  /* WARNING: a message that isn't local won't be echoed back to its sender */
 
+  if(local && ft){
+    /* handle ourselves first, avoiding the local check elsewhere */
+    fx = ft;
+    count = each_log_parse_katcp(fx->f_line, count, fx->f_log_level, limit, px);
+  }
+
+  if(s->s_groups == NULL){
+    return count;
+  }
+
+  if(scope <=  KATCP_SCOPE_LOCAL){
+    scope = (-1);
+  }
+
+  for(j = 0; j < s->s_members; j++){
+    gx = s->s_groups[j];
+
+    cmp = scope;
+    if((scope == KATCP_SCOPE_GROUP) && (gt != gx)){
+      cmp = (-1); /* if not same group, then can't match on group basis */
+    }
+
+    for(i = 0; i < gx->g_count; i++){
+      fx = gx->g_flats[i];
+      if(fx && (fx != ft)){
+#if DEBUG > 1
+  fprintf(stderr, "log: testing %s (layer %u > %u) || (cmp %d [%d] == %d)\n", fx->f_name ? fx->f_name : "anon", fx->f_layer, layer, cmp, scope, fx->f_scope);
+#endif
+
+        if(
+          /* if we are deeper layer than message always see it */
+          (fx->f_layer > layer) ||
+          /* else use sending scope */
+          (cmp >= fx->f_scope)){
+            count = each_log_parse_katcp(fx->f_line, count, fx->f_log_level, limit, px);
+        }
+      }
+    }
+  }
+
+#if 0
   if(mask & KATCP_LEVEL_LOCAL){ /* message never visible outside current connection */
     fx = ft;
     if(fx && (level >= 0)){
@@ -165,6 +196,7 @@ int log_parse_katcp(struct katcp_dispatch *d, int level, struct katcl_parse *px)
       }
     }
   }
+#endif
 
 #ifdef DEBUG
   fprintf(stderr, "log: message %p reported %d times\n", px, count);
@@ -220,7 +252,9 @@ int log_group_info_katcp(struct katcp_dispatch *d, int argc)
     return -1;
   }
 
-  if(log_parse_katcp(d, level, px) < 0){
+  level |= fx->f_log_reach;
+
+  if(log_parse_katcp(d, level, 0, px) < 0){
     return -1;
   }
 
@@ -704,7 +738,7 @@ int sensor_status_group_info_katcp(struct katcp_dispatch *d, int argc)
     } else {
       log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "%s is not a client so not receiving sensor status messages", fx->f_name ? fx->f_name : "unknown party");
     }
-  } 
+  }
 
   return 0;
 #undef TIMESTAMP_BUFFER

@@ -22,10 +22,14 @@
 
 /* logging related commands *****************************************/
 
-#define LEVEL_EXTENT_DETECT     0
-#define LEVEL_EXTENT_FLAT       1
-#define LEVEL_EXTENT_GROUP      2
-#define LEVEL_EXTENT_DEFAULT    3
+#define LEVEL_EXTENT_FLAT       0x1
+#define LEVEL_EXTENT_GROUP      0x2
+#define LEVEL_EXTENT_DEFAULT    0x4
+#define LEVEL_EXTENT_REACH      0x8
+#define LEVEL_EXTENT_LAYER      0x10
+
+#define LEVEL_EXTENT_LEVELS     0x07
+#define LEVEL_EXTENT_DETECT     0x1f
 
 int set_group_log_level_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, struct katcp_group *gx, unsigned int level, unsigned int immediate)
 {
@@ -57,34 +61,60 @@ int set_group_log_level_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, s
 
 int generic_log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc, unsigned int clue)
 {
+#define SMALL 16
   struct katcp_flat *fx;
   struct katcp_group *gx;
-  int level;
+  int level, scope, layer, valid;
   unsigned int type;
-  char *name, *requested, *extent;
+  char *name, *requested, *extent, *end;
+  char buffer[SMALL];
 
   level = (-1);
+  scope = (-1);
+  layer = (-1);
+  valid = 0;
+
+  type = clue;
 
   if(argc > 1){
     requested = arg_string_katcp(d, 1);
-
     if(requested){
-      if(!strcmp(requested, "all")){
-        level = KATCP_LEVEL_TRACE;
-      } else {
-        level = log_to_code_katcl(requested);
-        if(level < 0){
-          log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unknown log level %s", requested);
-          return KATCP_RESULT_FAIL;
+      if(type & LEVEL_EXTENT_LEVELS){
+        if(!strcmp(requested, "all")){
+          level = KATCP_LEVEL_TRACE;
+        } else {
+          level = log_to_code_katcl(requested);
+        }
+        if(level >= 0){
+          valid = 1;
+          type &= LEVEL_EXTENT_LEVELS;
         }
       }
+      if(type & LEVEL_EXTENT_LAYER){
+        layer = strtoul(requested, &end, 10);
+        if(end[0] == '\0'){
+          valid = 1;
+          type &= LEVEL_EXTENT_LAYER;
+        }
+      }
+      if(type & LEVEL_EXTENT_REACH){
+        scope = code_from_scope_katcp(requested);
+        if(scope >= 0){
+          valid = 1;
+          type &= LEVEL_EXTENT_REACH;
+        }
+      }
+    }
+    if(valid == 0){
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unknown log setting %s", requested ? requested : "<null>");
     }
   }
 
   fx = NULL;
   gx = NULL;
+  name = NULL;
 
-  if(clue == LEVEL_EXTENT_DETECT){
+  if(type & (type - 1)){ /* heh */
     type = LEVEL_EXTENT_FLAT;
     if(argc > 2){
       extent = arg_string_katcp(d, 2);
@@ -95,117 +125,143 @@ int generic_log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc, unsign
           type = LEVEL_EXTENT_GROUP;
         } else if(!strcmp("default", extent)){
           type = LEVEL_EXTENT_DEFAULT;
+        } else if(!strcmp("reach", extent)){
+          type = LEVEL_EXTENT_REACH;
+        } else if(!strcmp("layer", extent)){
+          type = LEVEL_EXTENT_LAYER;
         } else {
-          log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unknown log extent %s", extent);
-          return KATCP_RESULT_FAIL;
+          name = extent;
         }
       }
     }
 
     if(argc > 3){
-      name = arg_string_katcp(d, 3);
-      if(name == NULL){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no or null subject for log level supplied");
+      if(name){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "superfluous argument following %s", name);
         return KATCP_RESULT_FAIL;
       }
-      switch(type){
-        case LEVEL_EXTENT_FLAT    :
-          fx = scope_name_full_katcp(d, NULL, NULL, name);
-          if(fx == NULL){
-            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate a client with the name %s", name);
-            return KATCP_RESULT_FAIL;
-          }
-          break;
-        case LEVEL_EXTENT_GROUP   :
-        case LEVEL_EXTENT_DEFAULT :
-          gx = find_group_katcp(d, name);
-          if(gx == NULL){
-            log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate a client group with the name %s", name);
-            return KATCP_RESULT_FAIL;
-          }
-        break;
+      name = arg_string_katcp(d, 3);
+      if(name == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "no or null subject for log adjustment");
+        return KATCP_RESULT_FAIL;
       }
     }
-
-    log_message_katcp(d, KATCP_LEVEL_TRACE, NULL, "decided to use log extent %u", type);
-  } else {
-    type = clue;
   }
 
   switch(type){
     case LEVEL_EXTENT_FLAT    :
-      if(fx == NULL){
+    case LEVEL_EXTENT_REACH   :
+    case LEVEL_EXTENT_LAYER    :
+      if(name){
+        fx = scope_name_full_katcp(d, NULL, NULL, name);
+      } else {
         fx = this_flat_katcp(d);
+      }
+      if(fx == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate a client with the name %s", name);
+        return KATCP_RESULT_FAIL;
       }
       break;
     case LEVEL_EXTENT_GROUP   :
-      if(level < 0){ /* request */
-        if(fx == NULL){
-          fx = this_flat_katcp(d);
-        }
-      } else { /* set */
-        if(gx == NULL){
-          gx = this_group_katcp(d);
-        }
-      }
-      break;
     case LEVEL_EXTENT_DEFAULT :
-      if(gx == NULL){
+      if(name){
+        gx = find_group_katcp(d, name);
+      } else {
         gx = this_group_katcp(d);
       }
+      if(gx == NULL){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to locate a client group with the name %s", name);
+        return KATCP_RESULT_FAIL;
+      }
       break;
+    default :
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "logic problem trying to disambiguate 0x%x", type);
+      return KATCP_RESULT_FAIL;
   }
 
+#ifdef PARANOID /* redundant */
   if((fx == NULL) && (gx == NULL)){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to work out which entity should have its log level accessed for extent %u", type);
     return KATCP_RESULT_FAIL;
   }
-
-  if(level < 0){
-    switch(type){
-      case LEVEL_EXTENT_FLAT    :
-        if(fx){
-          level = fx->f_log_level;
-        }
-        break;
-      case LEVEL_EXTENT_GROUP   :
-        if(fx){ /* WARNING: cheats, pick the current connection */
-          level = fx->f_log_level;
-        }
-        break;
-      case LEVEL_EXTENT_DEFAULT :
-        if(gx){
-          level = gx->g_log_level;
-        }
-        break;
-    }
-  } else {
-    switch(type){
-      case LEVEL_EXTENT_FLAT    :
-        level = set_group_log_level_katcp(d, fx, NULL, level, 0);
-        break;
-      case LEVEL_EXTENT_GROUP   :
-        level = set_group_log_level_katcp(d, NULL, gx, level, 1);
-        break;
-      case LEVEL_EXTENT_DEFAULT :
-        level = set_group_log_level_katcp(d, NULL, gx, level, 0);
-        break;
-    }
-  }
-
-  if(level < 0){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to retrieve or set a log level in this context");
-    return KATCP_RESULT_FAIL;
-  }
-
-  name = log_to_string_katcl(level);
-  if(name == NULL){
-#ifdef KATCP_CONSISTENCY_CHECKS
-    fprintf(stderr, "dpx: major logic problem: unable to convert %d to a symbolic log name", level);
-    abort();
 #endif
+
+  switch(type){
+    case LEVEL_EXTENT_FLAT    :
+      if(fx){
+        level = (level < 0) ? fx->f_log_level : set_group_log_level_katcp(d, fx, NULL, level, 0);
+      }
+      break;
+    case LEVEL_EXTENT_GROUP   :
+      if(gx){
+        level = (level < 0) ? gx->g_log_level : set_group_log_level_katcp(d, NULL, gx, level, 1);
+      }
+      break;
+    case LEVEL_EXTENT_DEFAULT :
+      if(gx){
+        level = (level < 0) ? gx->g_log_level : set_group_log_level_katcp(d, NULL, gx, level, 0);
+      }
+      break;
+    case LEVEL_EXTENT_REACH   :
+      if(fx){
+        if(scope >= 0){
+          fx->f_log_reach = scope_to_level_katcp(scope);
+        } else {
+          scope = level_to_scope_katcp(fx->f_log_reach);
+        }
+      }
+      break;
+    case LEVEL_EXTENT_LAYER   :
+      if(fx){
+        if(layer >= 0){
+          fx->f_layer = layer;
+        } else {
+          layer = fx->f_layer;
+        }
+      }
+      break;
+  }
+
+  switch(type){
+    case LEVEL_EXTENT_FLAT    :
+    case LEVEL_EXTENT_GROUP   :
+    case LEVEL_EXTENT_DEFAULT :
+      if(level < 0){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to retrieve or set a log level in this context");
+        return KATCP_RESULT_FAIL;
+      }
+
+      name = log_to_string_katcl(level);
+      if(name == NULL){
+#ifdef KATCP_CONSISTENCY_CHECKS
+        fprintf(stderr, "dpx: major logic problem: unable to convert %d to a symbolic log name", level);
+        abort();
+#endif
+        return KATCP_RESULT_FAIL;
+      }
+      break;
+    case LEVEL_EXTENT_REACH   :
+      if(scope < 0){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to retrieve or set a log reach in this context");
+        return KATCP_RESULT_FAIL;
+      }
+      name = string_from_scope_katcp(scope);
+      break;
+    case LEVEL_EXTENT_LAYER   :
+      if(layer < 0){
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to retrieve or set a logging layer in this context");
+        return KATCP_RESULT_FAIL;
+      }
+      snprintf(buffer, SMALL - 1, "%d", layer);
+      name = buffer;
+      break;
+  }
+
+  if(name == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "logic problems while adjusting log settings");
     return KATCP_RESULT_FAIL;
   }
+
 
 #ifdef DEBUG
   if(extra_response_katcp(d, KATCP_RESULT_OK, name) < 0){
@@ -217,6 +273,7 @@ int generic_log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc, unsign
 #endif
 
   return KATCP_RESULT_OWN;
+#undef SMALL
 }
 
 int log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc)
@@ -359,6 +416,8 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   struct katcp_response_handler *rh;
   unsigned int i, count;
   struct timeval now, delta;
+  struct katcl_parse *px;
+  unsigned int size;
 
   s = d->d_shared;
   if(s == NULL){
@@ -456,6 +515,13 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
     log_message_katcp(d, KATCP_LEVEL_WARN | KATCP_LEVEL_LOCAL, NULL, "client %s has invalid scope", fx->f_name);
   }
 
+  ptr = string_from_scope_katcp(level_to_scope_katcp(fx->f_log_reach));
+  if(ptr){
+    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s collected log messages have %s scope", fx->f_name, ptr);
+  } else {
+    log_message_katcp(d, KATCP_LEVEL_WARN | KATCP_LEVEL_LOCAL, NULL, "client %s has invalid log message scope", fx->f_name);
+  }
+
   log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s is in layer %u", fx->f_name, fx->f_layer);
 
   switch((fx->f_stale & KATCP_STALE_MASK_SENSOR)){
@@ -488,6 +554,20 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
   }
   if(fx->f_deferring & KATCP_DEFER_OUTSIDE_REQUEST){
     log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s is deferring - stalling request made of it", fx->f_name);
+  }
+
+  size = size_gueue_katcl(fx->f_defer);
+  if(size > 0){
+    log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s has %u requests in queue", fx->f_name, size);
+    for(i = 0; i < size; i++){
+      px = get_from_head_gueue_katcl(fx->f_defer, i);
+      if(px){
+        ptr = get_string_parse_katcl(px, 0);
+        if(ptr){
+          log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s at %u deferred %s ...", fx->f_name, i, ptr);
+        }
+      }
+    }
   }
 
   if(flushing_katcl(fx->f_line)){
@@ -547,7 +627,7 @@ int client_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   }
 
   switch(fx->f_scope){
-    case KATCP_SCOPE_SINGLE :
+    case KATCP_SCOPE_LOCAL :
       /* WARNING: maybe a client can not be hidden from itself ? */
       if(print_client_list_katcp(d, fx, name) > 0){
         total++;
@@ -564,7 +644,7 @@ int client_list_group_cmd_katcp(struct katcp_dispatch *d, int argc)
         }
       }
       break;
-    case KATCP_SCOPE_GLOBAL :
+    case KATCP_SCOPE_ALL :
       for(j = 0; j < s->s_members; j++){
         gx = s->s_groups[j];
         if(gx){
@@ -607,7 +687,7 @@ int restart_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "restart request from %s", fx->f_name ? fx->f_name : "<unknown party>");
 
   switch(fx->f_scope){
-    case KATCP_SCOPE_SINGLE :
+    case KATCP_SCOPE_LOCAL :
       if(terminate_flat_katcp(d, fx) < 0){
         return KATCP_RESULT_FAIL;
       }
@@ -620,7 +700,7 @@ int restart_group_cmd_katcp(struct katcp_dispatch *d, int argc)
         }
       }
       return KATCP_RESULT_FAIL;
-    case KATCP_SCOPE_GLOBAL :
+    case KATCP_SCOPE_ALL :
       terminate_katcp(d, KATCP_EXIT_RESTART);
       return KATCP_RESULT_OK;
     default :
@@ -645,7 +725,7 @@ int halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "halt request from %s", fx->f_name ? fx->f_name : "<unknown party>");
 
   switch(fx->f_scope){
-    case KATCP_SCOPE_SINGLE :
+    case KATCP_SCOPE_LOCAL :
       if(terminate_flat_katcp(d, fx) < 0){
         return KATCP_RESULT_FAIL;
       }
@@ -659,7 +739,7 @@ int halt_group_cmd_katcp(struct katcp_dispatch *d, int argc)
         }
       }
       return KATCP_RESULT_FAIL;
-    case KATCP_SCOPE_GLOBAL :
+    case KATCP_SCOPE_ALL :
       log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "initiating global halt");
       terminate_katcp(d, KATCP_EXIT_HALT);
       return KATCP_RESULT_OK;

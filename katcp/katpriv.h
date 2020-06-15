@@ -622,13 +622,6 @@ struct katcp_cmd_map{
   struct katcp_cmd_item *m_fallback;
 };
 
-#define KATCP_SCOPE_INVALID    (-1)
-/* dpx-misc has a lookuptable based on this order */
-#define KATCP_SCOPE_SINGLE       0
-#define KATCP_SCOPE_GROUP        1
-#define KATCP_SCOPE_GLOBAL       2
-#define KATCP_MAX_SCOPE          3
-
 #define KATCP_MAP_UNSET        (-1)
 
 #define KATCP_MAP_INNER_REQUEST  0

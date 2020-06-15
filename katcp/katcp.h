@@ -54,6 +54,13 @@ struct katcp_vrbl_payload;
 #define KATCP_RESULT_INVALID (-2)
 #define KATCP_RESULT_PARTIAL (-3)
 
+#define KATCP_SCOPE_INVALID    (-1)
+/* dpx-misc has a lookuptable based on this order */
+#define KATCP_SCOPE_LOCAL        0
+#define KATCP_SCOPE_GROUP        1
+#define KATCP_SCOPE_ALL          2
+#define KATCP_MAX_SCOPE          3
+
 #define KATCP_LEVEL_TRACE    0
 #define KATCP_LEVEL_DEBUG    1
 #define KATCP_LEVEL_INFO     2
@@ -62,11 +69,18 @@ struct katcp_vrbl_payload;
 #define KATCP_LEVEL_FATAL    5
 #define KATCP_LEVEL_OFF      6
 #define KATCP_MAX_LEVELS     7
-
 #define KATCP_MASK_LEVELS  0xff
-#define KATCL_LEVEL_ALL   0x000
-#define KATCP_LEVEL_LOCAL 0x100
-#define KATCP_LEVEL_GROUP 0x200
+
+#define KATCP_SHIFT_LEVEL    8
+
+#define scope_to_level_katcp(s)  (((KATCP_MAX_SCOPE - 1) - (s)) << KATCP_SHIFT_LEVEL)
+#define level_to_scope_katcp(l)  ((KATCP_MAX_SCOPE - 1) - ((l) >> KATCP_SHIFT_LEVEL))
+
+/******************************************/
+
+#define KATCP_LEVEL_ALL   scope_to_level_katcp(KATCP_SCOPE_ALL)
+#define KATCP_LEVEL_GROUP scope_to_level_katcp(KATCP_SCOPE_GROUP)
+#define KATCP_LEVEL_LOCAL scope_to_level_katcp(KATCP_SCOPE_LOCAL)
 
 #define KATCP_FLAG_FIRST  0x01
 #define KATCP_FLAG_LAST   0x02
@@ -294,7 +308,7 @@ int name_log_level_katcp(struct katcp_dispatch *d, char *name);
 int log_level_katcp(struct katcp_dispatch *d, unsigned int level);
 int log_message_katcp(struct katcp_dispatch *d, unsigned int priority, char *name, char *fmt, ...);
 int log_relay_katcp(struct katcp_dispatch *d, struct katcl_parse *p);
-int log_parse_katcp(struct katcp_dispatch *d, int level, struct katcl_parse *px);
+int log_parse_katcp(struct katcp_dispatch *d, int level, int local, struct katcl_parse *px);
 
 int extra_response_katcp(struct katcp_dispatch *d, int code, char *fmt, ...);
 int basic_inform_katcp(struct katcp_dispatch *d, char *name, char *arg);
