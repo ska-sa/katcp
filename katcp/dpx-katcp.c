@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>
+#include <limits.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -71,7 +72,7 @@ int generic_log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc, unsign
 
   level = (-1);
   scope = (-1);
-  layer = (-1);
+  layer = INT_MAX;
   valid = 0;
 
   type = clue;
@@ -91,7 +92,7 @@ int generic_log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc, unsign
         }
       }
       if(type & LEVEL_EXTENT_LAYER){
-        layer = strtoul(requested, &end, 10);
+        layer = strtol(requested, &end, 10);
         if(end[0] == '\0'){
           valid = 1;
           type &= LEVEL_EXTENT_LAYER;
@@ -213,10 +214,10 @@ int generic_log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc, unsign
       break;
     case LEVEL_EXTENT_LAYER   :
       if(fx){
-        if(layer >= 0){
-          fx->f_layer = layer;
-        } else {
+        if(layer == INT_MAX){
           layer = fx->f_layer;
+        } else {
+          fx->f_layer = layer;
         }
       }
       break;
@@ -234,7 +235,7 @@ int generic_log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc, unsign
       name = log_to_string_katcl(level);
       if(name == NULL){
 #ifdef KATCP_CONSISTENCY_CHECKS
-        fprintf(stderr, "dpx: major logic problem: unable to convert %d to a symbolic log name", level);
+        fprintf(stderr, "dpx: major logic problem: unable to convert %d to a symbolic log name\n", level);
         abort();
 #endif
         return KATCP_RESULT_FAIL;
@@ -248,7 +249,7 @@ int generic_log_level_group_cmd_katcp(struct katcp_dispatch *d, int argc, unsign
       name = string_from_scope_katcp(scope);
       break;
     case LEVEL_EXTENT_LAYER   :
-      if(layer < 0){
+      if(layer == INT_MAX){
         log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to retrieve or set a logging layer in this context");
         return KATCP_RESULT_FAIL;
       }
@@ -522,7 +523,7 @@ static int print_client_list_katcp(struct katcp_dispatch *d, struct katcp_flat *
     log_message_katcp(d, KATCP_LEVEL_WARN | KATCP_LEVEL_LOCAL, NULL, "client %s has invalid log message scope", fx->f_name);
   }
 
-  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s is in layer %u", fx->f_name, fx->f_layer);
+  log_message_katcp(d, KATCP_LEVEL_INFO | KATCP_LEVEL_LOCAL, NULL, "client %s is in layer %d", fx->f_name, fx->f_layer);
 
   switch((fx->f_stale & KATCP_STALE_MASK_SENSOR)){
     case KATCP_STALE_SENSOR_NAIVE :

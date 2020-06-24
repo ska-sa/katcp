@@ -713,7 +713,7 @@ struct katcp_flat{
   int f_log_level;       /* log level currently set */
   int f_log_reach;       /* how far our log messages travel */
 
-  unsigned int f_layer;  /* how deep we see into things */
+  int f_layer;           /* how deep we see into things */
 
   int f_scope;           /* how much we see */
 

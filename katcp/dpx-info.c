@@ -45,7 +45,8 @@ int log_parse_katcp(struct katcp_dispatch *d, int level, int local, struct katcl
   /* WARNING: assumption if level < 0, then a relayed log message ... this probably should be a flag in its own right */
 
   int limit, count, cmp;
-  unsigned int mask, layer;
+  unsigned int mask;
+  int layer;
   int scope;
   int i, j;
   char *ptr;
@@ -91,7 +92,7 @@ int log_parse_katcp(struct katcp_dispatch *d, int level, int local, struct katcl
   scope = level_to_scope_katcp(mask);
 
 #if DEBUG > 1
-  fprintf(stderr, "log: message from layer=%u, limit=%d, mask=%x, scope=%d\n", layer, limit, mask, scope);
+  fprintf(stderr, "log: message from layer=%d, limit=%d, mask=%x, scope=%d\n", layer, limit, mask, scope);
 #endif
 
   count = 0;
@@ -125,7 +126,7 @@ int log_parse_katcp(struct katcp_dispatch *d, int level, int local, struct katcl
       fx = gx->g_flats[i];
       if(fx && (fx != ft)){
 #if DEBUG > 1
-  fprintf(stderr, "log: testing %s (layer %u > %u) || (cmp %d [%d] == %d)\n", fx->f_name ? fx->f_name : "anon", fx->f_layer, layer, cmp, scope, fx->f_scope);
+  fprintf(stderr, "log: testing %s (layer %d > %d) || (cmp %d [%d] == %d)\n", fx->f_name ? fx->f_name : "anon", fx->f_layer, layer, cmp, scope, fx->f_scope);
 #endif
 
         if(
