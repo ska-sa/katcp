@@ -673,7 +673,7 @@ struct katcp_response_handler{
   struct timeval r_when;
 };
 
-#define KATCP_SIZE_REPLY            2
+#define KATCP_SIZE_REPLY            4
 
 /* accumulating more than 8192 messages without flush in 30s and the connection is considered dead */
 #define KATCP_DEFAULT_WRITE_STALL    30
