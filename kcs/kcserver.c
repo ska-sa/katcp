@@ -26,6 +26,14 @@
 
 #include "kcs.h"
 
+#ifndef VERSION
+#define VERSION "unknown"
+#endif
+
+#ifndef BUILD
+#define BUILD __DATE__
+#endif
+
 void usage(char *app)
 {
   printf("Usage: %s" 
@@ -38,6 +46,7 @@ void usage(char *app)
   printf("-l log-file      log file name\n");
   printf("-d               detach and run in background\n");
   printf("-f               run in foreground\n");
+  printf("-V               print version and build information\n");
 
 }
 
@@ -74,6 +83,10 @@ int main(int argc, char **argv)
           break;
         case 'h' :
           usage(argv[0]);
+          return EX_OK;
+        case 'V'  :
+          printf("version %s\n", VERSION);
+          printf("build time %s\n", BUILD);
           return EX_OK;
 
         case 'f' :
@@ -186,7 +199,7 @@ int main(int argc, char **argv)
       fflush(stderr);
       if (dup2(lfd, STDERR_FILENO) >= 0){
         now = time(NULL);
-        fprintf(stderr,"Logging to file started at %s\n",ctime(&now));
+        fprintf(stderr,"kcs version %s build %s started at %s\n", VERSION, BUILD, ctime(&now));
       }
       close(lfd);
     }
