@@ -184,7 +184,7 @@ int run_iostate(struct totalstate *ts, struct iostate *io, struct katcl_line *k)
 #ifdef DEBUG
             fprintf(stderr, "considering <%s> (infer=%d)\n", io->i_buffer + io->i_done, ts->t_infer);
 #endif
-            if((ts->t_infer > 0) && (strncmp(io->i_buffer + io->i_done, KATCP_LOG_INFORM " ", 5) == 0)){
+            if((ts->t_infer > 0) && (strncmp((char *)(io->i_buffer + io->i_done), KATCP_LOG_INFORM " ", 5) == 0)){
 
               if(flushing_katcl(k)){
                 while(write_katcl(k) == 0);
@@ -236,6 +236,7 @@ void usage(char *app)
   printf("-o level           specify the level for messages from standard output\n");
   printf("-s subsystem       specify the subsystem (overrides KATCP_LABEL)\n");
   printf("-n label[=value]   modify the child process environment\n");
+  printf("-l priority        run at lower priority, using nice level\n");
   printf("-i                 inhibit termination of subprocess on eof on standard input\n");
   printf("-j                 do not read from standard input\n");
   printf("-t milliseconds    set a maximum time to run for the given command\n");
@@ -505,6 +506,7 @@ int initiate_connection(struct katcl_line *l, struct totalstate *ts, char *serve
 
   fd = -1;
   attempts = SOCKET_ATTEMPTS;
+  flags = 0;
 
   if (ts->t_verbose > 0){
     flags = NETC_VERBOSE_ERRORS;
@@ -737,7 +739,10 @@ int parse_netstate(struct katcl_line *p, struct katcl_line *l, struct totalstate
 int main(int argc, char **argv)
 {
 #define BUFFER 128
-  int terminate, code, childgone, parentgone, exitrelay, checkinput, limit;
+#if 0
+  int parentgone, childgone;
+#endif
+  int terminate, code, exitrelay, checkinput, limit;
   int levels[2], index, efds[2], ofds[2];
   int i, j, c, offset, result, rr;
   struct katcl_line *k, *p;
@@ -751,6 +756,7 @@ int main(int argc, char **argv)
   unsigned char buffer[BUFFER];
   struct timeval timeout;
   struct sigaction sag;
+  int niceness;
 
   sag.sa_handler = &handle_timeout;
   sag.sa_flags = 0;
@@ -765,6 +771,7 @@ int main(int argc, char **argv)
   exitrelay = 0;
   checkinput = 1;
   limit = 0;
+  niceness = 0;
 
   levels[0] = KATCP_LEVEL_INFO;
   levels[1] = KATCP_LEVEL_ERROR;
@@ -834,6 +841,7 @@ int main(int argc, char **argv)
           break;
 
         case 'e' :
+        case 'l' :
         case 'n' :
         case 'o' :
         case 'p' :
@@ -903,6 +911,20 @@ int main(int argc, char **argv)
               break;
             case 'p' :
               server = argv[i] + j;
+              break;
+
+            case 'l' :
+              niceness = atoi(argv[i] + j);
+              if(niceness != 0){
+                if(niceness <= 0){
+                  if(getuid()){
+                    sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unlikely to be able to increase priority if not root");
+                  }
+                }
+                if(nice(niceness) < 0){
+                  sync_message_katcl(k, KATCP_LEVEL_ERROR, ts->t_system, "unable to adjust priority to %d", niceness);
+                }
+              }
               break;
             case 't' :
               limit = atoi(argv[i] + j);
@@ -1011,8 +1033,10 @@ int main(int argc, char **argv)
     return EX_OSERR;
   }
 
+#if 0
   childgone = 0;
   parentgone = 0;
+#endif
 
   if (server != NULL){
     p = create_netstate(k, ts, server);
@@ -1123,12 +1147,16 @@ int main(int argc, char **argv)
               case EINTR  :
                 break;
               default :
+#if 0
                 parentgone = 1;
+#endif
                 result = (-1);
                 break;
             }
           } else {
+#if 0
             parentgone = 1;
+#endif
             result = (-1);
           }
         }
@@ -1136,14 +1164,18 @@ int main(int argc, char **argv)
 
       if(FD_ISSET(orp->i_fd, &fsr)){
         if(run_iostate(ts, orp, k)){
+#if 0
           childgone = 1;
+#endif
           result = (-1);
         }
       }
 
       if(FD_ISSET(erp->i_fd, &fsr)){
         if(run_iostate(ts, erp, k)){
+#if 0
           childgone = 1;
+#endif
           result = (-1);
         }
       }
