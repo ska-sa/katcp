@@ -674,6 +674,7 @@ int main(int argc, char **argv)
                   fprintf(stderr, "%s: failed to print argument %d\n", app, i);
                   return 2;
                 }
+                fputc(' ' , stdout);
               }
             }
           }
