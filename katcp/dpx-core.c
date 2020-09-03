@@ -1220,7 +1220,7 @@ int wake_endpoint_peer_flat_katcp(struct katcp_dispatch *d, struct katcp_endpoin
       return KATCP_RESULT_FAIL;
     default :
 #ifdef KATCP_CONSISTENCY_CHECKS
-      fprintf(stderr, "duplex: possible problem: peer endpoint run while in state %u, not an operational one\n", fx->f_state);
+      fprintf(stderr, "duplex %s: possible problem: peer endpoint run while in state %u, not an operational one\n", fx->f_name ? fx->f_name : "<no name>", fx->f_state);
       sleep(1);
 #endif
       return KATCP_RESULT_FAIL;

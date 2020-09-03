@@ -255,7 +255,13 @@ struct katcl_parse *generate_relay_forward(struct katcp_dispatch *d, struct forw
           if(pf->p_op == FOP_SINGLE){
             result = add_buffer_parse_katcl(px, flags, NULL, 0);
           } else {
+#if 0
+            if(flags & KATCP_FLAG_LAST){
+              result = add_end_parse_katcl(px);
+            }
+#else
             result = (-1);
+#endif
           }
         }
         break;
