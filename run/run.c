@@ -155,7 +155,7 @@ int run_iostate(struct totalstate *ts, struct iostate *io, struct katcl_line *k)
     may = io->i_size - io->i_have;
     end = 0;
 
-    rr = read(io->i_fd, io->i_buffer, may);
+    rr = read(io->i_fd, io->i_buffer + io->i_have, may);
     if(rr <= 0){
       if(rr < 0){
         switch(errno){
