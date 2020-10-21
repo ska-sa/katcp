@@ -341,7 +341,7 @@ static int actually_set_string_vrbl_katcp(struct katcp_dispatch *d, struct katcp
   if(refuse){
     if(ty->p_union.u_string){
       log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "refusing to overwrite variable");
-      return -1;
+      return 1; /* a different type of error */
     }
   }
 
@@ -463,6 +463,7 @@ int foreach_string_vrbl_katcp(struct katcp_dispatch *d, void *state, char *key, 
 
 int init_tree_vrbl_katcp(struct katcp_dispatch *d, struct katcp_vrbl *vx, struct katcp_vrbl_payload *py)
 {
+
   if(py == NULL){
     return -1;
   }
@@ -1882,9 +1883,13 @@ struct katcp_vrbl *scan_vrbl_katcp(struct katcp_dispatch *d, struct katcp_vrbl *
   }
 
   result = (*(ops_type_vrbl[py->p_type].t_scan))(d, vt, py, text, path, how, type);
-  if(result < 0){
+  if(result){
 
-    log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unable to scan variable %s", text ? text : "[null]");
+    if(result < 0){
+      log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "unable to scan variable %s", text ? text : "[null]");
+    } else {
+      log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "unable to overwrite readonly variable %s", text ? text : "[null]");
+    }
 
     if(vx == NULL){
       /* we created it, we'd better clean up too */
