@@ -4139,7 +4139,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "log-local", "adjust the log level of the current connection (?log-local [level])", 0, &log_local_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "log-limit", "adjust the log level of the current connection (?log-limit [level])", 0, &log_local_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "log-default", "retrieve or adjust the log level of subsequent connections (?log-default [level])", 0, &log_default_group_cmd_katcp, NULL, NULL);
-    add_full_cmd_map_katcp(m, "log-override", "retrieve or adjust the log level in various permutations (?log-override [[individual|group|global] extent [name]] [value layer [name]] [level [client|group|default [name]]])", 0, &log_override_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "log-override", "retrieve or adjust the log level in various permutations (?log-override [[individual|group|global] extent [name]] | [value layer [name]] | [level [client|group|default [name]]])", 0, &log_override_group_cmd_katcp, NULL, NULL);
 
 #if 0
     add_full_cmd_map_katcp(m, "?version-list", "list versions (?version-list)", 0, &version_list_cmd_katcp, NULL, NULL);
@@ -4184,8 +4184,12 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
 
     add_full_cmd_map_katcp(m, "sensor-list", "lists available sensors (?sensor-list [sensor])", 0, &sensor_list_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "sensor-value", "query a sensor (?sensor-value sensor)", 0, &sensor_value_group_cmd_katcp, NULL, NULL);
+#ifdef KATCP_BULK_SENSORS
+    add_full_cmd_map_katcp(m, "sensor-sampling", "configure sensor monitoring (?sensor-sampling sensor[,sensor]* [strategy [parameter]])", 0, &bulk_sampling_group_cmd_katcp, NULL, NULL);
+#else
     add_full_cmd_map_katcp(m, "sensor-sampling", "configure a sensor (?sensor-sampling sensor [strategy [parameter]])", 0, &sensor_sampling_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "bulk-sampling", "configure several sensors (?bulk-sampling sensors+ [strategy [parameter]])", 0, &bulk_sensor_sampling_group_cmd_katcp, NULL, NULL);
+#endif
 
     add_full_cmd_map_katcp(m, "var-declare", "declare a variable (?var-declare name attribute[,attribute]* [path])", 0, &var_declare_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "var-list", "list variables (?var-list [variable])", 0, &var_list_group_cmd_katcp, NULL, NULL);
