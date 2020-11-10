@@ -4185,7 +4185,7 @@ int setup_default_group(struct katcp_dispatch *d, char *name)
     add_full_cmd_map_katcp(m, "sensor-list", "lists available sensors (?sensor-list [sensor])", 0, &sensor_list_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "sensor-value", "query a sensor (?sensor-value sensor)", 0, &sensor_value_group_cmd_katcp, NULL, NULL);
 #ifdef KATCP_BULK_SENSORS
-    add_full_cmd_map_katcp(m, "sensor-sampling", "configure sensor monitoring (?sensor-sampling sensor[,sensor]* [strategy [parameter]])", 0, &bulk_sampling_group_cmd_katcp, NULL, NULL);
+    add_full_cmd_map_katcp(m, "sensor-sampling", "configure sensor monitoring (?sensor-sampling sensor[,sensor]* [strategy [parameter]])", 0, &bulk_sensor_sampling_group_cmd_katcp, NULL, NULL);
 #else
     add_full_cmd_map_katcp(m, "sensor-sampling", "configure a sensor (?sensor-sampling sensor [strategy [parameter]])", 0, &sensor_sampling_group_cmd_katcp, NULL, NULL);
     add_full_cmd_map_katcp(m, "bulk-sampling", "configure several sensors (?bulk-sampling sensors+ [strategy [parameter]])", 0, &bulk_sensor_sampling_group_cmd_katcp, NULL, NULL);

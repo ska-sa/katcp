@@ -46,12 +46,11 @@ CFLAGS += -DKATCP_LOG_REQUESTS
 # probably needed by new timer sensors, as they are looked up by name
 CFLAGS += -DKATCP_UNIQUE_CLIENT_NAMES
 
-# require unique client names - otherwise collisions are permitted
-# probably needed by new timer sensors, as they are looked up by name
-CFLAGS += -DKATCP_UNIQUE_CLIENT_NAMES
+# enable manage old katcp subprocesses interface (job)
+CFLAGS += -DKATCP_SUBPROCESS
 
 # permit sensor-sampling to subscribe to multiple sensors in one go
-#CFLAGS += -DKATCP_BULK_SENSORS
+CFLAGS += -DKATCP_BULK_SENSORS
 
 # enable newer code: contains the new flat/duplex logic to replace older interface
 CFLAGS += -DKATCP_EXPERIMENTAL
