@@ -1109,7 +1109,7 @@ int sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 {
   int result;
-  char *key, *string;
+  char *key, *approach;
   struct katcp_vrbl *vx;
   struct katcp_flat *fx;
   int strategy, prior;
@@ -1140,12 +1140,12 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   strategy = (-1);
   for(back = argc - 1; back > 1; back--){
-    string = arg_string_katcp(d, back);
-    if(string == NULL){
+    approach = arg_string_katcp(d, back);
+    if(approach == NULL){
       return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_USAGE);
     }
 
-    strategy = strategy_from_string_sensor_katcp(d, string);
+    strategy = strategy_from_string_sensor_katcp(d, approach);
     if(strategy >= 0){
       break;
     }
@@ -1312,7 +1312,21 @@ int bulk_sensor_sampling_group_cmd_katcp(struct katcp_dispatch *d, int argc)
     free(key_base);
   }
 
-  return KATCP_RESULT_OK;
+  if(back > 2){
+    return KATCP_RESULT_OK;
+  }
+
+  key = arg_string_katcp(d, 1);
+  if(key == NULL){
+    return extra_response_katcp(d, KATCP_RESULT_FAIL, KATCP_FAIL_BUG);
+  }
+
+  prepend_reply_katcp(d);
+  append_string_katcp(d, KATCP_FLAG_STRING, KATCP_OK);
+  append_string_katcp(d, KATCP_FLAG_STRING, key);
+  append_string_katcp(d, KATCP_FLAG_STRING | KATCP_FLAG_LAST, approach);
+
+  return KATCP_RESULT_OWN;
 }
 
 /********************************************************************************/
