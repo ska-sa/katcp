@@ -124,7 +124,7 @@ int accept_flat_katcp(struct katcp_dispatch *d, struct katcp_arb *a, unsigned in
 
     if(kl->l_group == NULL){
       log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "group needed for accept");
-      close(fd);
+      close(nfd);
       return 0;
     }
 

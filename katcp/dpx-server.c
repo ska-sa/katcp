@@ -43,6 +43,7 @@ int config_server_flat_katcp(struct katcp_dispatch *dl, char *configfile, char *
   }
 
   if(host_port){
+    /* TODO: shouldn't we be part of a group ? we have s->s_fallback ? */
     l = create_listen_flat_katcp(dl, "init_listen", 0, host_port, NULL);
     if(l == NULL){
 #ifdef DEBUG
