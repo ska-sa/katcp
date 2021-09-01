@@ -66,6 +66,7 @@ int fixup_timestamp_katcp(char *src, char *dst, int size)
         } else {
           memcpy(dst, src, size - 1);
           dst[size - 1] = '\0';
+          return 0;
         }
       }
 

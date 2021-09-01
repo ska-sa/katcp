@@ -1492,6 +1492,9 @@ int system_info_group_cmd_katcp(struct katcp_dispatch *d, int argc)
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%d active %s", s->s_epcount, (s->s_epcount == 1) ? "endpoint" : "endpoints");
 
+  log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "%u active arbitrary %s", s->s_total, (s->s_total == 1) ? "callback" : "callbacks");
+
+
 #ifdef KATCP_HEAP_TIMERS
   th = s->s_tmr_heap;
   size = get_size_of_heap(th);
