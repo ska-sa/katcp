@@ -989,7 +989,7 @@ int process_map_flat_katcp(struct katcp_dispatch *d, struct katcp_flat *fx, int 
   if((ix == NULL) || (ix->i_call == NULL)){
     if(type == KATCP_REQUEST){
       log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "unable to handle request %s", str + 1);
-      return KATCP_RESULT_FAIL;
+      return KATCP_RESULT_INVALID;
     } else {
       log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "not registered for inform %s", str + 1);
       return KATCP_RESULT_OWN;
