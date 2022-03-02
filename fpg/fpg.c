@@ -42,6 +42,8 @@
 
 #define CONNECT_ATTEMPTS   6
 
+#define DEFAULT_PORT 7146
+
 struct ipr_state{
   int i_verbose;
   int i_fd;
@@ -592,12 +594,14 @@ int finalise_upload(struct ipr_state *ipr)
 
 void usage(char *name)
 {
-  printf("usage: %s [-n] [-s server] [-l label] [-q] [-v] [-h] file.fpg [server]\n", name);
+  printf("usage: %s [-n] [-s server] [-p port] [-l label] [-q] [-v] [-t timeout] [-h] file.fpg [server]\n", name);
   printf("-s server   connect to the given server\n");
+  printf("-p          connect via given port\n");
   printf("-q          run quietly\n");
   printf("-v          increase verbosity\n");
   printf("-h          this help\n");
   printf("-n          do not program, just run register/meta definitions\n");
+  printf("-t timeout  timeout after given value\n");
 
 }
 
@@ -611,7 +615,7 @@ int main(int argc, char **argv)
   int i, j, c;
 
   int timeout = SHORT_TIMEOUT;
-  int port = 7146;
+  int port = DEFAULT_PORT;
 
   struct ipr_state *ipr;
 
@@ -663,6 +667,7 @@ int main(int argc, char **argv)
         case 'l' :
         case 's' :
         case 't' :
+        case 'p':
 
           j++;
           if (argv[i][j] == '\0') {
@@ -683,6 +688,10 @@ int main(int argc, char **argv)
               break;
             case 't' :
               timeout = atoi(argv[i] + j);
+              break;
+            case 'p' :
+              /* rather crude - but simply overwrite DEFAULT_PORT intialised value */
+              port = atoi(argv[i] + j);
               break;
           }
 
