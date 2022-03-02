@@ -446,7 +446,7 @@ int upload_filesystem_cmd(struct katcp_dispatch *d, int argc)
 
   expected = 0;
   timeout = 0;
-  port = UPLOAD_PORT;
+  port = tr->r_upload_port;;
 
   if(argc < 3){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "need a port and file name to save data");
@@ -615,7 +615,7 @@ int upload_bin_cmd(struct katcp_dispatch *d, int argc)
 
   expected = 0;
   timeout = 0;
-  port = UPLOAD_PORT;
+  port = tr->r_upload_port;;
 
   if(argc > 1){
     port = arg_unsigned_long_katcp(d, 1);
@@ -1025,7 +1025,7 @@ int upload_program_cmd(struct katcp_dispatch *d, int argc)
 
   expected = 0;
   timeout = 0;
-  port = UPLOAD_PORT;
+  port = tr->r_upload_port;;
 
   if(argc > 1){
     port = arg_unsigned_long_katcp(d, 1);
@@ -1227,7 +1227,7 @@ int upload_cmd(struct katcp_dispatch *d, int argc)
 
   expected = 0;
   timeout = 0;
-  port = UPLOAD_PORT;
+  port = tr->r_upload_port;;
 
   if(argc > 1){
     port = arg_unsigned_long_katcp(d, 1);

@@ -38,6 +38,7 @@ void usage(char *app)
   printf("-l file          log file name\n");
   printf("-m mode          mode to enter at startup\n");
   printf("-p port          network port to listen on\n");
+  printf("-u upload-port   specify an upload port\n");
 
 }
 
@@ -47,9 +48,11 @@ int main(int argc, char **argv)
   int status;
   int i, j, c, foreground, lfd;
   char *port, *mode, *init, *lfile, *bofdir;
+  int upload_port;
   time_t now;
 
   port = "7147";
+  upload_port = TBS_DEFAULT_UPLOAD_PORT;
   mode = TBS_MODE_RAW_NAME;
   init = NULL;
   lfile = TBS_LOGFILE;
@@ -83,6 +86,7 @@ int main(int argc, char **argv)
         case 'l' :
         case 'm' :
         case 'p' :
+        case 'u' :
           j++;
           if (argv[i][j] == '\0') {
             j = 0;
@@ -106,6 +110,10 @@ int main(int argc, char **argv)
               break;
             case 'p' :
               port = argv[i] + j;
+              break;
+            case 'u' :
+              upload_port = atoi(argv[i] + j);
+              /* TODO - do better error checking for valid numeric port? strtoul perhaps?*/
               break;
           }
           i++;
@@ -137,7 +145,7 @@ int main(int argc, char **argv)
     return 1;
   }
 
-  if(setup_raw_tbs(d, bofdir, argc, argv) < 0){
+  if(setup_raw_tbs(d, bofdir, upload_port, argc, argv) < 0){
     fprintf(stderr, "%s: unable to initialise logic for raw mode\n", argv[0]);
     return 1;
   }

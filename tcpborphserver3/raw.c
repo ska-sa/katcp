@@ -2021,11 +2021,12 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
   struct bof_state *bs;
   struct tbs_raw *tr;
   char *buffer;
+  char *port;
   int len, type, status;
   struct katcp_dispatch *dl;
   struct katcp_job *j;
   struct katcp_notice *nx;
-  char *argv[3];
+  char *argv[5];
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
   if(tr == NULL){
@@ -2073,6 +2074,14 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "attempting to program %s", file);
 
+#define PORT_LEN 6    /* should be enough - max 5 digit numeric port plus null termination*/
+  port = malloc(PORT_LEN);
+  if(port == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to allocate %d bytes for port arg", PORT_LEN);
+    return KATCP_RESULT_FAIL;
+  }
+  snprintf(port, PORT_LEN, "%u", tr->r_upload_port);
+
   /* WARNING assumes failure */
   status = KATCP_RESULT_FAIL;
   type = detect_file_tbs(d, buffer, -1);
@@ -2102,8 +2111,12 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
           if(add_notice_katcp(d, nx, &upload_generic_resume_tbs, NULL) == 0){
 
             argv[0] = TBS_KCPFPG_PATH;
-            argv[1] = buffer;
-            argv[2] = NULL;
+            argv[1] = "-p";
+            argv[2] = port;
+            argv[3] = buffer;
+            argv[4] = NULL;
+
+            log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "about to launch job %s %s %s %s", argv[0], argv[1], argv[2], argv[3]);
 
             j = process_name_create_job_katcp(dl, TBS_KCPFPG_PATH, argv, nx, NULL);
             if (j){
@@ -2126,6 +2139,7 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
       break;
   }
 
+  free(port);
   free(buffer);
 
   return status;
@@ -3031,7 +3045,7 @@ int make_bofdir_tbs(struct katcp_dispatch *d, struct tbs_raw *tr, char *bofdir)
   return -1;
 }
 
-int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
+int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int upload_port, int argc, char **argv)
 {
   struct tbs_raw *tr;
   int result;
@@ -3059,6 +3073,8 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv)
 
   tr->r_top_register = 0;
   tr->r_bot_register = SIZE_MAX;
+
+  tr->r_upload_port = upload_port;
 
   tr->r_argc = argc;
   tr->r_argv = argv;

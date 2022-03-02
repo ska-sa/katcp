@@ -43,6 +43,8 @@
 #define TBS_FPGA_STATUS    "#fpga"
 #define TBS_KCPFPG_EXE     "kcpfpg"
 
+#define TBS_DEFAULT_UPLOAD_PORT   7146
+
 #define TBS_ROACH_CHASSIS  "roach2chassis"
 
 /* on a 1Gb kernel / 3G user split, this is what we can see */
@@ -50,7 +52,7 @@
 /* on a 2Gb kernel / 2G user split, we can see the full bank EPB of 128M */
 #define TBS_ROACH_FULL_MAP     (128*1024*1024)
 
-int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int argc, char **argv);
+int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int upload_port, int argc, char **argv);
 
 #include "loadbof.h"
 
@@ -221,6 +223,8 @@ struct tbs_raw
   char *r_bof_dir;
   unsigned int r_top_register;
   unsigned int r_bot_register;
+
+  int r_upload_port;
 
   int r_argc;
   char **r_argv;
