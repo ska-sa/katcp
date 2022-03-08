@@ -29,7 +29,7 @@
 void usage(char *app)
 {
   printf("Usage: %s"
-  " [-b bof-dir] [-f] [-h] [-i init-script] [-l log-file] [-m mode] [-p network-port]\n", app);
+  " [-b bof-dir] [-f] [-h] [-i init-script] [-l log-file] [-m mode] [-p network-port] [-u upload-port] [-d dev-mem-file] \n", app);
 
   printf("-b dir           directory containing bof files\n");
   printf("-f               run in foreground (default is background)\n");
@@ -39,6 +39,7 @@ void usage(char *app)
   printf("-m mode          mode to enter at startup\n");
   printf("-p port          network port to listen on\n");
   printf("-u upload-port   specify an upload port\n");
+  printf("-d dev-mem-file  specify file to map in for memory access\n");
 
 }
 
@@ -47,7 +48,7 @@ int main(int argc, char **argv)
   struct katcp_dispatch *d;
   int status;
   int i, j, c, foreground, lfd;
-  char *port, *mode, *init, *lfile, *bofdir;
+  char *port, *mode, *init, *lfile, *bofdir, *devmem;
   int upload_port;
   time_t now;
 
@@ -58,6 +59,7 @@ int main(int argc, char **argv)
   lfile = TBS_LOGFILE;
   foreground = 0;
   bofdir = NULL;
+  devmem = TBS_FPGA_MEM;
 
   i = 1;
   j = 1;
@@ -87,6 +89,7 @@ int main(int argc, char **argv)
         case 'm' :
         case 'p' :
         case 'u' :
+        case 'd' :
           j++;
           if (argv[i][j] == '\0') {
             j = 0;
@@ -114,6 +117,9 @@ int main(int argc, char **argv)
             case 'u' :
               upload_port = atoi(argv[i] + j);
               /* TODO - do better error checking for valid numeric port? strtoul perhaps?*/
+              break;
+            case 'd' :
+              devmem = argv[i] + j;
               break;
           }
           i++;
@@ -145,7 +151,7 @@ int main(int argc, char **argv)
     return 1;
   }
 
-  if(setup_raw_tbs(d, bofdir, upload_port, argc, argv) < 0){
+  if(setup_raw_tbs(d, bofdir, devmem, upload_port, argc, argv) < 0){
     fprintf(stderr, "%s: unable to initialise logic for raw mode\n", argv[0]);
     return 1;
   }

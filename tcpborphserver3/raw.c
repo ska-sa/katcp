@@ -1927,7 +1927,7 @@ int finalise_cmd(struct katcp_dispatch *d, int argc)
   switch(tr->r_fpga){
     case TBS_FPGA_PROGRAMMED :
       if(map_raw_tbs(d) < 0){
-        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to map %s", TBS_FPGA_MEM);
+        log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to map %s", tr->r_devmem);
         return KATCP_RESULT_FAIL;
       }
       status_fpga_tbs(d, TBS_FPGA_MAPPED);
@@ -2732,16 +2732,16 @@ int map_raw_tbs(struct katcp_dispatch *d)
 
 #endif
 
-  fd = open(TBS_FPGA_MEM, O_RDWR);
+  fd = open(tr->r_devmem, O_RDWR);
   if(fd < 0){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to open file %s: %s", TBS_FPGA_MEM, strerror(errno));
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to open file %s: %s", tr->r_devmem, strerror(errno));
     return -1;
   }
 
   tr->r_map = mmap(NULL, tr->r_map_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, tr->r_map_offset);
 
   if(tr->r_map == MAP_FAILED){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to map file %s: %s", TBS_FPGA_MEM, strerror(errno));
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to map file %s: %s", tr->r_devmem, strerror(errno));
     close(fd);
     return -1;
   }
@@ -2853,7 +2853,7 @@ int start_fpg_tbs(struct katcp_dispatch *d)
   tr->r_top_register = infer_fpga_range(d);
 
   if(map_raw_tbs(d) < 0){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to map %s", TBS_FPGA_MEM);
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to map %s", tr->r_devmem);
     return -1;
   }
 #endif
@@ -3045,7 +3045,7 @@ int make_bofdir_tbs(struct katcp_dispatch *d, struct tbs_raw *tr, char *bofdir)
   return -1;
 }
 
-int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int upload_port, int argc, char **argv)
+int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, char *devmem, int upload_port, int argc, char **argv)
 {
   struct tbs_raw *tr;
   int result;
@@ -3064,6 +3064,12 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int upload_port, int a
 #endif
   tr->r_fpga = TBS_FPGA_DOWN;
   tr->r_clobber = 0;
+
+  if (NULL == devmem){
+    destroy_raw_tbs(d, tr);
+    return -1;
+  }
+  tr->r_devmem = devmem;
 
   tr->r_map = NULL;
   tr->r_map_size = 0;

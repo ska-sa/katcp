@@ -52,7 +52,7 @@
 /* on a 2Gb kernel / 2G user split, we can see the full bank EPB of 128M */
 #define TBS_ROACH_FULL_MAP     (128*1024*1024)
 
-int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, int upload_port, int argc, char **argv);
+int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, char *devmem, int upload_port, int argc, char **argv);
 
 #include "loadbof.h"
 
@@ -214,6 +214,8 @@ struct tbs_raw
   struct avl_tree *r_hwmon; /* only used if INTERNAL_HWMON set */
   int r_fpga;
   int r_clobber;
+
+  char *r_devmem;
 
   void *r_map;
   unsigned int r_map_size;

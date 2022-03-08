@@ -53,7 +53,7 @@ CFLAGS += -DKATCP_SUBPROCESS
 CFLAGS += -DKATCP_BULK_SENSORS
 
 # enable newer code: contains the new flat/duplex logic to replace older interface
-CFLAGS += -DKATCP_EXPERIMENTAL
+#CFLAGS += -DKATCP_EXPERIMENTAL
 # enable even more experimental code: switch to new duplex logic by default: will break users of job interface and nonsense
 #CFLAGS += -DKATCP_EXPERIMENTAL=2
 
