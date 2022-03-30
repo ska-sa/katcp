@@ -32,7 +32,11 @@ clean:
 	$(CC) $(CFLAGS) -c $< -o $@ $(INC)
 
 install: all
+	$(INSTALL) -d $(PREFIX)/sbin
 	$(INSTALL) $(SERVER) $(PREFIX)/sbin
+
+uninstall:
+	$(RM) $(PREFIX)/sbin/$(SERVER)
 
 test-bof: bof.c 
 	$(CC) $(CFLAGS) -DSTANDALONE -o $@ $^ -I../katcp

@@ -26,3 +26,6 @@ clean:
 install: all
 	$(INSTALL) -d $(PREFIX)
 	$(INSTALL) $(EXE) $(PREFIX)/bin
+
+uninstall:
+	$(RM) $(PREFIX)/bin/$(EXE)
