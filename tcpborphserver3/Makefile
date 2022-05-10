@@ -1,6 +1,7 @@
 KATCP ?= ../katcp
 
 include ../Makefile.inc
+include Makefile.platform
 
 INC = -I$(KATCP)
 #LIB = -L$(KATCP) -lkatcp -ldl -lz -lmagic

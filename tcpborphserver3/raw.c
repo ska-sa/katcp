@@ -2022,11 +2022,12 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
   struct tbs_raw *tr;
   char *buffer;
   char *port;
+  char *server;
   int len, type, status;
   struct katcp_dispatch *dl;
   struct katcp_job *j;
   struct katcp_notice *nx;
-  char *argv[5];
+  char *argv[6];
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
   if(tr == NULL){
@@ -2074,13 +2075,21 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "attempting to program %s", file);
 
-#define PORT_LEN 6    /* should be enough - max 5 digit numeric port plus null termination*/
-  port = malloc(PORT_LEN);
+#define UPLOAD_PORT_LEN 6    /* should be enough - max 5 digit numeric port plus null termination*/
+  port = malloc(UPLOAD_PORT_LEN);
   if(port == NULL){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to allocate %d bytes for port arg", PORT_LEN);
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to allocate %d bytes for port arg", UPLOAD_PORT_LEN);
     return KATCP_RESULT_FAIL;
   }
-  snprintf(port, PORT_LEN, "%u", tr->r_upload_port);
+  snprintf(port, UPLOAD_PORT_LEN, "%u", tr->r_upload_port);
+
+#define SVR_LEN	30	/* should be sufficient space (TODO) */
+  server = malloc(SVR_LEN);
+  if(server == NULL){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to allocate %d bytes for server arg", SVR_LEN);
+    return KATCP_RESULT_FAIL;
+  }
+  snprintf(server, SVR_LEN, "localhost:%u", tr->r_svr_listen_port);
 
   /* WARNING assumes failure */
   status = KATCP_RESULT_FAIL;
@@ -2112,11 +2121,12 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
 
             argv[0] = TBS_KCPFPG_PATH;
             argv[1] = "-p";
-            argv[2] = port;
+            argv[2] = port;      /* port for server upload interface*/
             argv[3] = buffer;
-            argv[4] = NULL;
+            argv[4] = server;    /* server client connection interface */
+            argv[5] = NULL;
 
-            log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "about to launch job %s %s %s %s", argv[0], argv[1], argv[2], argv[3]);
+            log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "about to launch job %s %s %s %s %s", argv[0], argv[1], argv[2], argv[3], argv[4]);
 
             j = process_name_create_job_katcp(dl, TBS_KCPFPG_PATH, argv, nx, NULL);
             if (j){
@@ -2140,6 +2150,7 @@ int progdev_cmd(struct katcp_dispatch *d, int argc)
   }
 
   free(port);
+  free(server);
   free(buffer);
 
   return status;
@@ -2757,6 +2768,7 @@ int stop_fpga_tbs(struct katcp_dispatch *d)
 {
   struct tbs_raw *tr;
   int dfd, result;
+  char *devcfg;
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
   if(tr == NULL){
@@ -2779,14 +2791,20 @@ int stop_fpga_tbs(struct katcp_dispatch *d)
   if(tr->r_fpga == TBS_FPGA_PROGRAMMED){
     log_message_katcp(d, KATCP_LEVEL_DEBUG, NULL, "should deprogram fpga");
 
+    if (tr->r_devcfg != NULL){
+      devcfg = tr->r_devcfg;
+    } else {
+      devcfg = TBS_FPGA_CONFIG;
+    }
+
 #ifdef __PPC__
-    dfd = open(TBS_FPGA_CONFIG, O_WRONLY);
+    dfd = open(devcfg, O_WRONLY);
 #else
     /* for debugging */
-    dfd = open(TBS_FPGA_CONFIG, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    dfd = open(devcfg, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 #endif
     if(dfd < 0){
-      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to open %s: %s", TBS_FPGA_CONFIG, strerror(errno));
+      log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to open %s: %s", devcfg, strerror(errno));
       result = (-1);
     } else {
       status_fpga_tbs(d, TBS_FPGA_DOWN);
@@ -2891,6 +2909,7 @@ int start_fpg_tbs(struct katcp_dispatch *d)
 int start_bof_tbs(struct katcp_dispatch *d, struct bof_state *bs)
 {
   struct tbs_raw *tr;
+  char *devcfg;
 
   tr = get_mode_katcp(d, TBS_MODE_RAW);
   if(tr == NULL){
@@ -2909,8 +2928,14 @@ int start_bof_tbs(struct katcp_dispatch *d, struct bof_state *bs)
     return -1;
   }
 
-  if(program_bof(d, bs, TBS_FPGA_CONFIG) < 0){
-    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to program bit stream to %s", TBS_FPGA_CONFIG);
+  if (tr->r_devcfg){
+    devcfg = tr->r_devcfg;
+  } else {
+    devcfg = TBS_FPGA_CONFIG;
+  }
+
+  if(program_bof(d, bs, devcfg) < 0){
+    log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to program bit stream to %s", devcfg);
     return -1;
   }
 
@@ -3045,7 +3070,7 @@ int make_bofdir_tbs(struct katcp_dispatch *d, struct tbs_raw *tr, char *bofdir)
   return -1;
 }
 
-int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, char *devmem, int upload_port, int argc, char **argv)
+int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, char *devmem, char *devcfg, int upload_port, int svr_listen_port, int argc, char **argv)
 {
   struct tbs_raw *tr;
   int result;
@@ -3071,6 +3096,14 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, char *devmem, int uplo
   }
   tr->r_devmem = devmem;
 
+  /*TODO here we could also just fallback to the default value if NULL is passed in... (?) for both devmem and devcfg*/
+
+  if (NULL == devcfg){
+    destroy_raw_tbs(d, tr);
+    return -1;
+  }
+  tr->r_devcfg = devcfg;
+
   tr->r_map = NULL;
   tr->r_map_size = 0;
 
@@ -3081,6 +3114,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, char *devmem, int uplo
   tr->r_bot_register = SIZE_MAX;
 
   tr->r_upload_port = upload_port;
+  tr->r_svr_listen_port = svr_listen_port;
 
   tr->r_argc = argc;
   tr->r_argv = argv;
@@ -3147,9 +3181,11 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, char *devmem, int uplo
 
   result += register_flag_mode_katcp(d, "?finalise",     "mark register definitions as complete (?finalise)", &finalise_cmd, 0, TBS_MODE_RAW);
 
+#ifndef __ALVEO__
   result += register_flag_mode_katcp(d, "?phyprog",      "programs firmware onto phy chip on mezzanine card (?phyprog mezzanine_card phy_number [file <filename>] [force])", &phy_prog_cmd, 0, TBS_MODE_RAW);
 
   result += register_flag_mode_katcp(d, "?phywatch",     "returns the watchdog counter value of phy chip on mezzanine card (?phywatch mezzanine_card phy_number)", &phy_watchdog_cmd, 0, TBS_MODE_RAW);
+#endif
 
   /* upload, not program */
   result += register_flag_mode_katcp(d, "?uploadbof",    "compatebility alias for ?saveremote (?uploadbof port filename [length [timeout]])", &upload_filesystem_cmd, 0, TBS_MODE_RAW);
@@ -3186,6 +3222,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, char *devmem, int uplo
   result += register_flag_mode_katcp(d, "?listbof",      "display available bof files (?listbof)", &listbof_cmd, 0, TBS_MODE_RAW);
   result += register_flag_mode_katcp(d, "?delbof",       "deletes a gateware image (?delbof image-file)", &delbof_cmd, 0, TBS_MODE_RAW);
 
+#ifndef __ALVEO__
   result += register_flag_mode_katcp(d, "?tap-start",    "start a tap instance (?tap-start (?tap-start tap-device register-name ip-address [port [mac [gateway]]])", &tap_start_cmd, 0, TBS_MODE_RAW);
   result += register_flag_mode_katcp(d, "?tap-stop",     "deletes a tap instance (?tap-stop register-name)", &tap_stop_cmd, 0, TBS_MODE_RAW);
 
@@ -3210,6 +3247,7 @@ int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, char *devmem, int uplo
     hook_commands_katcp(d, KATCP_HOOK_PRE, &pre_hook_led_cmd);
     hook_commands_katcp(d, KATCP_HOOK_POST, &post_hook_led_cmd);
   }
+#endif
 
   return result;
 }

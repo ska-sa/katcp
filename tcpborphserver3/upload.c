@@ -597,6 +597,7 @@ int upload_bin_cmd(struct katcp_dispatch *d, int argc)
   unsigned int port, timeout, expected;
   struct tbs_raw *tr;
   struct katcp_notice *nx;
+  char *devcfg;
 
   dl = template_shared_katcp(d);
   if(dl == NULL){
@@ -633,7 +634,14 @@ int upload_bin_cmd(struct katcp_dispatch *d, int argc)
     }
   }
 
-  nx = find_notice_katcp(d, TBS_FPGA_CONFIG);
+  if (tr->r_devcfg){
+    devcfg = tr->r_devcfg;
+  } else {
+    devcfg = TBS_FPGA_CONFIG;
+    /* should we even allow things to continue here - questionable ?*/
+  }
+
+  nx = find_notice_katcp(d, devcfg);
   if(nx){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "another upload already seems in progress, halting this attempt");
     return KATCP_RESULT_FAIL;
@@ -644,14 +652,14 @@ int upload_bin_cmd(struct katcp_dispatch *d, int argc)
     return KATCP_RESULT_FAIL;
   }
 
-  nx = create_notice_katcp(d, TBS_FPGA_CONFIG, 0);
+  nx = create_notice_katcp(d, devcfg, 0);
   if(nx == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "unable to create notification logic to trigger when upload completes");
     return KATCP_RESULT_FAIL;
   }
 
   /* program set to 0 as we want to disable pd->t_program logic */
-  pd = create_port_data_tbs(d, TBS_FPGA_CONFIG, port, 1, expected, timeout, TBS_FORMAT_BIN, TBS_DEL_NEVER);
+  pd = create_port_data_tbs(d, devcfg, port, 1, expected, timeout, TBS_FORMAT_BIN, TBS_DEL_NEVER);
 
   if (pd == NULL){
     log_message_katcp(d, KATCP_LEVEL_ERROR, NULL, "could not create port data for bitstream upload");

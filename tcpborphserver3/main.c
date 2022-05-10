@@ -29,7 +29,7 @@
 void usage(char *app)
 {
   printf("Usage: %s"
-  " [-b bof-dir] [-f] [-h] [-i init-script] [-l log-file] [-m mode] [-p network-port] [-u upload-port] [-d dev-mem-file] \n", app);
+  " [-b bof-dir] [-f] [-h] [-i init-script] [-l log-file] [-m mode] [-p network-port] [-u upload-port] [-d dev-mem-file] [-c dev-cfg-file]\n", app);
 
   printf("-b dir           directory containing bof files\n");
   printf("-f               run in foreground (default is background)\n");
@@ -40,6 +40,7 @@ void usage(char *app)
   printf("-p port          network port to listen on\n");
   printf("-u upload-port   specify an upload port\n");
   printf("-d dev-mem-file  specify file to map in for memory access\n");
+  printf("-c dev-cfg-file  specify file to map in for config\n");
 
 }
 
@@ -48,8 +49,8 @@ int main(int argc, char **argv)
   struct katcp_dispatch *d;
   int status;
   int i, j, c, foreground, lfd;
-  char *port, *mode, *init, *lfile, *bofdir, *devmem;
-  int upload_port;
+  char *port, *mode, *init, *lfile, *bofdir, *devmem, *devcfg;
+  int upload_port, svr_listen_port;
   time_t now;
 
   port = "7147";
@@ -60,6 +61,7 @@ int main(int argc, char **argv)
   foreground = 0;
   bofdir = NULL;
   devmem = TBS_FPGA_MEM;
+  devcfg = TBS_FPGA_CONFIG;
 
   i = 1;
   j = 1;
@@ -90,6 +92,7 @@ int main(int argc, char **argv)
         case 'p' :
         case 'u' :
         case 'd' :
+        case 'c' :
           j++;
           if (argv[i][j] == '\0') {
             j = 0;
@@ -121,6 +124,9 @@ int main(int argc, char **argv)
             case 'd' :
               devmem = argv[i] + j;
               break;
+            case 'c' :
+              devcfg = argv[i] + j;
+              break;
           }
           i++;
           j = 1;
@@ -151,7 +157,10 @@ int main(int argc, char **argv)
     return 1;
   }
 
-  if(setup_raw_tbs(d, bofdir, devmem, upload_port, argc, argv) < 0){
+  svr_listen_port = atoi(port);
+  /* TODO some error checking ? */
+
+  if(setup_raw_tbs(d, bofdir, devmem, devcfg, upload_port, svr_listen_port, argc, argv) < 0){
     fprintf(stderr, "%s: unable to initialise logic for raw mode\n", argv[0]);
     return 1;
   }
