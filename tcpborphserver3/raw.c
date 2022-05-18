@@ -2470,6 +2470,8 @@ int register_cmd(struct katcp_dispatch *d, int argc)
   }
 
   entry.e_pos_base = strtoul(position, &end, 0);
+  entry.e_pos_base += TBS_ALVEO_DSP_REG_OFFSET;
+
   if(*end == ':'){
     extra = end + 1;
     entry.e_pos_offset = strtoul(extra, NULL, 0);
@@ -2735,7 +2737,8 @@ int map_raw_tbs(struct katcp_dispatch *d)
   tr->r_top_register = (tr->r_top_register + page - 1) & (~(page - 1));
 
   tr->r_map_size = tr->r_top_register - tr->r_bot_register;
-  tr->r_map_offset = tr->r_bot_register;
+  //tr->r_map_offset = tr->r_bot_register;
+  tr->r_map_offset = TBS_ALVEO_DSP_REG_OFFSET;
 
   log_message_katcp(d, KATCP_LEVEL_INFO, NULL, "mapping area 0x%08x at 0x%x", tr->r_map_size, tr->r_map_offset);
 
