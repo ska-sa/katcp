@@ -52,7 +52,8 @@
 /* on a 2Gb kernel / 2G user split, we can see the full bank EPB of 128M */
 #define TBS_ROACH_FULL_MAP     (128*1024*1024)
 
-#define TBS_ALVEO_DSP_REG_OFFSET  0x40000
+//#define TBS_ALVEO_DSP_REG_OFFSET  0x40000
+#define TBS_ALVEO_DSP_REG_OFFSET  0x8000000
 
 int setup_raw_tbs(struct katcp_dispatch *d, char *bofdir, char *devmem, char *devcfg, int upload_port, int svr_listen_port, int argc, char **argv);
 
